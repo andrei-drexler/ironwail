@@ -73,6 +73,36 @@ extern cvar_t gyro_turning_axis;
 extern cvar_t gyro_pitchsensitivity;
 extern cvar_t gyro_yawsensitivity;
 extern cvar_t gyro_noise_thresh;
+extern cvar_t joy_led_enable;
+extern cvar_t joy_led_r;
+extern cvar_t joy_led_g;
+extern cvar_t joy_led_b;
+extern cvar_t joy_ds_rt_mode;
+extern cvar_t joy_ds_rt_startpos;
+extern cvar_t joy_ds_rt_endpos;
+extern cvar_t joy_ds_rt_strength;
+extern cvar_t joy_ds_rt_snapforce;
+extern cvar_t joy_ds_rt_frequency;
+extern cvar_t joy_ds_rt_period;
+extern cvar_t joy_ds_rt_gallop_firstfoot;
+extern cvar_t joy_ds_rt_gallop_secondfoot;
+extern cvar_t joy_ds_rt_amplitude_a;
+extern cvar_t joy_ds_rt_amplitude_b;
+extern cvar_t joy_ds_rt_slope_start;
+extern cvar_t joy_ds_rt_slope_end;
+extern cvar_t joy_ds_lt_mode;
+extern cvar_t joy_ds_lt_startpos;
+extern cvar_t joy_ds_lt_endpos;
+extern cvar_t joy_ds_lt_strength;
+extern cvar_t joy_ds_lt_snapforce;
+extern cvar_t joy_ds_lt_frequency;
+extern cvar_t joy_ds_lt_period;
+extern cvar_t joy_ds_lt_gallop_firstfoot;
+extern cvar_t joy_ds_lt_gallop_secondfoot;
+extern cvar_t joy_ds_lt_amplitude_a;
+extern cvar_t joy_ds_lt_amplitude_b;
+extern cvar_t joy_ds_lt_slope_start;
+extern cvar_t joy_ds_lt_slope_end;
 
 extern char crosshair_char;
 
@@ -3169,6 +3199,12 @@ void M_Calibration_Key (int key)
 #define MAX_GYRO_SENS			8.f
 #define MIN_GYRO_NOISE_THRESH	0.f
 #define MAX_GYRO_NOISE_THRESH	5.f
+#define MIN_DS_EFFECT			0.f
+#define MAX_DS_EFFECT			9.f
+#define MIN_DS_STRENGTH			1.f
+#define MAX_DS_STRENGTH			8.f
+#define MIN_DS_FREQ_PERIOD		0.f
+#define MAX_DS_FREQ_PERIOD		255.f
 
 /*
 ================
@@ -3277,6 +3313,49 @@ void M_Menu_Gamepad_f (void)
 	def(GPAD_OPT_GYROSENSY,		"Gyro Pitch Speed")	\
 	def(GPAD_OPT_GYRONOISE,		"Gyro Noise Thresh")\
 	def(GPAD_OPT_CALIBRATE,		"Calibrate")		\
+													\
+	def(GPAD_OPT_SPACE6,		"")					\
+													\
+	def(GPAD_OPT_LEDENABLE,		"LED")				\
+	def(GPAD_OPT_LEDR,			"LED Red")			\
+	def(GPAD_OPT_LEDG,			"LED Green")		\
+	def(GPAD_OPT_LEDB,			"LED Blue")			\
+													\
+	def(GPAD_OPT_SPACE7,		"")					\
+													\
+	def(GPAD_OPT_DS_TITLEHACK,	"")					\
+													\
+	def(GPAD_OPT_SPACE8,		"")					\
+													\
+	def(GPAD_OPT_RT_MODE,		"RT Mode")			\
+	def(GPAD_OPT_RT_STRENGTH,	"RT Strength")		\
+	def(GPAD_OPT_RT_START,		"RT Effect Start")	\
+	def(GPAD_OPT_RT_END,		"RT Effect End")	\
+	def(GPAD_OPT_RT_SLOPE1,		"RT Slope Start")	\
+	def(GPAD_OPT_RT_SLOPE2,		"RT Slope End")		\
+	def(GPAD_OPT_RT_FREQ,		"RT Frequency")		\
+	def(GPAD_OPT_RT_SNAP,		"RT Snap Force")	\
+	def(GPAD_OPT_RT_GALLOP1,	"RT First Gallop")	\
+	def(GPAD_OPT_RT_GALLOP2,	"RT Second Gallop")	\
+	def(GPAD_OPT_RT_PERIOD,		"RT Period")		\
+	def(GPAD_OPT_RT_AMP_A,		"RT Amplitude A")	\
+	def(GPAD_OPT_RT_AMP_B,		"RT Amplitude B")	\
+													\
+	def(GPAD_OPT_SPACE9,		"")					\
+													\
+	def(GPAD_OPT_LT_MODE,		"LT Mode")			\
+	def(GPAD_OPT_LT_STRENGTH,	"LT Strength")		\
+	def(GPAD_OPT_LT_START,		"LT Effect Start")	\
+	def(GPAD_OPT_LT_END,		"LT Effect End")	\
+	def(GPAD_OPT_LT_SLOPE1,		"LT Slope Start")	\
+	def(GPAD_OPT_LT_SLOPE2,		"LT Slope End")		\
+	def(GPAD_OPT_LT_SNAP,		"LT Snap Force")	\
+	def(GPAD_OPT_LT_FREQ,		"LT Frequency")		\
+	def(GPAD_OPT_LT_GALLOP1,	"LT First Gallop")	\
+	def(GPAD_OPT_LT_GALLOP2,	"LT Second Gallop")	\
+	def(GPAD_OPT_LT_PERIOD,		"LT Period")		\
+	def(GPAD_OPT_LT_AMP_A,		"LT Amplitude A")	\
+	def(GPAD_OPT_LT_AMP_B,		"LT Amplitude B")	\
 ////////////////////////////////////////////////////
 
 enum
@@ -3297,12 +3376,28 @@ enum
 	#undef COUNT_OPTION
 
 	GYRO_OPTIONS_FIRST		= GPAD_OPT_GYROENABLE,
-	GYRO_OPTIONS_ITEMS		= GPAD_OPTIONS_FIRST + GPAD_OPTIONS_ITEMS - GYRO_OPTIONS_FIRST,
+	GYRO_OPTIONS_LAST		= GPAD_OPT_CALIBRATE,
+
+	LED_OPTIONS_FIRST		= GPAD_OPT_LEDENABLE,
+	LED_OPTIONS_LAST		= GPAD_OPT_LEDB,
+
+	DS_OPTIONS_FIRST		= GPAD_OPT_DS_TITLEHACK,
+	DS_OPTIONS_LAST			= GPAD_OPT_LT_AMP_B,
 };
 
 static qboolean M_Options_IsGyroId (int id)
 {
-	return (unsigned int)(id - GYRO_OPTIONS_FIRST) < GYRO_OPTIONS_ITEMS;
+	return (unsigned int)(id - GYRO_OPTIONS_FIRST) <= (GYRO_OPTIONS_LAST - GYRO_OPTIONS_FIRST);
+}
+
+static qboolean M_Options_IsLEDId (int id)
+{
+	return (unsigned int)(id - LED_OPTIONS_FIRST) <= (LED_OPTIONS_LAST - LED_OPTIONS_FIRST);
+}
+
+static qboolean M_Options_IsDSId (int id)
+{
+	return (unsigned int)(id - DS_OPTIONS_FIRST) <= (DS_OPTIONS_LAST - DS_OPTIONS_FIRST);
 }
 
 static const char *const options_names[] =
@@ -3402,8 +3497,52 @@ static qboolean M_Options_IsEnabled (int index)
 	{
 		if (!IN_HasGyro ())
 			return false;
-		if (!gyro_enable.value && index > GYRO_OPTIONS_FIRST)
+		if (!gyro_enable.value && index > GYRO_OPTIONS_FIRST && index <= GYRO_OPTIONS_LAST)
 			return false;
+	}
+	if (M_Options_IsLEDId (index))
+	{
+		if (!IN_HasLED ())
+			return false;
+		if (!joy_led_enable.value && index > LED_OPTIONS_FIRST && index <= LED_OPTIONS_LAST)
+			return false;
+	}
+	if (M_Options_IsDSId (index))
+	{
+		if (!IN_HasAdaptiveTriggers ())
+			return false;
+		int rt_mode = joy_ds_rt_mode.value;
+		int lt_mode = joy_ds_lt_mode.value;
+		const int case_strength = (1 << DS_TRIGGER_WEAPON) | (1 << DS_TRIGGER_FEEDBACK) | (1 << DS_TRIGGER_VIBRATION) | (1 << DS_TRIGGER_BOW);
+		const int case_end = ~((1 << DS_TRIGGER_FEEDBACK) | (1 << DS_TRIGGER_VIBRATION));
+		const int case_freq = (1 << DS_TRIGGER_VIBRATION) | (1 << DS_TRIGGER_GALLOPING) | (1 << DS_TRIGGER_MACHINE);
+		switch (index)
+		{
+			case GPAD_OPT_RT_STRENGTH: return (1 << rt_mode) & case_strength;
+			case GPAD_OPT_RT_START: return rt_mode;
+			case GPAD_OPT_RT_END: return rt_mode && ((1 << rt_mode) & case_end);
+			case GPAD_OPT_RT_SLOPE1: return rt_mode == DS_TRIGGER_SLOPE;
+			case GPAD_OPT_RT_SLOPE2: return rt_mode == DS_TRIGGER_SLOPE;
+			case GPAD_OPT_RT_FREQ: return (1 << rt_mode) & case_freq;
+			case GPAD_OPT_RT_SNAP: return rt_mode == DS_TRIGGER_BOW;
+			case GPAD_OPT_RT_GALLOP1: return rt_mode == DS_TRIGGER_GALLOPING;
+			case GPAD_OPT_RT_GALLOP2: return rt_mode == DS_TRIGGER_GALLOPING;
+			case GPAD_OPT_RT_PERIOD: return rt_mode == DS_TRIGGER_MACHINE;
+			case GPAD_OPT_RT_AMP_A: return rt_mode == DS_TRIGGER_MACHINE;
+			case GPAD_OPT_RT_AMP_B: return rt_mode == DS_TRIGGER_MACHINE;
+			case GPAD_OPT_LT_STRENGTH: return (1 << lt_mode) & case_strength;
+			case GPAD_OPT_LT_START: return lt_mode;
+			case GPAD_OPT_LT_END: return lt_mode && ((1 << lt_mode) & case_end);
+			case GPAD_OPT_LT_SLOPE1: return lt_mode == DS_TRIGGER_SLOPE;
+			case GPAD_OPT_LT_SLOPE2: return lt_mode == DS_TRIGGER_SLOPE;
+			case GPAD_OPT_LT_FREQ: return (1 << lt_mode) & case_freq;
+			case GPAD_OPT_LT_SNAP: return lt_mode == DS_TRIGGER_BOW;
+			case GPAD_OPT_LT_GALLOP1: return lt_mode == DS_TRIGGER_GALLOPING;
+			case GPAD_OPT_LT_GALLOP2: return lt_mode == DS_TRIGGER_GALLOPING;
+			case GPAD_OPT_LT_PERIOD: return lt_mode == DS_TRIGGER_MACHINE;
+			case GPAD_OPT_LT_AMP_A: return lt_mode == DS_TRIGGER_MACHINE;
+			case GPAD_OPT_LT_AMP_B: return lt_mode == DS_TRIGGER_MACHINE;
+		}
 	}
 	return true;
 }
@@ -3787,6 +3926,96 @@ void M_AdjustSliders (int dir)
 	case GPAD_OPT_CALIBRATE:
 		M_Menu_Calibration_f ();
 		break;
+	case GPAD_OPT_LEDENABLE:
+		Cvar_SetValueQuick (&joy_led_enable, !joy_led_enable.value);
+		break;
+	case GPAD_OPT_LEDR:
+		Cvar_SetValueQuick (&joy_led_r, CLAMP (0.f, joy_led_r.value + dir * .05f, 1.f));
+		break;
+	case GPAD_OPT_LEDG:
+		Cvar_SetValueQuick (&joy_led_g, CLAMP (0.f, joy_led_g.value + dir * .05f, 1.f));
+		break;
+	case GPAD_OPT_LEDB:
+		Cvar_SetValueQuick (&joy_led_b, CLAMP (0.f, joy_led_b.value + dir * .05f, 1.f));
+		break;
+	case GPAD_OPT_RT_MODE:
+		Cvar_SetValueQuick (&joy_ds_rt_mode, (int)(q_max (joy_ds_rt_mode.value, 0.f) + DS_TRIGGER_COUNT + dir) % DS_TRIGGER_COUNT);
+		break;
+	case GPAD_OPT_RT_STRENGTH:
+		Cvar_SetValueQuick (&joy_ds_rt_strength, CLAMP (MIN_DS_STRENGTH, joy_ds_rt_strength.value + dir, MAX_DS_STRENGTH));
+		break;
+	case GPAD_OPT_RT_START:
+		Cvar_SetValueQuick (&joy_ds_rt_startpos, CLAMP (MIN_DS_EFFECT, joy_ds_rt_startpos.value + dir, MAX_DS_EFFECT));
+		break;
+	case GPAD_OPT_RT_END:
+		Cvar_SetValueQuick (&joy_ds_rt_endpos, CLAMP (MIN_DS_EFFECT, joy_ds_rt_endpos.value + dir, MAX_DS_EFFECT));
+		break;
+	case GPAD_OPT_RT_SLOPE1:
+		Cvar_SetValueQuick (&joy_ds_rt_slope_start, CLAMP (MIN_DS_EFFECT, joy_ds_rt_slope_start.value + dir, MAX_DS_EFFECT));
+		break;
+	case GPAD_OPT_RT_SLOPE2:
+		Cvar_SetValueQuick (&joy_ds_rt_slope_end, CLAMP (MIN_DS_EFFECT, joy_ds_rt_slope_end.value + dir, MAX_DS_EFFECT));
+		break;
+	case GPAD_OPT_RT_FREQ:
+		Cvar_SetValueQuick (&joy_ds_rt_frequency, CLAMP (MIN_DS_FREQ_PERIOD, joy_ds_rt_frequency.value + dir * 17.f, MAX_DS_FREQ_PERIOD));
+		break;
+	case GPAD_OPT_RT_SNAP:
+		Cvar_SetValueQuick (&joy_ds_rt_snapforce, CLAMP (MIN_DS_EFFECT, joy_ds_rt_snapforce.value + dir, MAX_DS_EFFECT));
+		break;
+	case GPAD_OPT_RT_GALLOP1:
+		Cvar_SetValueQuick (&joy_ds_rt_gallop_firstfoot, CLAMP (MIN_DS_EFFECT, joy_ds_rt_gallop_firstfoot.value + dir, MAX_DS_EFFECT));
+		break;
+	case GPAD_OPT_RT_GALLOP2:
+		Cvar_SetValueQuick (&joy_ds_rt_gallop_secondfoot, CLAMP (MIN_DS_EFFECT, joy_ds_rt_gallop_secondfoot.value + dir, MAX_DS_EFFECT));
+		break;
+	case GPAD_OPT_RT_PERIOD:
+		Cvar_SetValueQuick (&joy_ds_rt_period, CLAMP (MIN_DS_FREQ_PERIOD, joy_ds_rt_period.value + dir * 17.f, MAX_DS_FREQ_PERIOD));
+		break;
+	case GPAD_OPT_RT_AMP_A:
+		Cvar_SetValueQuick (&joy_ds_rt_amplitude_a, CLAMP (MIN_DS_EFFECT, joy_ds_rt_amplitude_a.value + dir, MAX_DS_EFFECT));
+		break;
+	case GPAD_OPT_RT_AMP_B:
+		Cvar_SetValueQuick (&joy_ds_rt_amplitude_b, CLAMP (MIN_DS_EFFECT, joy_ds_rt_amplitude_b.value + dir, MAX_DS_EFFECT));
+		break;
+	case GPAD_OPT_LT_MODE:
+		Cvar_SetValueQuick (&joy_ds_lt_mode, (int)(q_max (joy_ds_lt_mode.value, 0.f) + DS_TRIGGER_COUNT + dir) % DS_TRIGGER_COUNT);
+		break;
+	case GPAD_OPT_LT_STRENGTH:
+		Cvar_SetValueQuick (&joy_ds_lt_strength, CLAMP (MIN_DS_STRENGTH, joy_ds_lt_strength.value + dir, MAX_DS_STRENGTH));
+		break;
+	case GPAD_OPT_LT_START:
+		Cvar_SetValueQuick (&joy_ds_lt_startpos, CLAMP (MIN_DS_EFFECT, joy_ds_lt_startpos.value + dir, MAX_DS_EFFECT));
+		break;
+	case GPAD_OPT_LT_END:
+		Cvar_SetValueQuick (&joy_ds_lt_endpos, CLAMP (MIN_DS_EFFECT, joy_ds_lt_endpos.value + dir, MAX_DS_EFFECT));
+		break;
+	case GPAD_OPT_LT_SLOPE1:
+		Cvar_SetValueQuick (&joy_ds_lt_slope_start, CLAMP (MIN_DS_EFFECT, joy_ds_lt_slope_start.value + dir, MAX_DS_EFFECT));
+		break;
+	case GPAD_OPT_LT_SLOPE2:
+		Cvar_SetValueQuick (&joy_ds_lt_slope_end, CLAMP (MIN_DS_EFFECT, joy_ds_lt_slope_end.value + dir, MAX_DS_EFFECT));
+		break;
+	case GPAD_OPT_LT_FREQ:
+		Cvar_SetValueQuick (&joy_ds_lt_frequency, CLAMP (MIN_DS_FREQ_PERIOD, joy_ds_lt_frequency.value + dir * 17.f, MAX_DS_FREQ_PERIOD));
+		break;
+	case GPAD_OPT_LT_SNAP:
+		Cvar_SetValueQuick (&joy_ds_lt_snapforce, CLAMP (MIN_DS_EFFECT, joy_ds_lt_snapforce.value + dir, MAX_DS_EFFECT));
+		break;
+	case GPAD_OPT_LT_GALLOP1:
+		Cvar_SetValueQuick (&joy_ds_lt_gallop_firstfoot, CLAMP (MIN_DS_EFFECT, joy_ds_lt_gallop_firstfoot.value + dir, MAX_DS_EFFECT));
+		break;
+	case GPAD_OPT_LT_GALLOP2:
+		Cvar_SetValueQuick (&joy_ds_lt_gallop_secondfoot, CLAMP (MIN_DS_EFFECT, joy_ds_lt_gallop_secondfoot.value + dir, MAX_DS_EFFECT));
+		break;
+	case GPAD_OPT_LT_PERIOD:
+		Cvar_SetValueQuick (&joy_ds_lt_period, CLAMP (MIN_DS_FREQ_PERIOD, joy_ds_lt_period.value + dir * 17.f, MAX_DS_FREQ_PERIOD));
+		break;
+	case GPAD_OPT_LT_AMP_A:
+		Cvar_SetValueQuick (&joy_ds_lt_amplitude_a, CLAMP (MIN_DS_EFFECT, joy_ds_lt_amplitude_a.value + dir, MAX_DS_EFFECT));
+		break;
+	case GPAD_OPT_LT_AMP_B:
+		Cvar_SetValueQuick (&joy_ds_lt_amplitude_b, CLAMP (MIN_DS_EFFECT, joy_ds_lt_amplitude_b.value + dir, MAX_DS_EFFECT));
+		break;
 
 	default:
 		break;
@@ -3915,6 +4144,114 @@ qboolean M_SetSliderValue (int option, float f)
 		f = LERP (MIN_GYRO_NOISE_THRESH, MAX_GYRO_NOISE_THRESH, f);
 		Cvar_SetValueQuick (&gyro_noise_thresh, f);
 		return true;
+	case GPAD_OPT_LEDR:
+		f = LERP (0.0, 1.0, f);
+		Cvar_SetValueQuick (&joy_led_r, f);
+		return true;
+	case GPAD_OPT_LEDG:
+		f = LERP (0.0, 1.0, f);
+		Cvar_SetValueQuick (&joy_led_g, f);
+		return true;
+	case GPAD_OPT_LEDB:
+		f = LERP (0.0, 1.0, f);
+		Cvar_SetValueQuick (&joy_led_b, f);
+		return true;
+	case GPAD_OPT_RT_STRENGTH:
+		f = LERP (MIN_DS_STRENGTH, MAX_DS_STRENGTH, f);
+		Cvar_SetValueQuick (&joy_ds_rt_strength, f);
+		return true;
+	case GPAD_OPT_RT_START:
+		f = LERP (MIN_DS_EFFECT, MAX_DS_EFFECT, f);
+		Cvar_SetValueQuick (&joy_ds_rt_startpos, f);
+		return true;
+	case GPAD_OPT_RT_END:
+		f = LERP (MIN_DS_EFFECT, MAX_DS_EFFECT, f);
+		Cvar_SetValueQuick (&joy_ds_rt_endpos, f);
+		return true;
+	case GPAD_OPT_RT_SLOPE1:
+		f = LERP (MIN_DS_EFFECT, MAX_DS_EFFECT, f);
+		Cvar_SetValueQuick (&joy_ds_rt_slope_start, f);
+		return true;
+	case GPAD_OPT_RT_SLOPE2:
+		f = LERP (MIN_DS_EFFECT, MAX_DS_EFFECT, f);
+		Cvar_SetValueQuick (&joy_ds_rt_slope_end, f);
+		return true;
+	case GPAD_OPT_RT_FREQ:
+		f = LERP (MIN_DS_FREQ_PERIOD, MAX_DS_FREQ_PERIOD, f);
+		Cvar_SetValueQuick (&joy_ds_rt_frequency, f);
+		return true;
+	case GPAD_OPT_RT_SNAP:
+		f = LERP (MIN_DS_EFFECT, MAX_DS_EFFECT, f);
+		Cvar_SetValueQuick (&joy_ds_rt_snapforce, f);
+		return true;
+	case GPAD_OPT_RT_GALLOP1:
+		f = LERP (MIN_DS_EFFECT, MAX_DS_EFFECT, f);
+		Cvar_SetValueQuick (&joy_ds_rt_gallop_firstfoot, f);
+		return true;
+	case GPAD_OPT_RT_GALLOP2:
+		f = LERP (MIN_DS_EFFECT, MAX_DS_EFFECT, f);
+		Cvar_SetValueQuick (&joy_ds_rt_gallop_secondfoot, f);
+		return true;
+	case GPAD_OPT_RT_PERIOD:
+		f = LERP (MIN_DS_FREQ_PERIOD, MAX_DS_FREQ_PERIOD, f);
+		Cvar_SetValueQuick (&joy_ds_rt_startpos, f);
+		return true;
+	case GPAD_OPT_RT_AMP_A:
+		f = LERP (MIN_DS_EFFECT, MAX_DS_EFFECT, f);
+		Cvar_SetValueQuick (&joy_ds_rt_amplitude_a, f);
+		return true;
+	case GPAD_OPT_RT_AMP_B:
+		f = LERP (MIN_DS_EFFECT, MAX_DS_EFFECT, f);
+		Cvar_SetValueQuick (&joy_ds_rt_amplitude_b, f);
+		return true;
+	case GPAD_OPT_LT_STRENGTH:
+		f = LERP (MIN_DS_STRENGTH, MAX_DS_STRENGTH, f);
+		Cvar_SetValueQuick (&joy_ds_lt_strength, f);
+		return true;
+	case GPAD_OPT_LT_START:
+		f = LERP (MIN_DS_EFFECT, MAX_DS_EFFECT, f);
+		Cvar_SetValueQuick (&joy_ds_lt_startpos, f);
+		return true;
+	case GPAD_OPT_LT_END:
+		f = LERP (MIN_DS_EFFECT, MAX_DS_EFFECT, f);
+		Cvar_SetValueQuick (&joy_ds_lt_endpos, f);
+		return true;
+	case GPAD_OPT_LT_SLOPE1:
+		f = LERP (MIN_DS_EFFECT, MAX_DS_EFFECT, f);
+		Cvar_SetValueQuick (&joy_ds_lt_slope_start, f);
+		return true;
+	case GPAD_OPT_LT_SLOPE2:
+		f = LERP (MIN_DS_EFFECT, MAX_DS_EFFECT, f);
+		Cvar_SetValueQuick (&joy_ds_lt_slope_end, f);
+		return true;
+	case GPAD_OPT_LT_FREQ:
+		f = LERP (MIN_DS_FREQ_PERIOD, MAX_DS_FREQ_PERIOD, f);
+		Cvar_SetValueQuick (&joy_ds_lt_frequency, f);
+		return true;
+	case GPAD_OPT_LT_SNAP:
+		f = LERP (MIN_DS_EFFECT, MAX_DS_EFFECT, f);
+		Cvar_SetValueQuick (&joy_ds_lt_snapforce, f);
+		return true;
+	case GPAD_OPT_LT_GALLOP1:
+		f = LERP (MIN_DS_EFFECT, MAX_DS_EFFECT, f);
+		Cvar_SetValueQuick (&joy_ds_lt_gallop_firstfoot, f);
+		return true;
+	case GPAD_OPT_LT_GALLOP2:
+		f = LERP (MIN_DS_EFFECT, MAX_DS_EFFECT, f);
+		Cvar_SetValueQuick (&joy_ds_lt_gallop_secondfoot, f);
+		return true;
+	case GPAD_OPT_LT_PERIOD:
+		f = LERP (MIN_DS_FREQ_PERIOD, MAX_DS_FREQ_PERIOD, f);
+		Cvar_SetValueQuick (&joy_ds_lt_startpos, f);
+		return true;
+	case GPAD_OPT_LT_AMP_A:
+		f = LERP (MIN_DS_EFFECT, MAX_DS_EFFECT, f);
+		Cvar_SetValueQuick (&joy_ds_lt_amplitude_a, f);
+		return true;
+	case GPAD_OPT_LT_AMP_B:
+		f = LERP (MIN_DS_EFFECT, MAX_DS_EFFECT, f);
+		Cvar_SetValueQuick (&joy_ds_lt_amplitude_b, f);
+		return true;
 	default:
 		return false;
 	}
@@ -3971,6 +4308,9 @@ static void M_Options_DrawItem (int y, int item)
 
 	COM_TintSubstring (options_names[item], optionsmenu.list.search.text, buf, sizeof (buf));
 	M_PrintAligned (x - 28, y, ALIGN_RIGHT, buf);
+
+	if (item==GPAD_OPT_DS_TITLEHACK)
+		M_PrintAligned (x - 28, y, ALIGN_CENTER, "DualSense Adaptive Triggers");
 
 	switch (item)
 	{
@@ -4241,6 +4581,132 @@ static void M_Options_DrawItem (int y, int item)
 		break;
 	case GPAD_OPT_GYRONOISE:
 		r = (gyro_noise_thresh.value - MIN_GYRO_NOISE_THRESH) / (MAX_GYRO_NOISE_THRESH - MIN_GYRO_NOISE_THRESH);
+		M_DrawSlider (x, y, r);
+		break;
+	case GPAD_OPT_LEDENABLE:
+		if (!IN_HasLED ())
+			M_Print (x, y, "Unavailable");
+		else
+			M_DrawCheckbox (x, y, joy_led_enable.value);
+		break;
+	case GPAD_OPT_LEDR:
+		r = joy_led_r.value;
+		M_DrawSlider (x, y, r);
+		break;
+	case GPAD_OPT_LEDG:
+		r = joy_led_g.value;
+		M_DrawSlider (x, y, r);
+		break;
+	case GPAD_OPT_LEDB:
+		r = joy_led_b.value;
+		M_DrawSlider (x, y, r);
+		break;
+	case GPAD_OPT_RT_MODE:
+		if (!IN_HasAdaptiveTriggers ())
+			M_Print (x, y, "Unavailable");
+		else
+			M_Print (x, y, IN_GetDSTriggerModeName ((int)joy_ds_rt_mode.value));
+		break;
+	case GPAD_OPT_RT_STRENGTH:
+		r = (joy_ds_rt_strength.value - MIN_DS_STRENGTH) / (MAX_DS_STRENGTH - MIN_DS_STRENGTH);
+		M_DrawSlider (x, y, r);
+		break;
+	case GPAD_OPT_RT_START:
+		r = (joy_ds_rt_startpos.value - MIN_DS_EFFECT) / (MAX_DS_EFFECT - MIN_DS_EFFECT);
+		M_DrawSlider (x, y, r);
+		break;
+	case GPAD_OPT_RT_END:
+		r = (joy_ds_rt_endpos.value - MIN_DS_EFFECT) / (MAX_DS_EFFECT - MIN_DS_EFFECT);
+		M_DrawSlider (x, y, r);
+		break;
+	case GPAD_OPT_RT_SLOPE1:
+		r = (joy_ds_rt_slope_start.value - MIN_DS_EFFECT) / (MAX_DS_EFFECT - MIN_DS_EFFECT);
+		M_DrawSlider (x, y, r);
+		break;
+	case GPAD_OPT_RT_SLOPE2:
+		r = (joy_ds_rt_slope_end.value - MIN_DS_EFFECT) / (MAX_DS_EFFECT - MIN_DS_EFFECT);
+		M_DrawSlider (x, y, r);
+		break;
+	case GPAD_OPT_RT_FREQ:
+		r = (joy_ds_rt_frequency.value - MIN_DS_FREQ_PERIOD) / (MAX_DS_FREQ_PERIOD - MIN_DS_FREQ_PERIOD);
+		M_DrawSlider (x, y, r);
+		break;
+	case GPAD_OPT_RT_SNAP:
+		r = (joy_ds_rt_snapforce.value - MIN_DS_EFFECT) / (MAX_DS_EFFECT - MIN_DS_EFFECT);
+		M_DrawSlider (x, y, r);
+		break;
+	case GPAD_OPT_RT_GALLOP1:
+		r = (joy_ds_rt_gallop_firstfoot.value - MIN_DS_EFFECT) / (MAX_DS_EFFECT - MIN_DS_EFFECT);
+		M_DrawSlider (x, y, r);
+		break;
+	case GPAD_OPT_RT_GALLOP2:
+		r = (joy_ds_rt_gallop_secondfoot.value - MIN_DS_EFFECT) / (MAX_DS_EFFECT - MIN_DS_EFFECT);
+		M_DrawSlider (x, y, r);
+		break;
+	case GPAD_OPT_RT_PERIOD:
+		r = (joy_ds_rt_period.value - MIN_DS_FREQ_PERIOD) / (MAX_DS_FREQ_PERIOD - MIN_DS_FREQ_PERIOD);
+		M_DrawSlider (x, y, r);
+		break;
+	case GPAD_OPT_RT_AMP_A:
+		r = (joy_ds_rt_amplitude_a.value - MIN_DS_EFFECT) / (MAX_DS_EFFECT - MIN_DS_EFFECT);
+		M_DrawSlider (x, y, r);
+		break;
+	case GPAD_OPT_RT_AMP_B:
+		r = (joy_ds_rt_amplitude_b.value - MIN_DS_EFFECT) / (MAX_DS_EFFECT - MIN_DS_EFFECT);
+		M_DrawSlider (x, y, r);
+		break;
+	case GPAD_OPT_LT_MODE:
+		if (!IN_HasAdaptiveTriggers ())
+			M_Print (x, y, "Unavailable");
+		else
+			M_Print (x, y, IN_GetDSTriggerModeName ((int)joy_ds_lt_mode.value));
+		break;
+	case GPAD_OPT_LT_STRENGTH:
+		r = (joy_ds_lt_strength.value - MIN_DS_STRENGTH) / (MAX_DS_STRENGTH - MIN_DS_STRENGTH);
+		M_DrawSlider (x, y, r);
+		break;
+	case GPAD_OPT_LT_START:
+		r = (joy_ds_lt_startpos.value - MIN_DS_EFFECT) / (MAX_DS_EFFECT - MIN_DS_EFFECT);
+		M_DrawSlider (x, y, r);
+		break;
+	case GPAD_OPT_LT_END:
+		r = (joy_ds_lt_endpos.value - MIN_DS_EFFECT) / (MAX_DS_EFFECT - MIN_DS_EFFECT);
+		M_DrawSlider (x, y, r);
+		break;
+	case GPAD_OPT_LT_SLOPE1:
+		r = (joy_ds_lt_slope_start.value - MIN_DS_EFFECT) / (MAX_DS_EFFECT - MIN_DS_EFFECT);
+		M_DrawSlider (x, y, r);
+		break;
+	case GPAD_OPT_LT_SLOPE2:
+		r = (joy_ds_lt_slope_end.value - MIN_DS_EFFECT) / (MAX_DS_EFFECT - MIN_DS_EFFECT);
+		M_DrawSlider (x, y, r);
+		break;
+	case GPAD_OPT_LT_FREQ:
+		r = (joy_ds_lt_frequency.value - MIN_DS_FREQ_PERIOD) / (MAX_DS_FREQ_PERIOD - MIN_DS_FREQ_PERIOD);
+		M_DrawSlider (x, y, r);
+		break;
+	case GPAD_OPT_LT_SNAP:
+		r = (joy_ds_lt_snapforce.value - MIN_DS_EFFECT) / (MAX_DS_EFFECT - MIN_DS_EFFECT);
+		M_DrawSlider (x, y, r);
+		break;
+	case GPAD_OPT_LT_GALLOP1:
+		r = (joy_ds_lt_gallop_firstfoot.value - MIN_DS_EFFECT) / (MAX_DS_EFFECT - MIN_DS_EFFECT);
+		M_DrawSlider (x, y, r);
+		break;
+	case GPAD_OPT_LT_GALLOP2:
+		r = (joy_ds_lt_gallop_secondfoot.value - MIN_DS_EFFECT) / (MAX_DS_EFFECT - MIN_DS_EFFECT);
+		M_DrawSlider (x, y, r);
+		break;
+	case GPAD_OPT_LT_PERIOD:
+		r = (joy_ds_lt_period.value - MIN_DS_FREQ_PERIOD) / (MAX_DS_FREQ_PERIOD - MIN_DS_FREQ_PERIOD);
+		M_DrawSlider (x, y, r);
+		break;
+	case GPAD_OPT_LT_AMP_A:
+		r = (joy_ds_lt_amplitude_a.value - MIN_DS_EFFECT) / (MAX_DS_EFFECT - MIN_DS_EFFECT);
+		M_DrawSlider (x, y, r);
+		break;
+	case GPAD_OPT_LT_AMP_B:
+		r = (joy_ds_lt_amplitude_b.value - MIN_DS_EFFECT) / (MAX_DS_EFFECT - MIN_DS_EFFECT);
 		M_DrawSlider (x, y, r);
 		break;
 
@@ -6990,4 +7456,3 @@ void M_CheckMods (void)
 	m_skill_usecustomtitle = M_CheckCustomGfx ("gfx/p_skill.lmp",
 		"gfx/ttl_sgl.lmp", 6728, sgl_hashes, countof (sgl_hashes));
 }
-

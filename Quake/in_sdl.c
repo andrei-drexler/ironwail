@@ -78,6 +78,41 @@ cvar_t gyro_calibration_z = {"gyro_calibration_z", "0", CVAR_ARCHIVE};
 
 cvar_t gyro_noise_thresh = {"gyro_noise_thresh", "1.5", CVAR_ARCHIVE};
 
+cvar_t joy_led_enable = {"joy_led_enable", "1", CVAR_ARCHIVE}; // Enable changing LED
+cvar_t joy_led_r = {"joy_led_r", "0.3", CVAR_ARCHIVE};
+cvar_t joy_led_g = {"joy_led_g", "0.07", CVAR_ARCHIVE};
+cvar_t joy_led_b = {"joy_led_b", "0.0", CVAR_ARCHIVE};
+
+cvar_t joy_ds_debug = {"joy_ds_debug", "0", CVAR_NONE};
+
+cvar_t joy_ds_rt_mode              = {"joy_ds_rt_mode", "0", CVAR_ARCHIVE};
+cvar_t joy_ds_rt_startpos          = {"joy_ds_rt_startpos", "0", CVAR_ARCHIVE};
+cvar_t joy_ds_rt_endpos            = {"joy_ds_rt_endpos", "0", CVAR_ARCHIVE};
+cvar_t joy_ds_rt_strength          = {"joy_ds_rt_strength", "0", CVAR_ARCHIVE};
+cvar_t joy_ds_rt_snapforce         = {"joy_ds_rt_snapforce", "0", CVAR_ARCHIVE};
+cvar_t joy_ds_rt_frequency         = {"joy_ds_rt_frequency", "0", CVAR_ARCHIVE};
+cvar_t joy_ds_rt_period            = {"joy_ds_rt_period", "0", CVAR_ARCHIVE};
+cvar_t joy_ds_rt_gallop_firstfoot  = {"joy_ds_rt_gallop_firstfoot", "0", CVAR_ARCHIVE};
+cvar_t joy_ds_rt_gallop_secondfoot = {"joy_ds_rt_gallop_secondfoot", "0", CVAR_ARCHIVE};
+cvar_t joy_ds_rt_amplitude_a       = {"joy_ds_rt_amplitude_a", "0", CVAR_ARCHIVE};
+cvar_t joy_ds_rt_amplitude_b       = {"joy_ds_rt_amplitude_b", "0", CVAR_ARCHIVE};
+cvar_t joy_ds_rt_slope_start       = {"joy_ds_rt_slope_start", "0", CVAR_ARCHIVE};
+cvar_t joy_ds_rt_slope_end         = {"joy_ds_rt_slope_end", "0", CVAR_ARCHIVE};
+
+cvar_t joy_ds_lt_mode              = {"joy_ds_lt_mode", "0", CVAR_ARCHIVE};
+cvar_t joy_ds_lt_startpos          = {"joy_ds_lt_startpos", "0", CVAR_ARCHIVE};
+cvar_t joy_ds_lt_endpos            = {"joy_ds_lt_endpos", "0", CVAR_ARCHIVE};
+cvar_t joy_ds_lt_strength          = {"joy_ds_lt_strength", "0", CVAR_ARCHIVE};
+cvar_t joy_ds_lt_snapforce         = {"joy_ds_lt_snapforce", "0", CVAR_ARCHIVE};
+cvar_t joy_ds_lt_frequency         = {"joy_ds_lt_frequency", "0", CVAR_ARCHIVE};
+cvar_t joy_ds_lt_period            = {"joy_ds_lt_period", "0", CVAR_ARCHIVE};
+cvar_t joy_ds_lt_gallop_firstfoot  = {"joy_ds_lt_gallop_firstfoot", "0", CVAR_ARCHIVE};
+cvar_t joy_ds_lt_gallop_secondfoot = {"joy_ds_lt_gallop_secondfoot", "0", CVAR_ARCHIVE};
+cvar_t joy_ds_lt_amplitude_a       = {"joy_ds_lt_amplitude_a", "0", CVAR_ARCHIVE};
+cvar_t joy_ds_lt_amplitude_b       = {"joy_ds_lt_amplitude_b", "0", CVAR_ARCHIVE};
+cvar_t joy_ds_lt_slope_start       = {"joy_ds_lt_slope_start", "0", CVAR_ARCHIVE};
+cvar_t joy_ds_lt_slope_end         = {"joy_ds_lt_slope_end", "0", CVAR_ARCHIVE};
+
 static SDL_JoystickID joy_active_instanceid = -1;
 static int joy_active_device = -1;
 static SDL_GameController *joy_active_controller = NULL;
@@ -105,6 +140,61 @@ static unsigned int updates_countdown = 0;
 
 static qboolean gyro_present = false;
 static qboolean gyro_button_pressed = false;
+
+static qboolean led_present = false;
+static vec3_t joy_led = {0.f, 0.f, 0.f};
+static vec3_t prev_joy_led = {-1.f, -1.f, -1.f};
+
+// Sony DualSense related code. An info was taken from these resources (huge thanks!):
+// https://controllers.fandom.com/wiki/Sony_DualSense
+// https://gist.github.com/Nielk1/6d54cc2c00d2201ccb8c2720ad7538db
+// https://github.com/nowrep/dualsensectl
+static qboolean ds_triggers_present = false;
+// Enums for output effect
+enum ds_trigger_state {
+	// Official supported modes
+	tm_off = 0x05,
+	tm_feedback = 0x21,
+	tm_bow = 0x22,
+	tm_galloping = 0x23,
+	tm_weapon = 0x25,
+	tm_vibration = 0x26,
+	tm_machine = 0x27,
+	tm_simple_feedback = 0x01,
+	tm_simple_weapon = 0x02,
+	tm_simple_vibration = 0x06,
+	tm_limited_feedback = 0x11,
+	tm_limited_weapon = 0x12,
+};
+// These are fields we use
+#define DS_ENABLE_BITS1 0
+#define DS_RT_BYTES 10
+#define DS_LT_BYTES 21
+static uint8_t ds_effects_state[47] = {0};
+// If we are unable to read triggers status from HID, use these as fallback
+static float ds_rt_threshold = 0;
+static float ds_lt_threshold = 0;
+// DualSense HID report
+#define DS_REPORT_ID_USB 0x1
+#define DS_REPORT_ID_BT 0x31
+#define DS_REPORT_SIZE_USB 64
+#define DS_REPORT_SIZE_BT 78
+#define DS_REPORT_SIZE_MAX (DS_REPORT_SIZE_BT * 2)
+static uint8_t ds_input_report[DS_REPORT_SIZE_MAX];
+static int ds_report_size = 0; // >0 assumes we have received report
+static int ds_report_offset = 0; // >0 assumes we have correct report id and size
+// Nybbles report applied trigger input effect.
+// -1 means trigger doesn't have effect applied.
+static int ds_rt_nybble = -1;
+static int ds_lt_nybble = -1;
+
+// Using separate thread for reading input report
+#if SDL_VERSION_ATLEAST(2, 0, 18)
+static qboolean hidapi_init = false;
+static SDL_hid_device *joy_active_hid = NULL;
+static SDL_atomic_t hid_read_cancel;
+static SDL_Thread *hid_read_thread;
+#endif
 
 static int SDLCALL IN_FilterMouseEvents (const SDL_Event *event)
 {
@@ -282,6 +372,579 @@ void IN_DeactivateForMenu (void)
 	IN_Deactivate(modestate == MS_WINDOWED || ui_mouse.value);
 }
 
+#if SDL_VERSION_ATLEAST(2, 0, 14)
+void IN_UpdateLED (void)
+{
+	if (!joy_led_enable.value)
+		return;
+
+	if (IN_HasLED ())
+	{
+		joy_led[0] = CLAMP (0, joy_led_r.value, 1);
+		joy_led[1] = CLAMP (0, joy_led_g.value, 1);
+		joy_led[2] = CLAMP (0, joy_led_b.value, 1);
+
+#define BLEND_COLOR(color, base_color, add_color, add_scale) \
+		color = base_color + ( add_color - base_color ) * add_scale;
+
+		// Blend color shifts on top of current color. Doing almost the same as V_CalcBlend from view.c
+		// V_PolyBlend resets v_blend alpha component, on some machines it prevents producing effect.
+		vec3_t v_blend_led = { 0.f, 0.f, 0.f };
+		float v_blend_scale = 0.f;
+		float r, g, b, a, a2;
+
+		r = 0;
+		g = 0;
+		b = 0;
+		a = 0;
+
+		for (int j = 0; j < NUM_CSHIFTS; j++)
+		{
+			//johnfitz -- only apply leaf contents color shifts during intermission
+			if (cl.intermission && j != CSHIFT_CONTENTS)
+				continue;
+			//johnfitz
+
+			a2 = cl.cshifts[j].percent / 255.0;
+			// QuakeSpasm
+			if (!a2)
+				continue;
+			a = a + a2 * (1 - a);
+			a2 = a2 / a;
+			r = r * (1 - a2) + cl.cshifts[j].destcolor[0] * a2;
+			g = g * (1 - a2) + cl.cshifts[j].destcolor[1] * a2;
+			b = b * (1 - a2) + cl.cshifts[j].destcolor[2] * a2;
+		}
+
+		v_blend_led[0] = r / 255;
+		v_blend_led[1] = g / 255;
+		v_blend_led[2] = b / 255;
+		v_blend_scale = CLAMP (0, a, 1);
+
+		v_blend_scale = pow (sin (v_blend_scale * M_PI), 0.5);
+		VectorScale (v_blend_led, v_blend_scale, v_blend_led);
+		BLEND_COLOR (joy_led[0], joy_led[0], v_blend_led[0], v_blend_scale);
+		BLEND_COLOR (joy_led[1], joy_led[1], v_blend_led[1], v_blend_scale);
+		BLEND_COLOR (joy_led[2], joy_led[2], v_blend_led[2], v_blend_scale);
+
+		// Blend flash from view punches (gunfire)
+		vec3_t punch_led;
+		_VectorCopy (joy_led, punch_led);
+		VectorNormalize (punch_led); // Get maximum LED color brightness
+
+		float punchblend = CLAMP (0, (cl.time - cl.punchtime), 1);// / 0.1f;
+
+		punchblend = (1 - punchblend);// * 0.2;
+
+		VectorScale (punch_led, punchblend, punch_led);
+		BLEND_COLOR (joy_led[0], joy_led[0], punch_led[0], punchblend);
+		BLEND_COLOR (joy_led[1], joy_led[1], punch_led[1], punchblend);
+		BLEND_COLOR (joy_led[2], joy_led[2], punch_led[2], punchblend);
+
+		joy_led[0] = CLAMP (0, joy_led[0], 1);
+		joy_led[1] = CLAMP (0, joy_led[1], 1);
+		joy_led[2] = CLAMP (0, joy_led[2], 1);
+
+		qboolean led_changed = false;
+
+		for (int i = 0; i < 3; i++)
+		{
+			if (joy_led[i] != prev_joy_led[i])
+			{
+				led_changed = true;
+				prev_joy_led[i] = joy_led[i];
+			}
+		}
+
+		if (led_changed)
+			SDL_GameControllerSetLED (joy_active_controller, joy_led[0] * 255, joy_led[1] * 255, joy_led[2] * 255);
+	}
+}
+#endif // SDL_VERSION_ATLEAST(2, 0, 14)
+
+const char* IN_GetDSTriggerModeName (int mode)
+{
+	switch (mode)
+	{
+	case DS_TRIGGER_OFF:
+	default:
+		return "Off";
+	case DS_TRIGGER_WEAPON:
+		return "Weapon";
+	case DS_TRIGGER_FEEDBACK:
+		return "Feedback";
+	case DS_TRIGGER_SLOPE:
+		return "Slope";
+	case DS_TRIGGER_VIBRATION:
+		return "Vibration";
+	case DS_TRIGGER_BOW:
+		return "Bow";
+	case DS_TRIGGER_GALLOPING:
+		return "Galloping";
+	case DS_TRIGGER_MACHINE:
+		return "Machine";
+	case DS_TRIGGER_SIMPLE_FEEDBACK:
+		return "Simple Feedback (bugged)";
+	case DS_TRIGGER_SIMPLE_WEAPON:
+		return "Simple Weapon (bugged)";
+	case DS_TRIGGER_SIMPLE_VIBRATION:
+		return "Simple Vibration (bugged)";
+	case DS_TRIGGER_LIMITED_FEEDBACK:
+		return "Limited Feedback (bugged)";
+	case DS_TRIGGER_LIMITED_WEAPON:
+		return "Limited Weapon (bugged)";
+	}
+}
+
+#if SDL_VERSION_ATLEAST(2, 0, 16)
+void IN_SetupDSTrigger (qboolean right_trigger)
+{
+	int mode = 0;
+	uint8_t startpos = 0;
+	uint8_t endpos = 0;
+	uint8_t strength = 0;
+	uint8_t snapforce = 0;
+	uint8_t frequency = 0;
+	uint8_t period = 0;
+	uint8_t gallop_firstfoot = 0;
+	uint8_t gallop_secondfoot = 0;
+	uint8_t amplitude_a = 0;
+	uint8_t amplitude_b = 0;
+	uint8_t slope_start = 0;
+	uint8_t slope_end = 0;
+
+	uint16_t startandstop = 0;
+	uint32_t force_zones  = 0;
+	uint16_t active_zones = 0;
+
+	int trigger_byte_fields;
+	float *ds_trigger_threshold;
+
+	if (right_trigger)
+	{
+		mode = q_max (0, joy_ds_rt_mode.value);
+
+		startpos          = joy_ds_rt_startpos.value;
+		endpos            = joy_ds_rt_endpos.value;
+		strength          = joy_ds_rt_strength.value;
+		snapforce         = joy_ds_rt_snapforce.value;
+		frequency         = joy_ds_rt_frequency.value;
+		period            = joy_ds_rt_period.value;
+		gallop_firstfoot  = joy_ds_rt_gallop_firstfoot.value;
+		gallop_secondfoot = joy_ds_rt_gallop_secondfoot.value;
+		amplitude_a       = joy_ds_rt_amplitude_a.value;
+		amplitude_b       = joy_ds_rt_amplitude_b.value;
+		slope_start       = joy_ds_rt_slope_start.value;
+		slope_end         = joy_ds_rt_slope_end.value;
+
+		trigger_byte_fields = DS_RT_BYTES;
+		ds_trigger_threshold = &ds_rt_threshold;
+	}
+	else
+	{
+		mode = q_max (0, joy_ds_lt_mode.value);
+
+		startpos          = joy_ds_lt_startpos.value;
+		endpos            = joy_ds_lt_endpos.value;
+		strength          = joy_ds_lt_strength.value;
+		snapforce         = joy_ds_lt_snapforce.value;
+		frequency         = joy_ds_lt_frequency.value;
+		period            = joy_ds_lt_period.value;
+		gallop_firstfoot  = joy_ds_lt_gallop_firstfoot.value;
+		gallop_secondfoot = joy_ds_lt_gallop_secondfoot.value;
+		amplitude_a       = joy_ds_lt_amplitude_a.value;
+		amplitude_b       = joy_ds_lt_amplitude_b.value;
+		slope_start       = joy_ds_lt_slope_start.value;
+		slope_end         = joy_ds_lt_slope_end.value;
+
+		trigger_byte_fields = DS_LT_BYTES;
+		ds_trigger_threshold = &ds_lt_threshold;
+	}
+
+	switch (mode)
+	{
+		case DS_TRIGGER_WEAPON:
+			startpos = CLAMP (2, startpos, 6); // up to 7 is valid
+			endpos = CLAMP (startpos + 1, endpos, 7); // up to 8 is valid
+			strength = CLAMP (1, strength, 8);
+
+			startandstop = (uint16_t)((1 << startpos) | (1 << endpos));
+
+			ds_effects_state[trigger_byte_fields +  0] = tm_weapon;
+			ds_effects_state[trigger_byte_fields +  1] = (uint8_t)((startandstop >> 0) & 0xff);
+			ds_effects_state[trigger_byte_fields +  2] = (uint8_t)((startandstop >> 8) & 0xff);
+			ds_effects_state[trigger_byte_fields +  3] = strength-1;
+			ds_effects_state[trigger_byte_fields +  4] = 0;
+			ds_effects_state[trigger_byte_fields +  5] = 0;
+			ds_effects_state[trigger_byte_fields +  6] = 0;
+			ds_effects_state[trigger_byte_fields +  7] = 0;
+			ds_effects_state[trigger_byte_fields +  8] = 0;
+			ds_effects_state[trigger_byte_fields +  9] = 0;
+			ds_effects_state[trigger_byte_fields + 10] = 0;
+
+			*ds_trigger_threshold = (endpos+2) / 10.f; //at 8 it fails to trigger
+			break;
+		case DS_TRIGGER_FEEDBACK:
+			startpos = CLAMP (1, startpos, 9); //from 0 is valid, but always triggers as pressed
+			strength = CLAMP (1, strength, 8);
+
+			strength = (strength - 1) & 0x07;
+			for (int i = startpos; i < 10; i++)
+			{
+				force_zones  |= (uint32_t)(strength << (3 * i));
+				active_zones |= (uint16_t)(1 << i);
+			}
+
+			ds_effects_state[trigger_byte_fields +  0] = tm_feedback;
+			ds_effects_state[trigger_byte_fields +  1] = (uint8_t)((active_zones >> 0) & 0xff);
+			ds_effects_state[trigger_byte_fields +  2] = (uint8_t)((active_zones >> 8) & 0xff);
+			ds_effects_state[trigger_byte_fields +  3] = (uint8_t)((force_zones >>  0) & 0xff);
+			ds_effects_state[trigger_byte_fields +  4] = (uint8_t)((force_zones >>  8) & 0xff);
+			ds_effects_state[trigger_byte_fields +  5] = (uint8_t)((force_zones >> 16) & 0xff);
+			ds_effects_state[trigger_byte_fields +  6] = (uint8_t)((force_zones >> 24) & 0xff);
+			ds_effects_state[trigger_byte_fields +  7] = 0;
+			ds_effects_state[trigger_byte_fields +  8] = 0;
+			ds_effects_state[trigger_byte_fields +  9] = 0;
+			ds_effects_state[trigger_byte_fields + 10] = 0;
+
+			*ds_trigger_threshold = startpos / 10.f;
+			break;
+		case DS_TRIGGER_SLOPE:
+			startpos = CLAMP (1, startpos, 8); //from 0 is valid, but always triggers as pressed
+			endpos = CLAMP (startpos+1, endpos, 9);
+			slope_start = CLAMP (1, slope_start, 8);
+			slope_end = CLAMP (1, slope_end, 8);
+
+			uint8_t strengths[10] = {0};
+			float slope = 1.0f * (slope_end - slope_start) / (endpos - startpos);
+			for (int i = (int)startpos; i < 10; i++) {
+                if (i <= endpos)
+                    strengths[i] = (uint8_t)roundf(slope_start + slope * (i - startpos));
+                else
+                    strengths[i] = slope_end;
+				strength = (uint8_t)((strengths[i] - 1) & 0x07);
+				force_zones  |= (uint32_t)(strength << (3 * i));
+				active_zones |= (uint16_t)(1 << i);
+			}
+
+			ds_effects_state[trigger_byte_fields +  0] = tm_feedback;
+			ds_effects_state[trigger_byte_fields +  1] = (uint8_t)((active_zones >> 0) & 0xff);
+			ds_effects_state[trigger_byte_fields +  2] = (uint8_t)((active_zones >> 8) & 0xff);
+			ds_effects_state[trigger_byte_fields +  3] = (uint8_t)((force_zones >>  0) & 0xff);
+			ds_effects_state[trigger_byte_fields +  4] = (uint8_t)((force_zones >>  8) & 0xff);
+			ds_effects_state[trigger_byte_fields +  5] = (uint8_t)((force_zones >> 16) & 0xff);
+			ds_effects_state[trigger_byte_fields +  6] = (uint8_t)((force_zones >> 24) & 0xff);
+			ds_effects_state[trigger_byte_fields +  7] = 0;
+			ds_effects_state[trigger_byte_fields +  8] = 0;
+			ds_effects_state[trigger_byte_fields +  9] = 0;
+			ds_effects_state[trigger_byte_fields + 10] = 0;
+
+			*ds_trigger_threshold = startpos / 10.f;
+			break;
+		case DS_TRIGGER_VIBRATION:
+			startpos = CLAMP (1, startpos, 9); //from 0 is valid, but always triggers as pressed
+			strength = CLAMP (1, strength, 8); //Nielk1 specs states it's 0 at minimum, probably typo? 
+
+			strength = (strength - 1) & 0x07;
+			for (int i = startpos; i < 10; i++)
+			{
+				force_zones  |= (uint32_t)(strength << (3 * i));
+				active_zones |= (uint16_t)(1 << i);
+			}
+
+			ds_effects_state[trigger_byte_fields +  0] = tm_vibration;
+			ds_effects_state[trigger_byte_fields +  1] = (uint8_t)((active_zones >> 0) & 0xff);
+			ds_effects_state[trigger_byte_fields +  2] = (uint8_t)((active_zones >> 8) & 0xff);
+			ds_effects_state[trigger_byte_fields +  3] = (uint8_t)((force_zones >>  0) & 0xff);
+			ds_effects_state[trigger_byte_fields +  4] = (uint8_t)((force_zones >>  8) & 0xff);
+			ds_effects_state[trigger_byte_fields +  5] = (uint8_t)((force_zones >> 16) & 0xff);
+			ds_effects_state[trigger_byte_fields +  6] = (uint8_t)((force_zones >> 24) & 0xff);
+			ds_effects_state[trigger_byte_fields +  7] = 0;
+			ds_effects_state[trigger_byte_fields +  8] = 0;
+			ds_effects_state[trigger_byte_fields +  9] = frequency;
+			ds_effects_state[trigger_byte_fields + 10] = 0;
+
+			*ds_trigger_threshold = startpos / 10.f;
+			break;
+		case DS_TRIGGER_BOW:
+			startpos = CLAMP (1, startpos, 7); //from 0 is valid, but always triggers as pressed
+			endpos = CLAMP (startpos+1, endpos, 8);
+			// Specs again say minimal for these two allowed are 0, i'm not sure...
+			strength = CLAMP (1, strength, 8);
+			snapforce = CLAMP (1, snapforce, 8);
+
+			startandstop = (uint16_t)((1 << startpos) | (1 << endpos));
+			uint32_t force_pair = (uint32_t)((((strength  - 1) & 0x07) << (3 * 0)) | (((snapforce - 1) & 0x07) << (3 * 1)));
+
+			ds_effects_state[trigger_byte_fields +  0] = tm_bow;
+			ds_effects_state[trigger_byte_fields +  1] = (uint8_t)((startandstop >> 0) & 0xff);
+			ds_effects_state[trigger_byte_fields +  2] = (uint8_t)((startandstop >> 8) & 0xff);
+			ds_effects_state[trigger_byte_fields +  3] = (uint8_t)((force_pair >> 0) & 0xff);
+			ds_effects_state[trigger_byte_fields +  4] = (uint8_t)((force_pair >> 8) & 0xff);
+			ds_effects_state[trigger_byte_fields +  5] = 0;
+			ds_effects_state[trigger_byte_fields +  6] = 0;
+			ds_effects_state[trigger_byte_fields +  7] = 0;
+			ds_effects_state[trigger_byte_fields +  8] = 0;
+			ds_effects_state[trigger_byte_fields +  9] = 0;
+			ds_effects_state[trigger_byte_fields + 10] = 0;
+
+			*ds_trigger_threshold = endpos / 10.f;
+			break;
+		case DS_TRIGGER_GALLOPING:
+			startpos = CLAMP (0, startpos, 8);
+			endpos = CLAMP (startpos+1, endpos, 9);
+			gallop_firstfoot = CLAMP (0, gallop_firstfoot, 6);
+			gallop_secondfoot = CLAMP (gallop_firstfoot+1, gallop_secondfoot, 7);
+
+			startandstop = (uint16_t)((1 << startpos) | (1 << endpos));
+			uint32_t timeandratio = (uint32_t)(((gallop_secondfoot & 0x07) << (3 * 0)) | ((gallop_firstfoot & 0x07) << (3 * 1)));
+
+			ds_effects_state[trigger_byte_fields +  0] = tm_galloping;
+			ds_effects_state[trigger_byte_fields +  1] = (uint8_t)((startandstop >> 0) & 0xff);
+			ds_effects_state[trigger_byte_fields +  2] = (uint8_t)((startandstop >> 8) & 0xff);
+			ds_effects_state[trigger_byte_fields +  3] = (uint8_t)((timeandratio >> 0) & 0xff);
+			ds_effects_state[trigger_byte_fields +  4] = frequency;
+			ds_effects_state[trigger_byte_fields +  5] = 0;
+			ds_effects_state[trigger_byte_fields +  6] = 0;
+			ds_effects_state[trigger_byte_fields +  7] = 0;
+			ds_effects_state[trigger_byte_fields +  8] = 0;
+			ds_effects_state[trigger_byte_fields +  9] = 0;
+			ds_effects_state[trigger_byte_fields + 10] = 0;
+
+			*ds_trigger_threshold = startpos / 10.f;
+			break;
+		case DS_TRIGGER_MACHINE:
+			startpos = CLAMP (1, startpos, 8);
+			endpos = CLAMP (startpos+1, endpos, 9);
+			amplitude_a = CLAMP (0, amplitude_a, 7);
+			amplitude_b = CLAMP (0, amplitude_b, 7);
+
+			startandstop = (uint16_t)((1 << startpos) | (1 << endpos));
+			uint32_t strength_pair = (uint32_t)(((amplitude_a & 0x07) << (3 * 0)) | ((amplitude_b & 0x07) << (3 * 1)));
+
+			ds_effects_state[trigger_byte_fields +  0] = tm_machine;
+			ds_effects_state[trigger_byte_fields +  1] = (uint8_t)((startandstop >> 0) & 0xff);
+			ds_effects_state[trigger_byte_fields +  2] = (uint8_t)((startandstop >> 8) & 0xff);
+			ds_effects_state[trigger_byte_fields +  3] = (uint8_t)((strength_pair >> 0) & 0xff);
+			ds_effects_state[trigger_byte_fields +  4] = frequency;
+			ds_effects_state[trigger_byte_fields +  5] = period;
+			ds_effects_state[trigger_byte_fields +  6] = 0;
+			ds_effects_state[trigger_byte_fields +  7] = 0;
+			ds_effects_state[trigger_byte_fields +  8] = 0;
+			ds_effects_state[trigger_byte_fields +  9] = 0;
+			ds_effects_state[trigger_byte_fields + 10] = 0;
+
+			*ds_trigger_threshold = startpos / 10.f;
+			break;
+		case DS_TRIGGER_SIMPLE_FEEDBACK:
+			startpos = CLAMP (0, startpos, 9);
+			strength = CLAMP (0, strength, 10);
+
+			startpos = (uint8_t)((float)startpos / 10 * 255);
+			strength = (uint8_t)((float)strength / 10 * 255);
+
+			ds_effects_state[trigger_byte_fields +  0] = tm_simple_feedback;
+			ds_effects_state[trigger_byte_fields +  1] = startpos;
+			ds_effects_state[trigger_byte_fields +  2] = strength;
+			ds_effects_state[trigger_byte_fields +  3] = 0;
+			ds_effects_state[trigger_byte_fields +  4] = 0;
+			ds_effects_state[trigger_byte_fields +  5] = 0;
+			ds_effects_state[trigger_byte_fields +  6] = 0;
+			ds_effects_state[trigger_byte_fields +  7] = 0;
+			ds_effects_state[trigger_byte_fields +  8] = 0;
+			ds_effects_state[trigger_byte_fields +  9] = 0;
+			ds_effects_state[trigger_byte_fields + 10] = 0;
+
+			*ds_trigger_threshold = startpos / 255.f;
+			break;
+		case DS_TRIGGER_SIMPLE_WEAPON:
+			startpos = CLAMP (0, startpos, 8);
+			endpos = CLAMP (startpos+1, endpos, 9);
+			strength = CLAMP (0, strength, 10);
+
+			startpos = (uint8_t)((float)startpos / 10 * 255);
+			endpos = (uint8_t)((float)endpos / 10 * 255);
+			strength = (uint8_t)((float)strength / 10 * 255);
+
+			ds_effects_state[trigger_byte_fields +  0] = tm_simple_weapon;
+			ds_effects_state[trigger_byte_fields +  1] = startpos;
+			ds_effects_state[trigger_byte_fields +  2] = endpos;
+			ds_effects_state[trigger_byte_fields +  3] = strength;
+			ds_effects_state[trigger_byte_fields +  4] = 0;
+			ds_effects_state[trigger_byte_fields +  5] = 0;
+			ds_effects_state[trigger_byte_fields +  6] = 0;
+			ds_effects_state[trigger_byte_fields +  7] = 0;
+			ds_effects_state[trigger_byte_fields +  8] = 0;
+			ds_effects_state[trigger_byte_fields +  9] = 0;
+			ds_effects_state[trigger_byte_fields + 10] = 0;
+
+			*ds_trigger_threshold = endpos / 255.f;
+			break;
+		case DS_TRIGGER_SIMPLE_VIBRATION:
+			startpos = CLAMP (0, startpos, 8);
+			strength = CLAMP (0, strength, 10);
+
+			startpos = (uint8_t)((float)startpos / 10 * 255);
+			strength = (uint8_t)((float)strength / 10 * 255);
+
+			ds_effects_state[trigger_byte_fields +  0] = tm_simple_vibration;
+			ds_effects_state[trigger_byte_fields +  1] = frequency;
+			ds_effects_state[trigger_byte_fields +  2] = strength;
+			ds_effects_state[trigger_byte_fields +  3] = startpos;
+			ds_effects_state[trigger_byte_fields +  4] = 0;
+			ds_effects_state[trigger_byte_fields +  5] = 0;
+			ds_effects_state[trigger_byte_fields +  6] = 0;
+			ds_effects_state[trigger_byte_fields +  7] = 0;
+			ds_effects_state[trigger_byte_fields +  8] = 0;
+			ds_effects_state[trigger_byte_fields +  9] = 0;
+			ds_effects_state[trigger_byte_fields + 10] = 0;
+
+			*ds_trigger_threshold = startpos / 255.f;
+			break;
+		case DS_TRIGGER_LIMITED_FEEDBACK:
+			// Broken, stops producing effect after first press
+			startpos = CLAMP (0, startpos, 9);
+			strength = CLAMP (1, strength, 10);
+
+			startpos = (uint8_t)((float)startpos / 10 * 255);
+			strength = (uint8_t)((float)strength / 10 * 255);
+
+			ds_effects_state[trigger_byte_fields +  0] = tm_limited_feedback;
+			ds_effects_state[trigger_byte_fields +  1] = startpos;
+			ds_effects_state[trigger_byte_fields +  2] = strength;
+			ds_effects_state[trigger_byte_fields +  3] = 0;
+			ds_effects_state[trigger_byte_fields +  4] = 0;
+			ds_effects_state[trigger_byte_fields +  5] = 0;
+			ds_effects_state[trigger_byte_fields +  6] = 0;
+			ds_effects_state[trigger_byte_fields +  7] = 0;
+			ds_effects_state[trigger_byte_fields +  8] = 0;
+			ds_effects_state[trigger_byte_fields +  9] = 0;
+			ds_effects_state[trigger_byte_fields + 10] = 0;
+
+			*ds_trigger_threshold = startpos / 255.f;
+			break;
+		case DS_TRIGGER_LIMITED_WEAPON:
+			startpos = CLAMP (0, startpos, 9);
+			endpos = CLAMP (0, endpos, 9);
+			strength = CLAMP (0, strength, 10);
+
+			startpos = (uint8_t)((float)startpos / 10 * 255);
+			endpos = (uint8_t)((float)endpos / 10 * 255);
+
+			startpos = CLAMP (16, startpos, 255 - 100 - 16);
+			endpos = CLAMP (startpos, endpos, startpos + 100);
+
+			ds_effects_state[trigger_byte_fields +  0] = tm_limited_weapon;
+			ds_effects_state[trigger_byte_fields +  1] = startpos;
+			ds_effects_state[trigger_byte_fields +  2] = endpos;
+			ds_effects_state[trigger_byte_fields +  3] = strength;
+			ds_effects_state[trigger_byte_fields +  4] = 0;
+			ds_effects_state[trigger_byte_fields +  5] = 0;
+			ds_effects_state[trigger_byte_fields +  6] = 0;
+			ds_effects_state[trigger_byte_fields +  7] = 0;
+			ds_effects_state[trigger_byte_fields +  8] = 0;
+			ds_effects_state[trigger_byte_fields +  9] = 0;
+			ds_effects_state[trigger_byte_fields + 10] = 0;
+
+			*ds_trigger_threshold = endpos / 255.f;
+			break;
+		case DS_TRIGGER_OFF:
+		default:
+			ds_effects_state[trigger_byte_fields +  0] = tm_off;
+			ds_effects_state[trigger_byte_fields +  1] = 0;
+			ds_effects_state[trigger_byte_fields +  2] = 0;
+			ds_effects_state[trigger_byte_fields +  3] = 0;
+			ds_effects_state[trigger_byte_fields +  4] = 0;
+			ds_effects_state[trigger_byte_fields +  5] = 0;
+			ds_effects_state[trigger_byte_fields +  6] = 0;
+			ds_effects_state[trigger_byte_fields +  7] = 0;
+			ds_effects_state[trigger_byte_fields +  8] = 0;
+			ds_effects_state[trigger_byte_fields +  9] = 0;
+			ds_effects_state[trigger_byte_fields + 10] = 0;
+
+			*ds_trigger_threshold = 0.f;
+			break;
+	}
+}
+
+void IN_SetupDSTriggers (void)
+{
+	if (!IN_HasAdaptiveTriggers ())
+		return;
+	ds_effects_state[DS_ENABLE_BITS1] = (1<<2) | (1<<3); // Enable triggers effects setting
+	IN_SetupDSTrigger (0);
+	IN_SetupDSTrigger (1);
+	SDL_GameControllerSendEffect (joy_active_controller, ds_effects_state, sizeof(ds_effects_state) / sizeof(ds_effects_state[0]));
+}
+#endif // SDL_VERSION_ATLEAST(2, 0, 16)
+
+void IN_ResetCurrentController (void)
+{
+	if (!joy_active_controller)
+		return;
+
+	// to enable LED update when switch gamepad back and forth
+	prev_joy_led[0] = -1.f;
+	prev_joy_led[1] = -1.f;
+	prev_joy_led[2] = -1.f;
+#if SDL_VERSION_ATLEAST(2, 0, 16)
+	// Reset to player index 1 and blue LED, default ones
+	SDL_GameControllerSetPlayerIndex (joy_active_controller, 0);
+	SDL_GameControllerSetLED (joy_active_controller, 0, 0, 64);
+	if (SDL_GameControllerGetType (joy_active_controller) == SDL_CONTROLLER_TYPE_PS5 )
+	{
+		ds_effects_state[DS_ENABLE_BITS1] = (1<<2) | (1<<3); // Enable triggers effects setting
+		ds_effects_state[DS_RT_BYTES +  0] = tm_off;
+		ds_effects_state[DS_LT_BYTES +  0] = tm_off;
+		SDL_GameControllerSendEffect (joy_active_controller, ds_effects_state, sizeof(ds_effects_state) / sizeof(ds_effects_state[0]));
+	}
+#endif // SDL_VERSION_ATLEAST(2, 0, 16)
+}
+
+static void DS_Triggers_cvar_callback (cvar_t *cvar)
+{
+#if SDL_VERSION_ATLEAST(2, 0, 16)
+	IN_SetupDSTriggers ();
+#endif // SDL_VERSION_ATLEAST(2, 0, 16)
+}
+
+static void Joy_DS_Mode_Completion_f (cvar_t *cvar, const char *partial)
+{
+	for (int i = 0; i < DS_TRIGGER_COUNT; i++)
+		Con_AddToTabList (va ("%d", i), partial, IN_GetDSTriggerModeName (i));
+}
+
+#if SDL_VERSION_ATLEAST(2, 0, 18) //Required for HIDAPI
+static int Read_HID (void* unused)
+{
+	while (!(SDL_AtomicGet (&hid_read_cancel)))
+	{
+		// Read DualSense HID input report
+		uint8_t ds_report_id = 0x0;
+
+		if (IN_HasAdaptiveTriggers () && hidapi_init && joy_active_hid)
+		{
+			ds_report_size = SDL_hid_read (joy_active_hid, ds_input_report, DS_REPORT_SIZE_MAX);
+			if ((ds_report_size == -1) && (joy_ds_debug.value)) Con_Warning ("HID Read fail\n");
+			if ((ds_report_size == 0) && (joy_ds_debug.value)) Con_Warning ("HID Read no data\n");
+		}
+
+		if (ds_report_size > 0)
+		{
+			ds_report_id = ds_input_report[0];
+			if (joy_ds_debug.value >= 2) {
+				Con_Printf ("Bytes read %d\n", ds_report_size);
+				Con_Printf ("HID ReportID = 0x%x\n", ds_report_id);
+			}
+			if (((ds_report_size == DS_REPORT_SIZE_USB) && (ds_report_id == DS_REPORT_ID_USB))) ds_report_offset = 1;
+			else if (((ds_report_size == DS_REPORT_SIZE_BT) && (ds_report_id == DS_REPORT_ID_BT))) ds_report_offset = 2;
+			else { if (joy_ds_debug.value) Con_Warning ("Incorrect HID report id and size\n"); }
+		}
+	}
+	return 0;
+}
+#endif //SDL_VERSION_ATLEAST(2, 0, 18)
+
 static qboolean IN_UseController (int device_index)
 {
 	SDL_GameController *gamecontroller;
@@ -292,6 +955,7 @@ static qboolean IN_UseController (int device_index)
 
 	if (joy_active_device != -1)
 	{
+		IN_ResetCurrentController ();
 		SDL_GameControllerClose (joy_active_controller);
 
 		// Only show "gamepad removed" message when disabling the gamepad altogether,
@@ -306,6 +970,13 @@ static qboolean IN_UseController (int device_index)
 		Cvar_SetValueQuick (&joy_device, -1);
 		gyro_present = false;
 		gyro_yaw = gyro_pitch = 0.f;
+		led_present = false;
+		ds_triggers_present = false;
+#if SDL_VERSION_ATLEAST(2, 0, 18)
+		SDL_AtomicSet (&hid_read_cancel, 1);
+		SDL_WaitThread (hid_read_thread, NULL);
+		hid_read_thread = NULL;
+#endif
 	}
 
 	if (device_index == -1)
@@ -334,10 +1005,10 @@ static qboolean IN_UseController (int device_index)
 	q_strlcpy (joy_active_name, controllername, sizeof (joy_active_name));
 
 #if SDL_VERSION_ATLEAST(2, 0, 14)
+	SDL_GameControllerSetPlayerIndex (joy_active_controller, 0);
 	if (SDL_GameControllerHasLED (joy_active_controller))
 	{
-		// orange LED, seemed fitting for Quake
-		SDL_GameControllerSetLED (joy_active_controller, 80, 20, 0);
+		led_present = true;
 	}
 	if (SDL_GameControllerHasSensor (joy_active_controller, SDL_SENSOR_GYRO)
 		&& !SDL_GameControllerSetSensorEnabled (joy_active_controller, SDL_SENSOR_GYRO, SDL_TRUE))
@@ -353,7 +1024,42 @@ static qboolean IN_UseController (int device_index)
 	{
 		Con_Printf ("Gyro sensor not found\n");
 	}
+#if SDL_VERSION_ATLEAST(2, 0, 16)
+	if (SDL_GameControllerGetType (joy_active_controller) == SDL_CONTROLLER_TYPE_PS5 )
+	{
+		ds_triggers_present = true;
+		IN_SetupDSTriggers ();
+	}
+#endif // SDL_VERSION_ATLEAST(2, 0, 16)
 #endif // SDL_VERSION_ATLEAST(2, 0, 14)
+
+#if SDL_VERSION_ATLEAST(2, 0, 18)
+	SDL_hid_device* hid_device;
+	uint16_t vendor_id;
+	uint16_t product_id;
+
+	if (hidapi_init)
+	{
+		SDL_AtomicSet (&hid_read_cancel, 1);
+		SDL_WaitThread (hid_read_thread, NULL);
+		hid_read_thread = NULL;
+		SDL_hid_close (joy_active_hid);
+
+		vendor_id = SDL_GameControllerGetVendor (joy_active_controller);
+		product_id = SDL_GameControllerGetProduct (joy_active_controller);
+
+		hid_device = SDL_hid_open (vendor_id, product_id, NULL);
+
+		if (hid_device)
+		{
+			joy_active_hid = hid_device;
+			Con_Printf ("Opened HID for %s\n", joy_active_name);
+
+			SDL_AtomicSet (&hid_read_cancel, 0);
+			hid_read_thread = SDL_CreateThread (Read_HID, "HID Read Thread", NULL);
+		}
+	}
+#endif // SDL_VERSION_ATLEAST(2, 0, 18)
 
 	return true;
 }
@@ -412,9 +1118,32 @@ void IN_StartupJoystick (void)
 	IN_SetupJoystick ();
 }
 
+void IN_StartupHIDAPI (void)
+{
+#if SDL_VERSION_ATLEAST(2, 0, 18)
+	if (SDL_hid_init () == -1)
+	{
+		Con_Warning ("could not initialize SDL HIDAPI\n");
+		return;
+	}
+	hidapi_init = true;
+#endif
+}
+
 void IN_ShutdownJoystick (void)
 {
+	IN_ResetCurrentController ();
 	SDL_QuitSubSystem(SDL_INIT_GAMECONTROLLER);
+}
+
+void IN_ShutdownHIDAPI (void)
+{
+#if SDL_VERSION_ATLEAST(2, 0, 18)
+	SDL_AtomicSet (&hid_read_cancel, 1);
+	SDL_WaitThread (hid_read_thread, NULL);
+	hid_read_thread = NULL;
+	SDL_hid_exit ();
+#endif
 }
 
 qboolean IN_HasGamepad (void)
@@ -537,7 +1266,74 @@ void IN_Init (void)
 	Cmd_AddCommand ("+gyroaction", IN_GyroActionDown);
 	Cmd_AddCommand ("-gyroaction", IN_GyroActionUp);
 
+	Cvar_RegisterVariable(&joy_led_enable);
+	Cvar_RegisterVariable(&joy_led_r);
+	Cvar_RegisterVariable(&joy_led_g);
+	Cvar_RegisterVariable(&joy_led_b);
+
+	Cvar_RegisterVariable(&joy_ds_debug);
+
+	Cvar_RegisterVariable(&joy_ds_rt_mode);
+	Cvar_RegisterVariable(&joy_ds_rt_startpos);
+	Cvar_RegisterVariable(&joy_ds_rt_endpos);
+	Cvar_RegisterVariable(&joy_ds_rt_strength);
+	Cvar_RegisterVariable(&joy_ds_rt_snapforce);
+	Cvar_RegisterVariable(&joy_ds_rt_frequency);
+	Cvar_RegisterVariable(&joy_ds_rt_period);
+	Cvar_RegisterVariable(&joy_ds_rt_gallop_firstfoot);
+	Cvar_RegisterVariable(&joy_ds_rt_gallop_secondfoot);
+	Cvar_RegisterVariable(&joy_ds_rt_amplitude_a);
+	Cvar_RegisterVariable(&joy_ds_rt_amplitude_b);
+	Cvar_RegisterVariable(&joy_ds_rt_slope_start);
+	Cvar_RegisterVariable(&joy_ds_rt_slope_end);
+	
+	Cvar_RegisterVariable(&joy_ds_lt_mode);
+	Cvar_RegisterVariable(&joy_ds_lt_startpos);
+	Cvar_RegisterVariable(&joy_ds_lt_endpos);
+	Cvar_RegisterVariable(&joy_ds_lt_strength);
+	Cvar_RegisterVariable(&joy_ds_lt_snapforce);
+	Cvar_RegisterVariable(&joy_ds_lt_frequency);
+	Cvar_RegisterVariable(&joy_ds_lt_period);
+	Cvar_RegisterVariable(&joy_ds_lt_gallop_firstfoot);
+	Cvar_RegisterVariable(&joy_ds_lt_gallop_secondfoot);
+	Cvar_RegisterVariable(&joy_ds_lt_amplitude_a);
+	Cvar_RegisterVariable(&joy_ds_lt_amplitude_b);
+	Cvar_RegisterVariable(&joy_ds_lt_slope_start);
+	Cvar_RegisterVariable(&joy_ds_lt_slope_end);
+
+	Cvar_SetCallback(&joy_ds_rt_mode, DS_Triggers_cvar_callback);
+	Cvar_SetCallback(&joy_ds_rt_startpos, DS_Triggers_cvar_callback);
+	Cvar_SetCallback(&joy_ds_rt_endpos, DS_Triggers_cvar_callback);
+	Cvar_SetCallback(&joy_ds_rt_strength, DS_Triggers_cvar_callback);
+	Cvar_SetCallback(&joy_ds_rt_snapforce, DS_Triggers_cvar_callback);
+	Cvar_SetCallback(&joy_ds_rt_frequency, DS_Triggers_cvar_callback);
+	Cvar_SetCallback(&joy_ds_rt_period, DS_Triggers_cvar_callback);
+	Cvar_SetCallback(&joy_ds_rt_gallop_firstfoot, DS_Triggers_cvar_callback);
+	Cvar_SetCallback(&joy_ds_rt_gallop_secondfoot, DS_Triggers_cvar_callback);
+	Cvar_SetCallback(&joy_ds_rt_amplitude_a, DS_Triggers_cvar_callback);
+	Cvar_SetCallback(&joy_ds_rt_amplitude_b, DS_Triggers_cvar_callback);
+	Cvar_SetCallback(&joy_ds_rt_slope_start, DS_Triggers_cvar_callback);
+	Cvar_SetCallback(&joy_ds_rt_slope_end, DS_Triggers_cvar_callback);
+	
+	Cvar_SetCallback(&joy_ds_lt_mode, DS_Triggers_cvar_callback);
+	Cvar_SetCallback(&joy_ds_lt_startpos, DS_Triggers_cvar_callback);
+	Cvar_SetCallback(&joy_ds_lt_endpos, DS_Triggers_cvar_callback);
+	Cvar_SetCallback(&joy_ds_lt_strength, DS_Triggers_cvar_callback);
+	Cvar_SetCallback(&joy_ds_lt_snapforce, DS_Triggers_cvar_callback);
+	Cvar_SetCallback(&joy_ds_lt_frequency, DS_Triggers_cvar_callback);
+	Cvar_SetCallback(&joy_ds_lt_period, DS_Triggers_cvar_callback);
+	Cvar_SetCallback(&joy_ds_lt_gallop_firstfoot, DS_Triggers_cvar_callback);
+	Cvar_SetCallback(&joy_ds_lt_gallop_secondfoot, DS_Triggers_cvar_callback);
+	Cvar_SetCallback(&joy_ds_lt_amplitude_a, DS_Triggers_cvar_callback);
+	Cvar_SetCallback(&joy_ds_lt_amplitude_b, DS_Triggers_cvar_callback);
+	Cvar_SetCallback(&joy_ds_lt_slope_start, DS_Triggers_cvar_callback);
+	Cvar_SetCallback(&joy_ds_lt_slope_end, DS_Triggers_cvar_callback);
+
+	Cvar_SetCompletion(&joy_ds_rt_mode, Joy_DS_Mode_Completion_f);
+	Cvar_SetCompletion(&joy_ds_lt_mode, Joy_DS_Mode_Completion_f);
+
 	IN_Activate();
+	IN_StartupHIDAPI();
 	IN_StartupJoystick();
 	Sys_ActivateKeyFilter(true);
 }
@@ -546,6 +1342,7 @@ void IN_Shutdown (void)
 {
 	Sys_ActivateKeyFilter(false);
 	IN_Deactivate(true);
+	IN_ShutdownHIDAPI();
 	IN_ShutdownJoystick();
 }
 
@@ -752,10 +1549,19 @@ void IN_Commands (void)
 	joyaxisstate_t newaxisstate;
 	int i;
 	const float stickthreshold = 0.9;
-	const float triggerthreshold = joy_deadzone_trigger.value;
+	float left_triggerthreshold  = joy_deadzone_trigger.value;
+	float right_triggerthreshold = joy_deadzone_trigger.value;
 	
 	if (!joy_active_controller)
 		return;
+
+	if (IN_HasAdaptiveTriggers())
+	{
+		if (ds_lt_threshold)
+			left_triggerthreshold = ds_lt_threshold;
+		if (ds_rt_threshold)
+			right_triggerthreshold = ds_rt_threshold;
+	}
 
 	// emit key events for controller buttons
 	for (i = 0; i < SDL_CONTROLLER_BUTTON_MAX; i++)
@@ -820,9 +1626,63 @@ void IN_Commands (void)
 		}
 	}
 
+	// Read DualSense trigger status nybble from HID input report
+	// If it fails, it falls back to triggers threshold values
+	uint8_t ds_rt_stoplocation = 0;
+	uint8_t ds_rt_status = 0;
+	uint8_t ds_rt_effect = 0;
+	uint8_t ds_lt_stoplocation = 0;
+	uint8_t ds_lt_status = 0;
+	uint8_t ds_lt_effect = 0;
+
+	if (ds_report_offset > 0)
+	{
+		ds_rt_stoplocation = (ds_input_report[ds_report_offset + 41] >> 0) & 0x0f;
+		ds_rt_status       = (ds_input_report[ds_report_offset + 41] >> 4) & 0x0f;
+		ds_lt_stoplocation = (ds_input_report[ds_report_offset + 42] >> 0) & 0x0f;
+		ds_lt_status       = (ds_input_report[ds_report_offset + 42] >> 4) & 0x0f;
+		ds_rt_effect       = (ds_input_report[ds_report_offset + 47] >> 0) & 0x0f;
+		ds_lt_effect       = (ds_input_report[ds_report_offset + 47] >> 4) & 0x0f;
+		if (joy_ds_debug.value >= 3) {
+			Con_Printf ("rt loc %d status %d lt loc %d status %d\n", ds_rt_stoplocation, ds_rt_status, ds_lt_stoplocation, ds_lt_status);
+			Con_Printf ("rt effect 0x%x lt effect 0x%x\n", ds_rt_effect, ds_lt_effect);
+		}
+	}
+
+	ds_rt_nybble = -1;
+	ds_lt_nybble = -1;
+	switch (ds_rt_effect)
+	{
+	case 2: // Weapon mode. Enables after pressure, stops when release trigger
+		ds_rt_nybble = 1 * (ds_rt_status == 2);
+		break;
+	case 0: // No effect
+		break;
+	default: // Effects is applied
+		ds_rt_nybble = 1 * (ds_rt_status > 0);
+		break;
+	}
+	switch (ds_lt_effect)
+	{
+	case 2:
+		ds_lt_nybble = 1 * (ds_lt_status == 2);
+		break;
+	case 0:
+		break;
+	default:
+		ds_lt_nybble = 1 * (ds_lt_status > 0);
+		break;
+	}
+
+	// Pretend we fully pressed trigger
+	if (ds_rt_nybble != -1)
+		newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] = 1.f * ds_rt_nybble;
+	if (ds_lt_nybble != -1)
+		newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERLEFT] = 1.f * ds_lt_nybble;
+
 	// emit emulated keys for the analog triggers
-	IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERLEFT] > triggerthreshold,  newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERLEFT] > triggerthreshold, K_LTRIGGER, &joy_emulatedkeytimer[4]);
-	IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > triggerthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > triggerthreshold, K_RTRIGGER, &joy_emulatedkeytimer[5]);
+	IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERLEFT] > left_triggerthreshold,   newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERLEFT] > left_triggerthreshold,   K_LTRIGGER, &joy_emulatedkeytimer[4]);
+	IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > right_triggerthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > right_triggerthreshold, K_RTRIGGER, &joy_emulatedkeytimer[5]);
 	
 	joy_axisstate = newaxisstate;
 }
@@ -1200,6 +2060,16 @@ qboolean IN_HasGyro (void)
 	return gyro_present;
 }
 
+qboolean IN_HasLED (void)
+{
+	return led_present;
+}
+
+qboolean IN_HasAdaptiveTriggers (void)
+{
+	return ds_triggers_present;
+}
+
 qboolean IN_IsCalibratingGyro (void)
 {
 	return updates_countdown != 0;
@@ -1365,5 +2235,8 @@ void IN_SendKeyEvents (void)
 	}
 
 	IN_UpdateGyroCalibration ();
+#if SDL_VERSION_ATLEAST(2, 0, 14)
+	IN_UpdateLED ();
+#endif // SDL_VERSION_ATLEAST(2, 0, 14)
 }
 
