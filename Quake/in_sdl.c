@@ -76,7 +76,7 @@ cvar_t gyro_calibration_x = {"gyro_calibration_x", "0", CVAR_ARCHIVE};
 cvar_t gyro_calibration_y = {"gyro_calibration_y", "0", CVAR_ARCHIVE};
 cvar_t gyro_calibration_z = {"gyro_calibration_z", "0", CVAR_ARCHIVE};
 
-cvar_t gyro_noise_thresh = {"gyro_noise_thresh", "1.5", CVAR_ARCHIVE};
+cvar_t gyro_noise_thresh = {"gyro_noise_thresh", "3.5", CVAR_ARCHIVE};
 
 static SDL_JoystickID joy_active_instanceid = -1;
 static int joy_active_device = -1;
@@ -1205,16 +1205,21 @@ qboolean IN_IsCalibratingGyro (void)
 	return updates_countdown != 0;
 }
 
-static float IN_FilterGyroSample (float prev, float cur)
+// reduce small movements under a threshold
+// counteracts jitter and noisy gyro sensors
+// http://gyrowiki.jibbsmart.com/blog:good-gyro-controls-part-1:the-gyro-is-a-mouse#toc9
+static joyaxis_t IN_FilterGyroSample (float yaw, float pitch)
 {
+	joyaxis_t input = {yaw, pitch};
+	float mag = IN_AxisMagnitude(input);
 	float thresh = DEG2RAD (gyro_noise_thresh.value);
-	float d = fabs (cur - prev);
-	if (d < thresh)
+	if (mag < thresh)
 	{
-		d /= thresh;
-		cur = LERP (prev, cur, 0.01f + 0.99f * d * d);
+		const float scale = mag / thresh;
+		input.x *= scale;
+		input.y *= scale;
 	}
-	return cur;
+	return input;
 }
 
 void IN_SendKeyEvents (void)
@@ -1313,8 +1318,6 @@ void IN_SendKeyEvents (void)
 		case SDL_CONTROLLERSENSORUPDATE:
 			if (event.csensor.sensor == SDL_SENSOR_GYRO && event.csensor.which == joy_active_instanceid)
 			{
-				float prev_yaw = gyro_yaw;
-				float prev_pitch = gyro_pitch;
 
 				if (updates_countdown)
 				{
@@ -1331,8 +1334,9 @@ void IN_SendKeyEvents (void)
 					gyro_yaw = -(event.csensor.data[2] - gyro_calibration_z.value); // roll
 				gyro_pitch = event.csensor.data[0] - gyro_calibration_x.value;
 
-				gyro_yaw = IN_FilterGyroSample (prev_yaw, gyro_yaw);
-				gyro_pitch = IN_FilterGyroSample (prev_pitch, gyro_pitch);
+				joyaxis_t gyro_filtered = IN_FilterGyroSample(gyro_yaw, gyro_pitch);
+				gyro_yaw = gyro_filtered.x;
+				gyro_pitch = gyro_filtered.y;
 			}
 			break;
 
