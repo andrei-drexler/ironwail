@@ -338,8 +338,7 @@ void GL_PostProcess (void)
 	GL_BindNative (GL_TEXTURE0, GL_TEXTURE_2D, framebufs.composite.color_tex);
 	GL_BindNative (GL_TEXTURE1, GL_TEXTURE_3D, gl_palette_lut);
 	GL_BindBufferRange (GL_SHADER_STORAGE_BUFFER, 0, gl_palette_buffer[palidx], 0, 256 * sizeof (GLuint));
-	if (variant != 2) // some AMD drivers optimize out the uniform in variant #2
-		GL_Uniform3fFunc (0, vid_gamma.value, q_min(2.0f, q_max(1.0f, vid_contrast.value)), 1.f/r_refdef.scale);
+	GL_Uniform4fFunc (0, vid_gamma.value, q_min(2.0f, q_max(1.0f, vid_contrast.value)), 1.f/r_refdef.scale, glx);
 
 	glDrawArrays (GL_TRIANGLES, 0, 3);
 
@@ -850,10 +849,19 @@ void R_SetupGL (void)
 {
 	if (!GL_NeedsSceneEffects ())
 	{
-		GL_BindFramebufferFunc (GL_FRAMEBUFFER, GL_NeedsPostprocess () ? framebufs.composite.fbo : 0u);
+		qboolean needpostprocess = GL_NeedsPostprocess ();
+		int xoffset = 0;
+		int yoffset = 0;
+		if (!needpostprocess)
+		{
+			xoffset = glx;
+			yoffset = gly;
+		}
+
+		GL_BindFramebufferFunc (GL_FRAMEBUFFER, needpostprocess ? framebufs.composite.fbo : 0u);
 		framesetup.scene_fbo = framebufs.composite.fbo;
 		framesetup.oit_fbo = framebufs.oit.fbo_composite;
-		glViewport (glx + r_refdef.vrect.x, gly + glheight - r_refdef.vrect.y - r_refdef.vrect.height, r_refdef.vrect.width, r_refdef.vrect.height);
+		glViewport (xoffset+r_refdef.vrect.x, yoffset+glheight - r_refdef.vrect.y - r_refdef.vrect.height, r_refdef.vrect.width, r_refdef.vrect.height);
 	}
 	else
 	{
@@ -1750,8 +1758,13 @@ void R_WarpScaleView (void)
 	if (!GL_NeedsSceneEffects ())
 		return;
 
-	srcx = glx + r_refdef.vrect.x;
-	srcy = gly + glheight - r_refdef.vrect.y - r_refdef.vrect.height;
+	srcx = r_refdef.vrect.x;
+	srcy = glheight - r_refdef.vrect.y - r_refdef.vrect.height;
+	if (!GL_NeedsPostprocess ())
+	{
+		srcx += glx;
+		srcy += gly;
+	}
 	srcw = r_refdef.vrect.width / r_refdef.scale;
 	srch = r_refdef.vrect.height / r_refdef.scale;
 

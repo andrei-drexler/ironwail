@@ -1242,8 +1242,6 @@ void IN_SendKeyEvents (void)
 			}
 			else if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
 			{
-				vid.width = event.window.data1;
-				vid.height = event.window.data2;
 				vid.resized = true;
 			}
 			break;

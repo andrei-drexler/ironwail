@@ -245,7 +245,7 @@ static const char postprocess_fragment_shader[] =
 PALETTE_BUFFER
 NOISE_FUNCTIONS
 "\n"
-"layout(location=0) uniform vec3 Params;\n"
+"layout(location=0) uniform vec4 Params;\n"
 "\n"
 "layout(location=0) out vec4 out_fragcolor;\n"
 "\n"
@@ -254,7 +254,8 @@ NOISE_FUNCTIONS
 "	float gamma = Params.x;\n"
 "	float contrast = Params.y;\n"
 "	float scale = Params.z;\n"
-"	out_fragcolor = texelFetch(GammaTexture, ivec2(gl_FragCoord), 0);\n"
+"	ivec2 texelpos = ivec2(gl_FragCoord.x-Params.w, gl_FragCoord.y);\n"
+"	out_fragcolor = texelFetch(GammaTexture, texelpos, 0);\n"
 "#if PALETTIZE == 1\n"
 "	vec2 noiseuv = floor(gl_FragCoord.xy * scale) + 0.5;\n"
 "	out_fragcolor.rgb = sqrt(out_fragcolor.rgb);\n"

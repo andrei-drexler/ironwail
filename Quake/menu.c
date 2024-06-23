@@ -47,7 +47,9 @@ extern cvar_t vid_width;
 extern cvar_t vid_height;
 extern cvar_t vid_refreshrate;
 extern cvar_t vid_fullscreen;
+extern cvar_t vid_desktopfullscreen;
 extern cvar_t vid_borderless;
+extern cvar_t vid_maxaspect;
 extern cvar_t vid_vsync;
 extern cvar_t vid_fsaamode;
 extern cvar_t vid_fsaa;
@@ -2778,22 +2780,44 @@ static void VID_Menu_ChooseNextRate (int dir)
 typedef enum
 {
 	DISPLAYMODE_FULLSCREEN,
+	DISPLAYMODE_DESKTOPFULLSCREEN,
 	DISPLAYMODE_WINDOWED,
 	DISPLAYMODE_BORDERLESS,
 
 	DISPLAYMODE_COUNT,
 } windowmode_t;
+static windowmode_t displaymode;
+
+static void VID_Menu_InitDisplayMode (void)
+{
+	if (vid_fullscreen.value)
+		displaymode = vid_desktopfullscreen.value ? DISPLAYMODE_DESKTOPFULLSCREEN : DISPLAYMODE_FULLSCREEN;
+	else
+		displaymode = vid_borderless.value ? DISPLAYMODE_BORDERLESS : DISPLAYMODE_WINDOWED;
+}
 
 static windowmode_t VID_Menu_GetDisplayMode (void)
 {
-	if (vid_fullscreen.value)
-		return DISPLAYMODE_FULLSCREEN;
-	return vid_borderless.value ? DISPLAYMODE_BORDERLESS : DISPLAYMODE_WINDOWED;
+	return displaymode;
 }
 
 static void VID_Menu_SetDisplayMode (windowmode_t mode)
 {
-	Cvar_SetValueQuick (&vid_fullscreen, mode == DISPLAYMODE_FULLSCREEN);
+	displaymode = mode;
+}
+
+static void VID_Menu_ApplyDisplayMode (void)
+{
+	windowmode_t mode = VID_Menu_GetDisplayMode ();
+
+	Cvar_SetValueQuick (&vid_fullscreen, mode == DISPLAYMODE_FULLSCREEN || mode == DISPLAYMODE_DESKTOPFULLSCREEN);
+	
+	// preserve vid_desktopfullscreen unless explicitly setting a fullscreen mode.
+	if (mode == DISPLAYMODE_FULLSCREEN)
+		Cvar_SetValueQuick (&vid_desktopfullscreen, 0);
+	else if (mode == DISPLAYMODE_DESKTOPFULLSCREEN)
+		Cvar_SetValueQuick (&vid_desktopfullscreen, 1);
+
 	if (mode != DISPLAYMODE_FULLSCREEN)
 		Cvar_SetValueQuick (&vid_borderless, mode == DISPLAYMODE_BORDERLESS);
 }
@@ -2810,6 +2834,45 @@ static void VID_Menu_ChooseNextDisplayMode (int dir)
 	windowmode_t mode = VID_Menu_GetDisplayMode ();
 	mode = (mode + DISPLAYMODE_COUNT - dir) % DISPLAYMODE_COUNT;
 	VID_Menu_SetDisplayMode (mode);
+}
+
+static char* aspectratiovalues[] = { "0", "4:3", "16:9" };
+static int VID_Menu_GetMaxAspectRatioMenuStringIndex ()
+{
+	int i;
+	int index = -1;
+	for (i = 0; i < countof (aspectratiovalues); i++)
+	{
+		if (vid_maxaspect.string && strcmp (vid_maxaspect.string, aspectratiovalues[i]) == 0)
+		{
+			index = i;
+			break;
+		}
+	}
+	return index;
+}
+
+/*
+================
+VID_Menu_ChooseNextMaxAspectRatio
+
+chooses next max aspect ratio, then updates vid_maxaspect cvar
+================
+*/
+static void VID_Menu_ChooseNextMaxAspectRatio (int dir)
+{
+	int index = VID_Menu_GetMaxAspectRatioMenuStringIndex ();
+	if (index < 0)
+		index = 0;
+	else
+	{
+		index = (index+dir);
+		if (index < 0)
+			index = countof (aspectratiovalues)-1;
+		else
+			index = index%countof (aspectratiovalues);
+	}
+	Cvar_SetQuick (&vid_maxaspect, aspectratiovalues[index]);
 }
 
 /*
@@ -3230,6 +3293,7 @@ void M_Menu_Gamepad_f (void)
 													\
 	def (VID_OPT_SPACE1,		"")					\
 													\
+	def (VID_OPT_MAXASPECT,		"Aspect Ratio")		\
 	def (VID_OPT_VSYNC,			"Vertical Sync")	\
 	def (VID_OPT_FSAA,			"Antialiasing")		\
 	def (VID_OPT_FSAA_MODE,		"AA Mode")			\
@@ -3455,6 +3519,9 @@ void M_Options_Init (enum m_state_e state)
 
 		//set up rate list based on current cvars
 		VID_Menu_RebuildRateList ();
+
+		// set up the display mode selector.
+		VID_Menu_InitDisplayMode ();
 	}
 	else if (state == m_gamepad)
 	{
@@ -3676,13 +3743,18 @@ void M_AdjustSliders (int dir)
 	// Video options
 	//
 	case VID_OPT_RESOLUTION:
-		VID_Menu_ChooseNextResolution (-dir);
+		// cannot change desktopfullscreen resolution.
+		if (VID_Menu_GetDisplayMode () != DISPLAYMODE_DESKTOPFULLSCREEN)
+			VID_Menu_ChooseNextResolution (-dir);
 		break;
 	case VID_OPT_REFRESHRATE:
 		VID_Menu_ChooseNextRate (-dir);
 		break;
 	case VID_OPT_DISPLAYMODE:
 		VID_Menu_ChooseNextDisplayMode (-dir);
+		break;
+	case VID_OPT_MAXASPECT:
+		VID_Menu_ChooseNextMaxAspectRatio (-dir);
 		break;
 	case VID_OPT_VSYNC:
 		Cbuf_AddText ("toggle vid_vsync\n"); // kristian
@@ -4107,7 +4179,11 @@ static void M_Options_DrawItem (int y, int item)
 	// Video Options
 	//
 	case VID_OPT_RESOLUTION:
-		M_Print (x, y, va("%i x %i", (int)vid_width.value, (int)vid_height.value));
+		// desktopfullscreen resolution is always the displays native resolution.
+		if (VID_Menu_GetDisplayMode () == DISPLAYMODE_DESKTOPFULLSCREEN)
+			M_Print (x, y, va ("Native"));
+		else
+			M_Print (x, y, va ("%i x %i", (int)vid_width.value, (int)vid_height.value));
 		break;
 	case VID_OPT_REFRESHRATE:
 		M_Print (x, y, va("%i Hz", (int)vid_refreshrate.value));
@@ -4115,12 +4191,20 @@ static void M_Options_DrawItem (int y, int item)
 	case VID_OPT_DISPLAYMODE:
 		switch (VID_Menu_GetDisplayMode ())
 		{
-		case DISPLAYMODE_FULLSCREEN:	M_Print (x, y, "Fullscreen"); break;
-		case DISPLAYMODE_WINDOWED:		M_Print (x, y, "Windowed"); break;
-		case DISPLAYMODE_BORDERLESS:	M_Print (x, y, "Borderless"); break;
-		default:						M_Print (x, y, "Other"); break;
+		case DISPLAYMODE_FULLSCREEN:		M_Print (x, y, "Fullscreen"); break;
+		case DISPLAYMODE_DESKTOPFULLSCREEN:	M_Print (x, y, "DesktopFullscreen"); break;
+		case DISPLAYMODE_WINDOWED:			M_Print (x, y, "Windowed"); break;
+		case DISPLAYMODE_BORDERLESS:		M_Print (x, y, "Borderless"); break;
+		default:							M_Print (x, y, "Other"); break;
 		}
 		break;
+	case VID_OPT_MAXASPECT:
+	{
+		int index = VID_Menu_GetMaxAspectRatioMenuStringIndex ();
+		char* text = index < 0 ? "Custom" : (index == 0 ? "Auto" : aspectratiovalues[index]);
+		M_Print (x, y, text);
+		break;
+	}
 	case VID_OPT_VSYNC:
 		M_DrawCheckbox (x, y, (int)vid_vsync.value);
 		break;
@@ -4382,6 +4466,7 @@ void M_Options_Key (int k)
 			Cbuf_AddText ("vid_test\n");
 			break;
 		case VID_OPT_APPLY:
+			VID_Menu_ApplyDisplayMode ();
 			Cbuf_AddText ("vid_restart\n");
 			key_dest = key_game;
 			m_state = m_none;
