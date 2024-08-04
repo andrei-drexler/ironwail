@@ -148,6 +148,7 @@ cvar_t		vid_fsaa = {"vid_fsaa", "0", CVAR_ARCHIVE}; // QuakeSpasm
 cvar_t		vid_fsaamode = {"vid_fsaamode", "0", CVAR_ARCHIVE};
 cvar_t		vid_desktopfullscreen = {"vid_desktopfullscreen", "0", CVAR_ARCHIVE}; // QuakeSpasm
 cvar_t		vid_borderless = {"vid_borderless", "0", CVAR_ARCHIVE}; // QuakeSpasm
+cvar_t		vid_maxaspect = { "vid_maxaspect", "0", CVAR_ARCHIVE };
 //johnfitz
 cvar_t		vid_saveresize = {"vid_saveresize", "0", CVAR_ARCHIVE};
 
@@ -412,6 +413,46 @@ static qboolean VID_ValidMode (int width, int height, int refreshrate, qboolean 
 
 /*
 ================
+VID_GetAspectRatioCVarValue
+
+get an aspect ratio from a cvar.
+if the cvar string is in the format x:y, such as 16:9, the fractional float aspect ratio is calculated.
+otherwise the cvars float value is returned.
+================
+*/
+static float VID_GetAspectRatioCVarValue (cvar_t* cvar)
+{
+	float aspect = cvar->value;
+	if (cvar->string && *cvar->string)
+	{
+		float num, denom;
+		if (sscanf (cvar->string, "%f:%f", &num, &denom) == 2)
+			if (num && denom)
+				aspect = num / denom;
+	}
+	return aspect;
+}
+
+/*
+================
+VID_UpdateRes
+
+setup vid.width and vid.height and account for vid_maxaspect.
+================
+*/
+static void VID_UpdateRes ()
+{
+	float maxaspect = VID_GetAspectRatioCVarValue (&vid_maxaspect);
+
+	vid.width = VID_GetCurrentWidth ();
+	vid.height = VID_GetCurrentHeight ();
+
+	if (maxaspect > 0)
+		vid.width = q_min (vid.width, (int)floor (vid.height*maxaspect+0.5f));
+}
+
+/*
+================
 VID_SetMode
 ================
 */
@@ -535,8 +576,7 @@ static qboolean VID_SetMode (int width, int height, int refreshrate, qboolean fu
 		}
 	}
 
-	vid.width = VID_GetCurrentWidth();
-	vid.height = VID_GetCurrentHeight();
+	VID_UpdateRes ();
 	vid.maxscale = q_max (4, vid.height / 240);
 	vid.refreshrate = VID_GetCurrentRefreshRate();
 	vid.conwidth = vid.width & 0xFFFFFFF8;
@@ -656,6 +696,11 @@ void VID_Changed_f (cvar_t *var)
 	vid_changed = true;
 }
 
+void VID_Resized_f (cvar_t* var)
+{
+	vid.resized = true;
+}
+
 void VID_RecalcConsoleSize (void)
 {
 	vid.conwidth = (scr_conwidth.value > 0) ? (int)scr_conwidth.value : (scr_conscale.value > 0) ? (int)(vid.guiwidth/scr_conscale.value) : vid.guiwidth;
@@ -666,18 +711,9 @@ void VID_RecalcConsoleSize (void)
 
 void VID_RecalcInterfaceSize (void)
 {
-	vid.guipixelaspect = 1.f;
-	if (scr_pixelaspect.string && *scr_pixelaspect.string)
-	{
-		float num, denom;
-		if (sscanf (scr_pixelaspect.string, "%f:%f", &num, &denom) == 2)
-		{
-			if (num && denom)
-				vid.guipixelaspect = CLAMP (0.5f, num / denom, 2.f);
-		}
-		else if (scr_pixelaspect.value)
-			vid.guipixelaspect = CLAMP (0.5f, scr_pixelaspect.value, 2.f);
-	}
+	vid.guipixelaspect = VID_GetAspectRatioCVarValue(&scr_pixelaspect);
+	vid.guipixelaspect = CLAMP (0.5f, vid.guipixelaspect, 2.f);
+
 	vid.guiwidth = vid.width / q_max (vid.guipixelaspect, 1.f);
 	vid.guiheight = vid.height * q_min (vid.guipixelaspect, 1.f);
 	if (vid.width && vid.height)
@@ -1322,6 +1358,7 @@ void GL_BeginRendering (int *x, int *y, int *width, int *height)
 	{
 		vid.resized = false;
 		vid.recalc_refdef = true;
+		VID_UpdateRes ();
 		if (vid_saveresize.value)
 		{
 			qboolean was_locked = vid_locked;
@@ -1338,6 +1375,16 @@ void GL_BeginRendering (int *x, int *y, int *width, int *height)
 	*x = *y = 0;
 	*width = vid.width;
 	*height = vid.height;
+
+	if (vid.width != VID_GetCurrentWidth ())
+	{
+		// center within window if vid width is less than window width.
+		*x = (VID_GetCurrentWidth ()-vid.width)/2;
+
+		// if vid width is not equal to window width the window needs to be cleared.
+		glClearColor (0, 0, 0, 0);
+		glClear (GL_COLOR_BUFFER_BIT);
+	}
 
 	// reset state/bindings, just in case some other process
 	// injects code that makes changes without cleaning up
@@ -1583,6 +1630,7 @@ void	VID_Init (void)
 	Cvar_RegisterVariable (&vid_fsaamode);
 	Cvar_RegisterVariable (&vid_desktopfullscreen); //QuakeSpasm
 	Cvar_RegisterVariable (&vid_borderless); //QuakeSpasm
+	Cvar_RegisterVariable (&vid_maxaspect);
 	Cvar_RegisterVariable (&vid_saveresize);
 	Cvar_SetCallback (&vid_fullscreen, VID_Changed_f);
 	Cvar_SetCallback (&vid_width, VID_Changed_f);
@@ -1593,6 +1641,7 @@ void	VID_Init (void)
 	Cvar_SetCallback (&vid_fsaamode, VID_FSAAMode_f);
 	Cvar_SetCallback (&vid_desktopfullscreen, VID_Changed_f);
 	Cvar_SetCallback (&vid_borderless, VID_Changed_f);
+	Cvar_SetCallback (&vid_maxaspect, VID_Resized_f);
 
 	Cvar_SetCompletion (&vid_width, VID_Width_Completion_f);
 	Cvar_SetCompletion (&vid_height, VID_Height_Completion_f);
