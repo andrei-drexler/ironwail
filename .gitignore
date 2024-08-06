@@ -6,3 +6,6 @@ Quake/*.d
 Quake/*.res
 Quake/*.exe
 Quake/ironwail
+build/
+/.vs
+/out/
