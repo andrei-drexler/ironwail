@@ -3234,6 +3234,7 @@ void M_Menu_Gamepad_f (void)
 													\
 	def (OPT_SNDVOL,		"Sound Volume")			\
 	def (OPT_MUSICVOL,		"Music Volume")			\
+	def (OPT_SNDQUAL,		"Sound Quality")		\
 	def (OPT_MUSICEXT,		"External Music")		\
 ////////////////////////////////////////////////////
 #define VIDEO_OPTIONS_LIST(def)						\
@@ -3617,6 +3618,9 @@ void M_AdjustSliders (int dir)
 		if (f < 0)	f = 0;
 		else if (f > 1)	f = 1;
 		Cvar_SetValue ("volume", f);
+		break;
+	case OPT_SNDQUAL:	// Change sample rate from 11025 Hz to 44100 kHz
+		Cvar_SetValue ("sndspeed", (sndspeed.value == 11025) ? 44100 : 11025);
 		break;
 
 	case OPT_HUDSTYLE:	// hud style
@@ -4131,6 +4135,11 @@ static void M_Options_DrawItem (int y, int item)
 	case OPT_SNDVOL:
 		r = sfxvolume.value;
 		M_DrawSlider (x, y, r, va ("%.0f%%", 100.f * sfxvolume.value));
+		break;
+
+	case OPT_SNDQUAL:
+		// Original = 11,025 Hz    Remastered = 44,100 Hz
+		M_Print (x, y, sndspeed.value == 11025 ? "Original" : "Remastered");
 		break;
 
 	case OPT_MUSICVOL:
