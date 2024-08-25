@@ -43,17 +43,14 @@ typedef struct _mp3_priv_t
 /* CALLBACKS: libmpg123 expects POSIX read/lseek() behavior! */
 static ssize_t mp3_read (void *f, void *buf, size_t size)
 {
-	ssize_t ret = (ssize_t) FS_fread(buf, 1, size, (fshandle_t *)f);
-	if (ret == 0 && errno != 0)
-		return -1;
-	return ret;
+	return (ssize_t) QFS_ReadFile((qfshandle_t*)f,  buf, size);
 }
 static off_t mp3_seek (void *f, off_t offset, int whence)
 {
 	if (f == NULL) return -1;
-	if (FS_fseek((fshandle_t *)f, (long) offset, whence) < 0)
+	if (QFS_Seek((qfshandle_t *)f, (qfileofs_t) offset, whence) < 0)
 		return (off_t)-1;
-	return (off_t) FS_ftell((fshandle_t *)f);
+	return (off_t) QFS_Tell((qfshandle_t *)f);
 }
 
 static qboolean S_MP3_CodecInitialize (void)
@@ -101,7 +98,7 @@ static qboolean S_MP3_CodecOpenStream (snd_stream_t *stream)
 	}
 
 	if (mpg123_replace_reader_handle(priv->handle, mp3_read, mp3_seek, NULL) != MPG123_OK ||
-	    mpg123_open_handle(priv->handle, &stream->fh) != MPG123_OK)
+	    mpg123_open_handle(priv->handle, stream->fh) != MPG123_OK)
 	{
 		Con_Printf("Unable to open mpg123 handle\n");
 		goto _fail;
