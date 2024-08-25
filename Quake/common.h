@@ -117,8 +117,8 @@ typedef struct sizebuf_s
 	qboolean	allowoverflow;	// if false, do a Sys_Error
 	qboolean	overflowed;		// set to true if the buffer size failed
 	byte		*data;
-	int		maxsize;
-	int		cursize;
+	int32_t		maxsize;
+	int32_t		cursize;
 } sizebuf_t;
 
 void SZ_Alloc (sizebuf_t *buf, int startsize);
@@ -208,10 +208,10 @@ static inline void ToggleBit (uint32_t *arr, uint32_t i)
 #define host_bigendian 0
 #endif
 
-#define BigShort(s)    ((short)SDL_SwapBE16((s)))
-#define LittleShort(s) ((short)SDL_SwapLE16((s)))
-#define BigLong(l)     ((int)SDL_SwapBE32((l)))
-#define LittleLong(l)  ((int)SDL_SwapLE32((l)))
+#define BigShort(s)    ((int16_t)SDL_SwapBE16((s)))
+#define LittleShort(s) ((int16_t)SDL_SwapLE16((s)))
+#define BigLong(l)     ((int32_t)SDL_SwapBE32((l)))
+#define LittleLong(l)  ((int32_t)SDL_SwapLE32((l)))
 #define BigFloat(f)    SDL_SwapFloatBE((f))
 #define LittleFloat(f) SDL_SwapFloatLE((f))
 
@@ -277,6 +277,9 @@ extern char *q_strupr (char *str);
 /* snprintf, vsnprintf : always use our versions. */
 extern int q_snprintf (char *str, size_t size, const char *format, ...) FUNC_PRINTF(3,4);
 extern int q_vsnprintf(char *str, size_t size, const char *format, va_list args) FUNC_PRINTF(3,0);
+
+/* q_strascii : check if a string contains only ascii */
+extern qboolean q_strascii (const char* str);
 
 #define PLURAL(count)	((int)(count)), ((int)(count) == 1 ? "" : "s")
 
@@ -361,6 +364,8 @@ uint32_t UTF8_ReadCodePoint (const char **src);
 size_t UTF8_FromQuake (char *dst, size_t maxbytes, const char *src);
 size_t UTF8_ToQuake (char *dst, size_t maxbytes, const char *src);
 
+size_t UTF8_FromIBM437 (char* dst, size_t maxbytes, const char* src);
+
 #define UNICODE_UNKNOWN		0xFFFD
 #define UNICODE_MAX			0x10FFFF
 
@@ -371,34 +376,19 @@ size_t UTF8_ToQuake (char *dst, size_t maxbytes, const char *src);
 //============================================================================
 
 // QUAKEFS
-typedef struct
-{
-	char	name[MAX_QPATH];
-	int		filepos, filelen;
-} packfile_t;
-
-typedef struct pack_s
-{
-	char	filename[MAX_OSPATH];
-	int		handle;
-	int		numfiles;
-	packfile_t	*files;
-} pack_t;
-
 typedef struct searchpath_s
 {
 	unsigned int path_id;	// identifier assigned to the game directory
 					// Note that <install_dir>/game1 and
 					// <userdir>/game1 have the same id.
 	char	filename[MAX_OSPATH];
-	pack_t	*pack;			// only one of filename / pack will be used
+	int 	pack;			// only one of filename / pack will be used
 	struct searchpath_s	*next;
 } searchpath_t;
 
 extern searchpath_t *com_searchpaths;
 extern searchpath_t *com_base_searchpaths;
 
-extern THREAD_LOCAL qfileofs_t com_filesize;
 struct cache_user_s;
 
 #define MAX_BASEDIRS 64
@@ -407,22 +397,9 @@ extern	int		com_numbasedirs;
 extern	char	com_basedirs[MAX_BASEDIRS][MAX_OSPATH];
 extern	char	com_gamedir[MAX_OSPATH];
 extern	char	com_nightdivedir[MAX_OSPATH];
-extern	THREAD_LOCAL int	file_from_pak;	// global indicating that file came from a pak
 
 void COM_WriteFile (const char *filename, const void *data, int len);
 qboolean COM_WriteFile_OSPath (const char *filename, const void *data, size_t len);
-int COM_OpenFile (const char *filename, int *handle, unsigned int *path_id);
-int COM_FOpenFile (const char *filename, FILE **file, unsigned int *path_id);
-qboolean COM_FileExists (const char *filename, unsigned int *path_id);
-void COM_CloseFile (int h);
-
-// these procedures open a file using COM_FindFile and loads it into a proper
-// buffer. the buffer is allocated with a total size of com_filesize + 1. the
-// procedures differ by their buffer allocation method.
-byte *COM_LoadHunkFile (const char *path, unsigned int *path_id);
-	// allocates the buffer on the hunk.
-byte *COM_LoadMallocFile (const char *path, unsigned int *path_id);
-	// allocates the buffer on the system mem (malloc).
 
 // Opens the given path directly, ignoring search paths.
 // Returns NULL on failure, or else a '\0'-terminated malloc'ed buffer.
@@ -449,33 +426,6 @@ const char *COM_ParseStringNewline(const char *buffer);
 #define	FS_ENT_NONE		(0)
 #define	FS_ENT_FILE		(1 << 0)
 #define	FS_ENT_DIRECTORY	(1 << 1)
-
-/* The following FS_*() stdio replacements are necessary if one is
- * to perform non-sequential reads on files reopened on pak files
- * because we need the bookkeeping about file start/end positions.
- * Allocating and filling in the fshandle_t structure is the users'
- * responsibility when the file is initially opened. */
-
-typedef struct _fshandle_t
-{
-	FILE *file;
-	qboolean pak;	/* is the file read from a pak */
-	long start;	/* file or data start position */
-	long length;	/* file or data size */
-	long pos;	/* current position relative to start */
-} fshandle_t;
-
-size_t FS_fread(void *ptr, size_t size, size_t nmemb, fshandle_t *fh);
-int FS_fseek(fshandle_t *fh, long offset, int whence);
-long FS_ftell(fshandle_t *fh);
-void FS_rewind(fshandle_t *fh);
-int FS_feof(fshandle_t *fh);
-int FS_ferror(fshandle_t *fh);
-int FS_fclose(fshandle_t *fh);
-int FS_fgetc(fshandle_t *fh);
-char *FS_fgets(char *s, int size, fshandle_t *fh);
-long FS_filelength (fshandle_t *fh);
-
 
 extern struct cvar_s	registered;
 extern qboolean		standard_quake, rogue, hipnotic;
