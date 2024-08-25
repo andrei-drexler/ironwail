@@ -100,13 +100,16 @@ static inline int is_lyrics3tag(const unsigned char *data, long length) {
     return 0;
 }
 static long get_lyrics3v1_len(snd_stream_t *stream) {
-    const char *p; long i, len;
+    const char *p; long i;
+    qfileofs_t len;
     char buf[5104];
     /* needs manual search:  http://id3.org/Lyrics3 */
-    if (stream->fh.length < 20) return -1;
-    len = (stream->fh.length > 5109)? 5109 : stream->fh.length;
-    FS_fseek(&stream->fh, -len, SEEK_END);
-    FS_fread(buf, 1, (len -= 9), &stream->fh); /* exclude footer */
+    qfileofs_t filesize = QFS_FileSize(stream->fh);
+    if (filesize < 20)
+        return -1;
+    len = (filesize > 5109)? 5109 : (long)filesize;
+    QFS_Seek(stream->fh, -len, SEEK_END);
+    QFS_ReadFile(stream->fh, buf, (len -= 9)); /* exclude footer */
     /* strstr() won't work here. */
     for (i = len - 11, p = buf; i >= 0; --i, ++p) {
         if (memcmp(p, "LYRICSBEGIN", 11) == 0)
@@ -126,7 +129,7 @@ static inline qboolean verify_lyrics3v2(const unsigned char *data, long length) 
     if (memcmp(data,"LYRICSBEGIN",11) == 0) return true;
     return false;
 }
-#define MMTAG_PARANOID
+
 static qboolean is_musicmatch(const unsigned char *data, long length) {
   /* From docs/musicmatch.txt in id3lib: https://sourceforge.net/projects/id3lib/
      Overall tag structure:
@@ -162,12 +165,12 @@ static qboolean is_musicmatch(const unsigned char *data, long length) {
         !q_isdigit(data[34]) ||!q_isdigit(data[35])) {
         return false;
     }
-    #ifdef MMTAG_PARANOID
+
     /* [36..47]: 12 bytes trailing space */
     for (length = 36; length < 48; ++length) {
         if (data[length] != ' ') return false;
     }
-    #endif
+
     return true;
 }
 static long get_musicmatch_len(snd_stream_t *stream) {
@@ -175,10 +178,13 @@ static long get_musicmatch_len(snd_stream_t *stream) {
     const unsigned char syncstr[10] = {'1','8','2','7','3','6','4','5',0,0};
     unsigned char buf[256];
     int i, j, imgext_ofs, version_ofs;
-    long len;
+    qfileofs_t len, filesize;
 
-    FS_fseek(&stream->fh, -68, SEEK_END);
-    FS_fread(buf, 1, 20, &stream->fh);
+    memset(buf, 0, sizeof(buf));
+    filesize = QFS_FileSize(stream->fh);
+
+    QFS_Seek(stream->fh, -68, SEEK_END);
+    QFS_ReadFile(stream->fh, buf, 20);
     imgext_ofs  = (int)((buf[3] <<24) | (buf[2] <<16) | (buf[1] <<8) | buf[0] );
     version_ofs = (int)((buf[15]<<24) | (buf[14]<<16) | (buf[13]<<8) | buf[12]);
     if (version_ofs <= imgext_ofs) return -1;
@@ -189,58 +195,64 @@ static long get_musicmatch_len(snd_stream_t *stream) {
      * bytes), we can _not_ directly calculate using deltas from the offsets
      * section. */
     for (i = 0; i < 4; ++i) {
-    /* 48: footer, 20: offsets, 256: version info */
+        memset(buf, 0, sizeof(buf));
+        /* 48: footer, 20: offsets, 256: version info */
         len = metasizes[i] + 48 + 20 + 256;
-        if (stream->fh.length < len) return -1;
-        FS_fseek(&stream->fh, -len, SEEK_END);
-        FS_fread(buf, 1, 256, &stream->fh);
+        if (filesize < len)
+            return -1;
+        QFS_Seek(stream->fh, -len, SEEK_END);
+        QFS_ReadFile(stream->fh, buf, 256);
         /* [0..9]: sync string, [30..255]: 0x20 */
-        #ifdef MMTAG_PARANOID
+
         for (j = 30; j < 256; ++j) {
             if (buf[j] != ' ') break;
         }
         if (j < 256) continue;
-        #endif
+
         if (memcmp(buf, syncstr, 10) == 0) {
             break;
         }
     }
     if (i == 4) return -1; /* no luck. */
-    #ifdef MMTAG_PARANOID
+    memset(buf, 0, sizeof(buf));
     /* unused section: (4 bytes of 0x00) */
-    FS_fseek(&stream->fh, -(len + 4), SEEK_END);
-    FS_fread(buf, 1, 4, &stream->fh); j = 0;
+    QFS_Seek(stream->fh, -(len + 4), SEEK_END);
+    QFS_ReadFile(stream->fh, buf, 4);
+    j = 0;
     if (memcmp(buf, &j, 4) != 0) return -1;
-    #endif
+
     len += (version_ofs - imgext_ofs);
-    if (stream->fh.length < len) return -1;
-    FS_fseek(&stream->fh, -len, SEEK_END);
-    FS_fread(buf, 1, 8, &stream->fh);
+    if (filesize < len) return -1;
+    memset(buf, 0, sizeof(buf));
+    QFS_Seek(stream->fh, -len, SEEK_END);
+    QFS_ReadFile(stream->fh, buf, 8);
     j = (int)((buf[7] <<24) | (buf[6] <<16) | (buf[5] <<8) | buf[4]);
     if (j < 0) return -1;
     /* verify image size: */
     /* without this, we may land at a wrong place. */
     if (j + 12 != version_ofs - imgext_ofs) return -1;
     /* try finding the optional header */
-    if (stream->fh.length < len + 256) return len;
-    FS_fseek(&stream->fh, -(len + 256), SEEK_END);
-    FS_fread(buf, 1, 256, &stream->fh);
+    if (filesize < len + 256) return len;
+    QFS_Seek(stream->fh, -(len + 256), SEEK_END);
+    QFS_ReadFile(stream->fh, buf, 256);
     /* [0..9]: sync string, [30..255]: 0x20 */
     if (memcmp(buf, syncstr, 10) != 0) {
         return len;
     }
-    #ifdef MMTAG_PARANOID
+
     for (j = 30; j < 256; ++j) {
         if (buf[j] != ' ') return len;
     }
-    #endif
+
     return len + 256; /* header is present. */
 }
 
-static int probe_id3v1(snd_stream_t *stream, unsigned char *buf, int atend) {
-    if (stream->fh.length >= 128) {
-        FS_fseek(&stream->fh, -128, SEEK_END);
-        if (FS_fread(buf, 1, 128, &stream->fh) != 128)
+static int probe_id3v1(snd_stream_t *stream, unsigned char *buf, int atend)
+{
+    qfileofs_t filesize = QFS_FileSize(stream->fh);
+    if (filesize >= 128) {
+        QFS_Seek(stream->fh, -128, SEEK_END);
+        if (QFS_ReadFile(stream->fh, buf, 128) != 128)
             return -1;
         if (is_id3v1(buf, 128)) {
             if (!atend) { /* possible false positive? */
@@ -250,7 +262,7 @@ static int probe_id3v1(snd_stream_t *stream, unsigned char *buf, int atend) {
                     return 0;
                 }
             }
-            stream->fh.length -= 128;
+            QFS_IgnoreBytes(stream->fh, 128, SEEK_END);
             Con_DPrintf("MP3: skipped %ld bytes ID3v1 tag\n", 128L);
             return 1;
             /* FIXME: handle possible double-ID3v1 tags? */
@@ -258,33 +270,37 @@ static int probe_id3v1(snd_stream_t *stream, unsigned char *buf, int atend) {
     }
     return 0;
 }
-static int probe_mmtag(snd_stream_t *stream, unsigned char *buf) {
+static int probe_mmtag(snd_stream_t *stream, unsigned char *buf)
+{
     long len;
-    if (stream->fh.length >= 68) {
-        FS_fseek(&stream->fh, -48, SEEK_END);
-        if (FS_fread(buf, 1, 48, &stream->fh) != 48)
+    qfileofs_t filesize = QFS_FileSize(stream->fh);
+    if (filesize >= 68)
+    {
+        QFS_Seek(stream->fh, -48, SEEK_END);
+        if (QFS_ReadFile(stream->fh, buf, 48) != 48)
             return -1;
         if (is_musicmatch(buf, 48)) {
             len = get_musicmatch_len(stream);
-            if (len < 0) return -1;
-            if (len >= stream->fh.length) return -1;
-            stream->fh.length -= len;
+            if (len < 0)
+                return -1;
+            QFS_IgnoreBytes(stream->fh, (qfileofs_t)len, SEEK_END);
             Con_DPrintf("MP3: skipped %ld bytes MusicMatch tag\n", len);
             return 1;
         }
     }
     return 0;
 }
-static int probe_apetag(snd_stream_t *stream, unsigned char *buf) {
+static int probe_apetag(snd_stream_t *stream, unsigned char *buf)
+{
     long len;
-    if (stream->fh.length >= 32) {
-        FS_fseek(&stream->fh, -32, SEEK_END);
-        if (FS_fread(buf, 1, 32, &stream->fh) != 32)
+    qfileofs_t filesize = QFS_FileSize(stream->fh);
+    if (filesize >= 32) {
+        QFS_Seek(stream->fh, -32, SEEK_END);
+        if (QFS_ReadFile(stream->fh, buf, 32) != 32)
             return -1;
         if (is_apetag(buf, 32)) {
             len = get_ape_len(buf);
-            if (len >= stream->fh.length) return -1;
-            stream->fh.length -= len;
+            QFS_IgnoreBytes(stream->fh, (qfileofs_t)len, SEEK_END);
             Con_DPrintf("MP3: skipped %ld bytes APE tag\n", len);
             return 1;
         }
@@ -293,27 +309,31 @@ static int probe_apetag(snd_stream_t *stream, unsigned char *buf) {
 }
 static int probe_lyrics3(snd_stream_t *stream, unsigned char *buf) {
     long len;
-    if (stream->fh.length >= 15) {
-        FS_fseek(&stream->fh, -15, SEEK_END);
-        if (FS_fread(buf, 1, 15, &stream->fh) != 15)
+    qfileofs_t filesize = QFS_FileSize(stream->fh);
+    if (filesize >= 15) {
+        QFS_Seek(stream->fh, -15, SEEK_END);
+        if (QFS_ReadFile(stream->fh, buf, 15) != 15)
             return -1;
         len = is_lyrics3tag(buf, 15);
         if (len == 2) {
             len = get_lyrics3v2_len(buf, 6);
-            if (len >= stream->fh.length) return -1;
-            if (len < 15) return -1;
-            FS_fseek(&stream->fh, -len, SEEK_END);
-            if (FS_fread(buf, 1, 11, &stream->fh) != 11)
+            if (len >= filesize)
                 return -1;
-            if (!verify_lyrics3v2(buf, 11)) return -1;
-            stream->fh.length -= len;
+            if (len < 15)
+                return -1;
+            QFS_Seek(stream->fh, -len, SEEK_END);
+            if (QFS_ReadFile(stream->fh, buf, 11) != 11)
+                return -1;
+            if (!verify_lyrics3v2(buf, 11))
+                return -1;
+            QFS_IgnoreBytes(stream->fh, len, SEEK_END);
             Con_DPrintf("MP3: skipped %ld bytes Lyrics3 tag\n", len);
             return 1;
         }
         else if (len == 1) {
             len = get_lyrics3v1_len(stream);
             if (len < 0) return -1;
-            stream->fh.length -= len;
+            QFS_IgnoreBytes(stream->fh, len, SEEK_END);
             Con_DPrintf("MP3: skipped %ld bytes Lyrics3 tag\n", len);
             return 1;
         }
@@ -327,9 +347,6 @@ int mp3_skiptags(snd_stream_t *stream)
     long len; size_t readsize;
     int c_id3, c_ape, c_lyr, c_mm;
     int rc = -1;
-    /* failsafe */
-    long oldlength = stream->fh.length;
-    long oldstart = stream->fh.start;
 
     /* MP3 standard has no metadata format, so everyone invented
      * their own thing, even with extensions, until ID3v2 became
@@ -339,24 +356,21 @@ int mp3_skiptags(snd_stream_t *stream)
      * double tags. -- O.S.
      */
 
-    readsize = FS_fread(buf, 1, 128, &stream->fh);
-    if (!readsize || FS_ferror(&stream->fh)) goto fail;
+    readsize = QFS_ReadFile(stream->fh, buf, 128);
+    if (readsize != 128)
+        goto fail;
 
     /* ID3v2 tag is at the start */
     if (is_id3v2(buf, readsize)) {
         len = get_id3v2_len(buf, (long)readsize);
-        if (len >= stream->fh.length) goto fail;
-        stream->fh.start += len;
-        stream->fh.length -= len;
+        QFS_IgnoreBytes(stream->fh, len, SEEK_SET);
         Con_DPrintf("MP3: skipped %ld bytes ID3v2 tag\n", len);
     }
     /* APE tag _might_ be at the start (discouraged
      * but not forbidden, either.)  read the header. */
     else if (is_apetag(buf, readsize)) {
         len = get_ape_len(buf);
-        if (len >= stream->fh.length) goto fail;
-        stream->fh.start += len;
-        stream->fh.length -= len;
+        QFS_IgnoreBytes(stream->fh, len, SEEK_SET);
         Con_DPrintf("MP3: skipped %ld bytes APE tag\n", len);
     }
 
@@ -393,13 +407,12 @@ int mp3_skiptags(snd_stream_t *stream)
         break;
     } /* for (;;) */
 
-    rc = (stream->fh.length > 0)? 0 : -1;
-    fail:
-    if (rc < 0) {
-        stream->fh.start = oldstart;
-        stream->fh.length = oldlength;
-    }
-    FS_rewind(&stream->fh);
+    rc = (QFS_FileSize(stream->fh) > 0)? 0 : -1;
+fail:
+	if (rc < 0)
+        QFS_IgnoreBytes(stream->fh, 0, SEEK_CUR);
+
+    QFS_Seek(stream->fh, 0, SEEK_SET);
     return rc;
 }
 #endif /* USE_CODEC_MP3 */

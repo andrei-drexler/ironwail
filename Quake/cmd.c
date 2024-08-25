@@ -303,7 +303,7 @@ void Cmd_Exec_f (void)
 	// "exec config.cfg pls" will execute config.cfg
 	if (Cmd_Argc () == 2 && !strcmp (path, "config.cfg"))
 	{
-		f = (const char *)COM_LoadHunkFile (CONFIG_NAME, NULL);
+		f = (const char *)QFS_LoadHunkFile (CONFIG_NAME, NULL, NULL);
 		if (f)
 		{
 			path = CONFIG_NAME;
@@ -311,7 +311,7 @@ void Cmd_Exec_f (void)
 		}
 	}
 
-	f = (const char *)COM_LoadHunkFile (path, NULL);
+	f = (const char *)QFS_LoadHunkFile (path, NULL, NULL);
 	if (!f && !strcmp(Cmd_Argv(1), "default.cfg")) {
 		f = default_cfg;	/* see above.. */
 	}
