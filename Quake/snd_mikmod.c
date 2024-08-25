@@ -52,33 +52,41 @@ typedef struct _mik_priv {
 	/* no iobase members in libmikmod <= 3.2.0-beta2 */
 	long iobase, prev_iobase;
 
-	fshandle_t *fh;
+	qfshandle_t *fh;
 	MODULE *module;
 } mik_priv_t;
 
 static int MIK_Seek (MREADER *r, long ofs, int whence)
 {
-	return FS_fseek(((mik_priv_t *)r)->fh, ofs, whence);
+	mik_priv_t* pmik = (mik_priv_t*)r;
+	return (int)QFS_Seek(pmik->fh, (qfileofs_t)ofs, whence);
 }
 
 static long MIK_Tell (MREADER *r)
 {
-	return FS_ftell(((mik_priv_t *)r)->fh);
+	mik_priv_t* pmik = (mik_priv_t*)r;
+	return (long)QFS_Tell(pmik->fh);
 }
 
 static BOOL MIK_Read (MREADER *r, void *ptr, size_t siz)
 {
-	return !!FS_fread(ptr, siz, 1, ((mik_priv_t *)r)->fh);
+	mik_priv_t* pmik = (mik_priv_t*)r;
+	return QFS_ReadFile(pmik->fh, ptr, siz) == siz;
 }
 
 static int MIK_Get (MREADER *r)
 {
-	return FS_fgetc(((mik_priv_t *)r)->fh);
+	char c;
+	qboolean eof_flag;
+	mik_priv_t* pmik = (mik_priv_t*)r;
+	c = QFS_GetChar(pmik->fh, &eof_flag);
+	return eof_flag ? EOF : (int)c;
 }
 
 static BOOL MIK_Eof (MREADER *r)
 {
-	return FS_feof(((mik_priv_t *)r)->fh);
+	mik_priv_t* pmik = (mik_priv_t*)r;
+	return QFS_Eof(pmik->fh) ? 1 : 0;
 }
 
 static qboolean S_MIKMOD_CodecInitialize (void)
@@ -140,7 +148,7 @@ static qboolean S_MIKMOD_CodecOpenStream (snd_stream_t *stream)
 	priv->Read = MIK_Read;
 	priv->Get  = MIK_Get;
 	priv->Eof  = MIK_Eof;
-	priv->fh = &stream->fh;
+	priv->fh = stream->fh;
 
 	priv->module = Player_LoadGeneric((MREADER *)stream->priv, 64, 0);
 	if (!priv->module)

@@ -1558,6 +1558,11 @@ static void VID_InitModelist (void)
 	}
 }
 
+static const char* config_names[] =
+{
+	CONFIG_NAME, "config.cfg"
+};
+
 /*
 ===================
 VID_Init
@@ -1570,6 +1575,7 @@ void	VID_Init (void)
 	int		display_width, display_height, display_refreshrate;
 	qboolean	fullscreen;
 	cmd_function_t	*cmd;
+	size_t idxcfg;
 	const char	*read_vars[] =
 	{
 		"vid_fullscreen",
@@ -1585,7 +1591,6 @@ void	VID_Init (void)
 		"r_softemu_metric",
 		"scr_pixelaspect",
 	};
-#define num_readvars	Q_COUNTOF(read_vars)
 
 	Con_SafePrintf ("\nVideo initialization\n");
 
@@ -1649,12 +1654,16 @@ void	VID_Init (void)
 	Cvar_SetValueQuick (&vid_height, (float)display_height);
 	Cvar_SetValueQuick (&vid_refreshrate, (float)display_refreshrate);
 
-	if (CFG_OpenConfig(CONFIG_NAME) == 0 || CFG_OpenConfig("config.cfg") == 0)
+	for (idxcfg = 0; idxcfg < Q_COUNTOF(config_names); ++idxcfg)
 	{
-		CFG_ReadCvars(read_vars, num_readvars);
-		CFG_CloseConfig();
+		if (QFS_FileExists (config_names[idxcfg], NULL))
+		{
+			CFG_ReadCvars (config_names[idxcfg], read_vars, Q_COUNTOF(read_vars));
+			break;
+		}
 	}
-	CFG_ReadCvarOverrides(read_vars, num_readvars);
+
+	CFG_ReadCvarOverrides(read_vars, Q_COUNTOF(read_vars));
 
 	VID_InitModelist();
 	VID_InitMouseCursors();

@@ -242,6 +242,7 @@ typedef struct
 
 #include "sys.h"
 #include "common.h"
+#include "filesys.h"
 #include "bspfile.h"
 #include "zone.h"
 #include "mathlib.h"

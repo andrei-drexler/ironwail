@@ -48,8 +48,7 @@ typedef struct snd_codec_s snd_codec_t;
 
 typedef struct snd_stream_s
 {
-	fshandle_t fh;
-	qboolean pak;
+	qfshandle_t *fh;
 	char name[MAX_QPATH];	/* name of the source file */
 	snd_info_t info;
 	stream_status_t status;
