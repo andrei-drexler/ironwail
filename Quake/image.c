@@ -23,8 +23,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
-static byte *Image_LoadPCX (FILE *f, int *width, int *height);
-static byte *Image_LoadLMP (FILE *f, int *width, int *height);
+static byte *Image_LoadPCX (qfshandle_t *f, int *width, int *height);
+static byte *Image_LoadLMP (qfshandle_t *f, int *width, int *height);
 
 #ifdef __GNUC__
 	// Suppress unused function warnings on GCC/clang
@@ -61,32 +61,32 @@ static byte *Image_LoadLMP (FILE *f, int *width, int *height);
 
 static char loadfilename[MAX_OSPATH]; //file scope so that error messages can use it
 
-typedef struct stdio_buffer_s {
-	FILE *f;
+typedef struct io_buffer_s {
+	qfshandle_t *f;
 	unsigned char buffer[1024];
-	int size;
-	int pos;
-} stdio_buffer_t;
+	size_t size;
+	size_t pos;
+} io_buffer_t;
 
-static stdio_buffer_t *Buf_Alloc(FILE *f)
+static io_buffer_t *Buf_Alloc(qfshandle_t *f)
 {
-	stdio_buffer_t *buf = (stdio_buffer_t *) calloc(1, sizeof(stdio_buffer_t));
+	io_buffer_t *buf = (io_buffer_t *) calloc(1, sizeof(io_buffer_t));
 	if (!buf)
 		Sys_Error ("Buf_Alloc: out of memory");
 	buf->f = f;
 	return buf;
 }
 
-static void Buf_Free(stdio_buffer_t *buf)
+static void Buf_Free(io_buffer_t *buf)
 {
 	free(buf);
 }
 
-static inline int Buf_GetC(stdio_buffer_t *buf)
+static inline int Buf_GetC(io_buffer_t *buf)
 {
 	if (buf->pos >= buf->size)
 	{
-		buf->size = fread(buf->buffer, 1, sizeof(buf->buffer), buf->f);
+		buf->size = QFS_ReadFile(buf->f, buf->buffer, sizeof(buf->buffer));
 		buf->pos = 0;
 		
 		if (buf->size == 0)
@@ -94,6 +94,25 @@ static inline int Buf_GetC(stdio_buffer_t *buf)
 	}
 
 	return buf->buffer[buf->pos++];
+}
+
+/*
+Callback functions that stb can use to read from QFS files
+*/
+
+static int STBCB_Read(void *f, char *data, int size)
+{
+	return (int)QFS_ReadFile((qfshandle_t*)f, data, (size_t)size);
+}
+
+static void STBCB_Skip(void *f, int n)
+{
+	QFS_Seek((qfshandle_t*)f, (qfileofs_t)n, SEEK_CUR);
+}
+
+static int STBCB_Eof(void* f)
+{
+	return QFS_Eof((qfshandle_t*)f) ? 1 : 0;
 }
 
 /*
@@ -106,17 +125,22 @@ returns a pointer to hunk allocated RGBA data
 byte *Image_LoadImage (const char *name, int *width, int *height, enum srcformat *fmt)
 {
 	static const char *const stbi_formats[] = {"png", "tga", "jpg", NULL};
-	FILE	*f;
+	qfshandle_t	*f;
+	stbi_io_callbacks callbacks;
 	int		i;
 
 	for (i = 0; stbi_formats[i]; i++)
 	{
 		const char *ext = stbi_formats[i];
 		q_snprintf (loadfilename, sizeof(loadfilename), "%s.%s", name, ext);
-		COM_FOpenFile (loadfilename, &f, NULL);
+		f = QFS_FOpenFile (loadfilename, NULL);
 		if (f)
 		{
-			byte *data = stbi_load_from_file (f, width, height, NULL, 4);
+			callbacks.read = &STBCB_Read;
+			callbacks.skip = &STBCB_Skip;
+			callbacks.eof = &STBCB_Eof;
+
+			byte *data = stbi_load_from_callbacks (&callbacks, f, width, height, NULL, 4);
 			if (data)
 			{
 				int numbytes = (*width) * (*height) * 4;
@@ -130,13 +154,13 @@ byte *Image_LoadImage (const char *name, int *width, int *height, enum srcformat
 			}
 			else
 				Con_Warning ("couldn't load %s (%s)\n", loadfilename, stbi_failure_reason ());
-			fclose (f);
+			QFS_CloseFile (f);
 			return data;
 		}
 	}
 
 	q_snprintf (loadfilename, sizeof(loadfilename), "%s.pcx", name);
-	COM_FOpenFile (loadfilename, &f, NULL);
+	f = QFS_FOpenFile (loadfilename, NULL);
 	if (f)
 	{
 		*fmt = SRC_RGBA;
@@ -144,7 +168,7 @@ byte *Image_LoadImage (const char *name, int *width, int *height, enum srcformat
 	}
 
 	q_snprintf (loadfilename, sizeof(loadfilename), "%s.lmp", name);
-	COM_FOpenFile (loadfilename, &f, NULL);
+	f = QFS_FOpenFile (loadfilename, NULL);
 	if (f)
 	{
 		*fmt = SRC_INDEXED;
@@ -241,17 +265,15 @@ typedef struct
 Image_LoadPCX
 ============
 */
-static byte *Image_LoadPCX (FILE *f, int *width, int *height)
+static byte *Image_LoadPCX (qfshandle_t *f, int *width, int *height)
 {
 	pcxheader_t	pcx;
-	int			x, y, w, h, readbyte, runlength, start;
+	int			x, y, w, h, readbyte, runlength;
 	byte		*p, *data;
 	byte		palette[768];
-	stdio_buffer_t  *buf;
+	io_buffer_t  *buf;
 
-	start = ftell (f); //save start of file (since we might be inside a pak file, SEEK_SET might not be the start of the pcx)
-
-	if (fread(&pcx, sizeof(pcx), 1, f) != 1)
+	if (QFS_ReadFile(f, &pcx, sizeof(pcx)) != sizeof(pcx))
 		Sys_Error ("Failed reading header from '%s'", loadfilename);
 
 	pcx.xmin = (unsigned short)LittleShort (pcx.xmin);
@@ -275,12 +297,14 @@ static byte *Image_LoadPCX (FILE *f, int *width, int *height)
 	data = (byte *) Hunk_AllocNoFill ((w*h+1)*4); //+1 to allow reading padding byte on last line
 
 	//load palette
-	fseek (f, start + com_filesize - 768, SEEK_SET);
-	if (fread (palette, 768, 1, f) != 1)
+	if (QFS_Seek (f, QFS_FileSize(f) - sizeof(palette), SEEK_SET) != 0
+		|| QFS_ReadFile (f, palette, sizeof(palette)) != sizeof(palette))
+	{
 		Sys_Error ("Failed reading palette from '%s'", loadfilename);
+	}
 
 	//back to start of image data
-	fseek (f, start + sizeof(pcx), SEEK_SET);
+	QFS_Seek (f, sizeof(pcx), SEEK_SET);
 
 	buf = Buf_Alloc(f);
 
@@ -313,7 +337,7 @@ static byte *Image_LoadPCX (FILE *f, int *width, int *height)
 	}
 
 	Buf_Free(buf);
-	fclose(f);
+	QFS_CloseFile(f);
 
 	*width = w;
 	*height = h;
@@ -336,16 +360,16 @@ typedef struct
 Image_LoadLMP
 ============
 */
-static byte *Image_LoadLMP (FILE *f, int *width, int *height)
+static byte *Image_LoadLMP (qfshandle_t *f, int *width, int *height)
 {
 	lmpheader_t	qpic;
 	size_t		pix;
 	int			mark;
 	void		*data;
 
-	if (fread (&qpic, sizeof(qpic), 1, f) != 1)
+	if (QFS_ReadFile (f, &qpic, sizeof(qpic)) != sizeof(qpic))
 	{
-		fclose (f);
+		QFS_CloseFile (f);
 		return NULL;
 	}
 	qpic.width = LittleLong (qpic.width);
@@ -353,21 +377,21 @@ static byte *Image_LoadLMP (FILE *f, int *width, int *height)
 
 	pix = qpic.width*qpic.height;
 
-	if (com_filesize != sizeof (qpic) + pix)
+	if (QFS_FileSize(f) != (qfileofs_t)(sizeof (qpic) + pix))
 	{
-		fclose (f);
+		QFS_CloseFile (f);
 		return NULL;
 	}
 
 	mark = Hunk_LowMark ();
 	data = (byte *) Hunk_AllocNoFill (pix);
-	if (fread (data, 1, pix, f) != pix)
+	if (QFS_ReadFile (f, data, pix) != pix)
 	{
 		Hunk_FreeToLowMark (mark);
-		fclose (f);
+		QFS_CloseFile (f);
 		return NULL;
 	}
-	fclose (f);
+	QFS_CloseFile (f);
 
 	*width = qpic.width;
 	*height = qpic.height;

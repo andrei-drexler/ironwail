@@ -50,18 +50,28 @@ static int ovc_fclose (void *f)
 	return 0;		/* we fclose() elsewhere. */
 }
 
+static size_t ovc_fread(void* buf, size_t size, size_t nmemb, void* f)
+{
+	return QFS_ReadFile((qfshandle_t*)f, buf, size * nmemb);
+}
+
 static int ovc_fseek (void *f, ogg_int64_t off, int whence)
 {
 	if (f == NULL) return (-1);
-	return FS_fseek((fshandle_t *)f, (long) off, whence);
+	return (int)QFS_Seek((qfshandle_t *)f, (qfileofs_t) off, whence);
+}
+
+static long ovc_ftell(void* f)
+{
+	return (long)QFS_Tell((qfshandle_t*)f);
 }
 
 static ov_callbacks ovc_qfs =
 {
-	(size_t (*)(void *, size_t, size_t, void *))	FS_fread,
-	(int (*)(void *, ogg_int64_t, int))		ovc_fseek,
-	(int (*)(void *))				ovc_fclose,
-	(long (*)(void *))				FS_ftell
+	&ovc_fread,
+	&ovc_fseek,
+	&ovc_fclose,
+	&ovc_ftell
 };
 
 static qboolean S_VORBIS_CodecInitialize (void)
@@ -82,7 +92,7 @@ static qboolean S_VORBIS_CodecOpenStream (snd_stream_t *stream)
 
 	ovFile = (OggVorbis_File *) Z_Malloc(sizeof(OggVorbis_File));
 	stream->priv = ovFile;
-	res = ov_open_callbacks(&stream->fh, ovFile, NULL, 0, ovc_qfs);
+	res = ov_open_callbacks(stream->fh, ovFile, NULL, 0, ovc_qfs);
 	if (res != 0)
 	{
 		Con_Printf("%s is not a valid Ogg Vorbis file (error %i).\n",
