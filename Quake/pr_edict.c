@@ -2098,15 +2098,16 @@ PR_LoadProgs
 qboolean PR_LoadProgs (const char *filename, qboolean fatal)
 {
 	int			i;
+	size_t		filesize;
 
 	PR_ClearProgs(qcvm);	//just in case.
 
-	qcvm->progs = (dprograms_t *)COM_LoadHunkFile (filename, NULL);
+	qcvm->progs = (dprograms_t *)QFS_LoadHunkFile (filename, NULL, &filesize);
 	if (!qcvm->progs)
 		return false;
-	Con_DPrintf ("Programs occupy %" SDL_PRIs64 "K.\n", com_filesize/1024);
+	Con_DPrintf ("Programs occupy %" SDL_PRIs64 "K.\n", (int64_t)(filesize/1024));
 
-	qcvm->crc = CRC_Block (qcvm->progs, com_filesize);
+	qcvm->crc = CRC_Block (qcvm->progs, filesize);
 
 	// byte swap the header
 	for (i = 0; i < (int) sizeof(*qcvm->progs) / 4; i++)
@@ -2164,7 +2165,7 @@ qboolean PR_LoadProgs (const char *filename, qboolean fatal)
 
 	qcvm->functions = (dfunction_t *)((byte *)qcvm->progs + qcvm->progs->ofs_functions);
 	qcvm->strings = (char *)qcvm->progs + qcvm->progs->ofs_strings;
-	if (qcvm->progs->ofs_strings + qcvm->progs->numstrings >= com_filesize)
+	if (qcvm->progs->ofs_strings + qcvm->progs->numstrings >= (int64_t)filesize)
 		Host_Error ("progs.dat strings go past end of file\n");
 
 	// initialize the strings
