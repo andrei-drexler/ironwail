@@ -193,19 +193,20 @@ R_ReadPointFile_f
 */
 void R_ReadPointFile_f (void)
 {
-	FILE	*f;
+	qfshandle_t *f;
 	vec3_t	org;
 	int		r;
 	int		c;
 	particle_t	*p;
 	char	name[MAX_QPATH];
+	char	rdbuf[256];
 
 	if (cls.state != ca_connected)
 		return;			// need an active map.
 
 	q_snprintf (name, sizeof(name), "maps/%s.pts", cl.mapname);
 
-	COM_FOpenFile (name, &f, NULL);
+	f = QFS_FOpenFile (name, NULL);
 	if (!f)
 	{
 		Con_Printf ("couldn't open %s\n", name);
@@ -215,9 +216,11 @@ void R_ReadPointFile_f (void)
 	Con_Printf ("Reading %s...\n", name);
 	c = 0;
 	org[0] = org[1] = org[2] = 0; // silence pesky compiler warnings
-	for ( ;; )
+	while (!QFS_Eof (f))
 	{
-		r = fscanf (f,"%f %f %f\n", &org[0], &org[1], &org[2]);
+		memset (rdbuf, 0, sizeof(rdbuf));
+		QFS_GetLine (f, rdbuf, sizeof(rdbuf));
+		r = sscanf (rdbuf,"%f %f %f", &org[0], &org[1], &org[2]);
 		if (r != 3)
 			break;
 		c++;
@@ -235,7 +238,7 @@ void R_ReadPointFile_f (void)
 		VectorCopy (org, p->org);
 	}
 
-	fclose (f);
+	QFS_CloseFile (f);
 	Con_Printf ("%i points read\n", c);
 }
 
