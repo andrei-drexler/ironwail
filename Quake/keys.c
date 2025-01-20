@@ -142,6 +142,7 @@ static const keyname_t keynames[] =
 	{"BBUTTON", K_BBUTTON},
 	{"XBUTTON", K_XBUTTON},
 	{"YBUTTON", K_YBUTTON},
+    {"GUIDE", K_GUIDE},
 	{"LTRIGGER", K_LTRIGGER},
 	{"RTRIGGER", K_RTRIGGER},
 	{"MISC1", K_MISC1},

@@ -813,6 +813,7 @@ static int IN_KeyForControllerButton(SDL_GameControllerButton button)
 		case SDL_CONTROLLER_BUTTON_Y: return K_YBUTTON;
 		// Note: back and start are always mapped to TAB/ESC, the player cannot rebind them
 		case SDL_CONTROLLER_BUTTON_BACK: return K_TAB;
+	    case SDL_CONTROLLER_BUTTON_GUIDE: return K_GUIDE;
 		case SDL_CONTROLLER_BUTTON_START: return K_ESCAPE;
 		case SDL_CONTROLLER_BUTTON_LEFTSTICK: return K_LTHUMB;
 		case SDL_CONTROLLER_BUTTON_RIGHTSTICK: return K_RTHUMB;
