@@ -66,6 +66,7 @@ extern cvar_t r_alphasort;
 extern cvar_t r_md5;
 extern cvar_t r_lerpmodels;
 extern cvar_t r_lerpmove;
+extern cvar_t r_pixeladjust;
 extern cvar_t snd_waterfx;
 extern cvar_t joy_deadzone_look;
 extern cvar_t joy_deadzone_move;
@@ -3162,6 +3163,7 @@ void M_Menu_Gamepad_f (void)
 	begin_menu (GRAPHICS_OPTIONS, m_graphics, TITLE("Graphics"))		\
 		item (OPT_SOFTEMU,				"8-bit Mode")					\
 		item (OPT_SOFTEMU_MDL,			"Model Warping")				\
+		item (OPT_PIXELADJUST,          "Adjust for 4:3")               \
 		item (OPT_MD5,					"Models")						\
 		item (OPT_ANIMLERP,				"Animations")					\
 		item (OPT_TEXFILTER,			"Textures")						\
@@ -3661,6 +3663,8 @@ void M_AdjustSliders (int dir)
 	case OPT_PIXELASPECT:	// 2D pixel aspect ratio
 		Cvar_Set ("scr_pixelaspect", vid.guipixelaspect == 1.f ? "5:6" : "1");
 		break;
+	case OPT_PIXELADJUST: // 3D pixel adjustment for 4:3 screens
+		Cbuf_AddText ("toggle r_pixeladjust\n");
 	case OPT_CROSSHAIR:		// crosshair
 		Cvar_SetValueQuick (&crosshair, ((int) q_max (crosshair.value, 0.f) + 3 + dir) % 3);
 		break;
@@ -4261,6 +4265,10 @@ static void M_Options_DrawItem (int y, int item)
 
 	case OPT_PIXELASPECT:
 		M_Print (x, y, vid.guipixelaspect == 1.f ? "Square" : "Stretched");
+		break;
+
+	case OPT_PIXELADJUST:
+		M_DrawCheckbox (x, y, r_pixeladjust.value);
 		break;
 
 	case OPT_CROSSHAIR:
