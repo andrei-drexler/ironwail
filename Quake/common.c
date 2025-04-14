@@ -3037,6 +3037,8 @@ static void COM_InitBaseDir (void)
 		goto try_egs;
 
 	// try current working directory, then its ancestors (in case the executable is in its own subdirectory)
+	if (COM_SetBaseDir (host_parms->basedir))
+		return;
 	if (COM_SetBaseDirRec (host_parms->basedir))
 		return;
 
