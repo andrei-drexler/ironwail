@@ -31,6 +31,8 @@ https://github.com/yquake2/yquake2/blob/master/src/client/input/sdl.c
 #include "SDL.h"
 #endif
 
+#include "GyroSpace/GyroSpace.h"
+
 extern cvar_t ui_mouse;
 extern cvar_t language;
 
