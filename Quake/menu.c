@@ -4600,7 +4600,26 @@ static void M_Options_DrawItem (int y, int item)
 		}
 		break;
 	case GPAD_OPT_GYROAXIS:
-		M_Print(x, y, gyro_turning_axis.value ? "roll (lean)" : "yaw (turn)");
+		switch ((int)gyro_turning_axis.value) {
+		case 0:
+			M_Print (x, y, "yaw (turn)");
+			break;
+		case 1:
+			M_Print (x, y, "roll (lean)");
+			break;
+		case 2:
+			M_Print (x, y, "local space");
+			break;
+		case 3:
+			M_Print (x, y, "player space");
+			break;
+		case 4:
+			M_Print (x, y, "world space");
+			break;
+		default:
+			M_Print (x, y, "unknown gyro axis");
+			break;
+		}
 		break;
 	case GPAD_OPT_GYROSENSX:
 		r = (gyro_yawsensitivity.value - MIN_GYRO_SENS) / (MAX_GYRO_SENS - MIN_GYRO_SENS);

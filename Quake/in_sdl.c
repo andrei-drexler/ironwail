@@ -1709,14 +1709,47 @@ void IN_SendKeyEvents (void)
 
 				// Gyro Axis Selection
 				switch ((int)gyro_turning_axis.value) {
-				case 0: // Yaw Mode
+				case 0: // Yaw
 					gyro_yaw = event.csensor.data[1] - gyro_calibration_y.value;
 					break;
-				case 1: // Roll Mode
+				case 1: // Roll
 					gyro_yaw = -(event.csensor.data[2] - gyro_calibration_z.value);
 					break;
+				case 2: // Local Space
+				{
+					Vector3 localGyro = TransformToLocalSpace (
+						event.csensor.data[1], event.csensor.data[0], event.csensor.data[2],
+						1.0f, 1.0f, 1.0f, 0.5f // Uses default sensitivity values for now
+					);
+					gyro_yaw = localGyro.x;
+					gyro_pitch = localGyro.y;
+				}
+				break;
+				case 3: // Player Space
+				{
+					Vector3 playerGyro = TransformToPlayerSpace (
+						event.csensor.data[1], event.csensor.data[0], event.csensor.data[2],
+						GetGravityVector (), // Gravity-aligned transformation
+						1.0f, 1.0f, 1.0f
+					);
+					gyro_yaw = playerGyro.x;
+					gyro_pitch = playerGyro.y;
+				}
+				break;
+				case 4: // World Space
+				{
+					Vector3 worldGyro = TransformToWorldSpace (
+						event.csensor.data[1], event.csensor.data[0], event.csensor.data[2],
+						GetGravityVector (), // Gravity-aligned transformation
+						1.0f, 1.0f, 1.0f
+					);
+					gyro_yaw = worldGyro.x;
+					gyro_pitch = worldGyro.y;
+				}
+				break;
 				default:
-					gyro_yaw = 0.f; // Future axis modes can be added here
+					gyro_yaw = 0.f;
+					gyro_pitch = 0.f;
 					break;
 				}
 
