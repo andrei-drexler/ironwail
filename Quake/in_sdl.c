@@ -32,7 +32,7 @@ https://github.com/yquake2/yquake2/blob/master/src/client/input/sdl.c
 #endif
 
 // GyroSpace and Play header
-#include "../Quake/GyroSpace/GyroSpace.h"
+#include "GyroSpace/GyroSpace.h"
 
 extern cvar_t ui_mouse;
 extern cvar_t language;

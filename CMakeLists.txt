@@ -9,7 +9,7 @@ if (WIN32)
 endif()
 
 # Gyro Space and Play header for additional gyro_turning_axis modes
-include_directories("${CMAKE_SOURCE_DIR}/Quake/GyroSpace")
+include_directories("${CMAKE_SOURCE_DIR}/Quake/GyroSpace")	
 
 find_package(SDL2 REQUIRED)
 find_package(OpenGL REQUIRED)
