@@ -1,0 +1,4 @@
+[submodule "Quake/GyroSpace"]
+	path = Quake/GyroSpace
+	url = https://github.com/AL2009man/GyroSpace-and-Play.git
+	branch = 0.4.1
