@@ -1707,15 +1707,25 @@ void IN_SendKeyEvents (void)
 				if (IN_UpdateGyroCalibration (event.csensor.data))
 					break;
 
-				if (!gyro_turning_axis.value)
-					gyro_yaw = event.csensor.data[1] - gyro_calibration_y.value; // yaw
-				else
-					gyro_yaw = -(event.csensor.data[2] - gyro_calibration_z.value); // roll
+				// Gyro Axis Selection
+				switch ((int)gyro_turning_axis.value) {
+				case 0: // Yaw Mode
+					gyro_yaw = event.csensor.data[1] - gyro_calibration_y.value;
+					break;
+				case 1: // Roll Mode
+					gyro_yaw = -(event.csensor.data[2] - gyro_calibration_z.value);
+					break;
+				default:
+					gyro_yaw = 0.f; // Future axis modes can be added here
+					break;
+				}
+
 				gyro_pitch = event.csensor.data[0] - gyro_calibration_x.value;
 
-				// Save unfiltered magnitude to display in the UI
-				gyro_raw_mag = RAD2DEG (sqrt (gyro_yaw*gyro_yaw + gyro_pitch*gyro_pitch));
+				// Save unfiltered magnitude for UI display
+				gyro_raw_mag = RAD2DEG (sqrt (gyro_yaw * gyro_yaw + gyro_pitch * gyro_pitch));
 
+				// Apply filtering to smooth gyro movements
 				gyro_yaw = IN_FilterGyroSample (prev_yaw, gyro_yaw);
 				gyro_pitch = IN_FilterGyroSample (prev_pitch, gyro_pitch);
 			}
