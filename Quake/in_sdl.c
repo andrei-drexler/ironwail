@@ -31,7 +31,7 @@ https://github.com/yquake2/yquake2/blob/master/src/client/input/sdl.c
 #include "SDL.h"
 #endif
 
-#include "GyroSpace/GyroSpace.h"
+#include "../../GyroSpace-and-Play/GyroSpace.h"
 
 extern cvar_t ui_mouse;
 extern cvar_t language;
@@ -1721,7 +1721,7 @@ void IN_SendKeyEvents (void)
 				{
 					Vector3 localGyro = TransformToLocalSpace (
 						event.csensor.data[1], event.csensor.data[0], event.csensor.data[2],
-						1.0f, 1.0f, 1.0f, 0.5f // Uses default sensitivity values for now
+						1.0f, 1.0f, 1.0f, 0.5f 
 					);
 					gyro_yaw = localGyro.x;
 					gyro_pitch = localGyro.y;
@@ -1731,7 +1731,7 @@ void IN_SendKeyEvents (void)
 				{
 					Vector3 playerGyro = TransformToPlayerSpace (
 						event.csensor.data[1], event.csensor.data[0], event.csensor.data[2],
-						GetGravityVector (), // Gravity-aligned transformation
+						GetGravityVector (),
 						1.0f, 1.0f, 1.0f
 					);
 					gyro_yaw = playerGyro.x;
@@ -1742,7 +1742,7 @@ void IN_SendKeyEvents (void)
 				{
 					Vector3 worldGyro = TransformToWorldSpace (
 						event.csensor.data[1], event.csensor.data[0], event.csensor.data[2],
-						GetGravityVector (), // Gravity-aligned transformation
+						GetGravityVector (), 
 						1.0f, 1.0f, 1.0f
 					);
 					gyro_yaw = worldGyro.x;

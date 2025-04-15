@@ -1,4 +1,4 @@
-/*
+﻿/*
 Copyright (C) 1996-2001 Id Software, Inc.
 Copyright (C) 2002-2009 John Fitzgibbons and others
 Copyright (C) 2010-2014 QuakeSpasm developers
@@ -3957,7 +3957,7 @@ void M_AdjustSliders (int dir)
 		Cvar_SetValueQuick (&gyro_mode, (int)(q_max (gyro_mode.value, 0.f) + GYRO_MODE_COUNT + dir) % GYRO_MODE_COUNT);
 		break;
 	case GPAD_OPT_GYROAXIS:
-		Cvar_SetValueQuick (&gyro_turning_axis, !gyro_turning_axis.value);
+		Cvar_SetValueQuick (&gyro_turning_axis, (int)(q_max (gyro_turning_axis.value, 0.f) + 5 + dir) % 5);
 		break;
 	case GPAD_OPT_GYROSENSX:
 		Cvar_SetValueQuick (&gyro_yawsensitivity, CLAMP (MIN_GYRO_SENS, gyro_yawsensitivity.value + dir * .1f, MAX_GYRO_SENS));
@@ -4601,24 +4601,11 @@ static void M_Options_DrawItem (int y, int item)
 		break;
 	case GPAD_OPT_GYROAXIS:
 		switch ((int)gyro_turning_axis.value) {
-		case 0:
-			M_Print (x, y, "yaw (turn)");
-			break;
-		case 1:
-			M_Print (x, y, "roll (lean)");
-			break;
-		case 2:
-			M_Print (x, y, "local space");
-			break;
-		case 3:
-			M_Print (x, y, "player space");
-			break;
-		case 4:
-			M_Print (x, y, "world space");
-			break;
-		default:
-			M_Print (x, y, "unknown gyro axis");
-			break;
+		case 0: M_Print (x, y, "yaw (turn)"); break;
+		case 1: M_Print (x, y, "roll (lean)"); break;
+		case 2: M_Print (x, y, "local space"); break;
+		case 3: M_Print (x, y, "player space"); break;
+		case 4: M_Print (x, y, "world space"); break;
 		}
 		break;
 	case GPAD_OPT_GYROSENSX:

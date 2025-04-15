@@ -8,6 +8,9 @@ if (WIN32)
 	list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/Windows/cmake-modules)
 endif()
 
+# Gyro Space and Play header for additional gyro_turning_axis modes
+include_directories(${CMAKE_SOURCE_DIR}/GyroSpace-and-Play)
+
 find_package(SDL2 REQUIRED)
 find_package(OpenGL REQUIRED)
 find_package(CURL)
