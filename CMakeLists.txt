@@ -8,13 +8,13 @@ if (WIN32)
 	list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/Windows/cmake-modules)
 endif()
 
-execute_process(
-    COMMAND git submodule update --init --recursive
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-)
-
-# Gyro Space and Play header for additional gyro_turning_axis modes
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/Quake/GyroSpace")	
+# Gyro Space and Play header to handle additional gyro_turning_axis modes
+if(NOT EXISTS "${CMAKE_SOURCE_DIR}/src/client/input/header/GyroSpace")
+    execute_process(
+        COMMAND git submodule update --init --recursive
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+endif()	
 
 find_package(SDL2 REQUIRED)
 find_package(OpenGL REQUIRED)

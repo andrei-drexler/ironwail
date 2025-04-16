@@ -10,6 +10,11 @@ jobs:
         platform: [x64, Win32]
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: recursive # Ensures submodules are checked out recursively
+    - name: Update Submodules
+      run: |
+        git submodule update --init --recursive
     - name: Set environment variables
       run: |
         $gitrev = $(git describe --always)

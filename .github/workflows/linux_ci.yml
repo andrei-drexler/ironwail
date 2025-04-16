@@ -10,7 +10,14 @@ jobs:
         compiler: ["clang", "gcc"]
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Update Submodules
+      run: git submodule update --init --recursive
+
     - name: Install Dependencies
       run: sudo apt update && sudo apt install libcurl4-openssl-dev libmpg123-dev libsdl2-dev libvorbis-dev
+
     - name: Build
       run: make --jobs=3 --keep-going --directory=Quake CC=${{ matrix.compiler }}
