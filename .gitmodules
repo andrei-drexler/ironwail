@@ -1,4 +1,4 @@
 [submodule "Quake/GyroSpace"]
     path = Quake/GyroSpace
     url = https://github.com/AL2009man/GyroSpace-and-Play.git
-    tag = 0.5.2
+    tag = 0.6.0

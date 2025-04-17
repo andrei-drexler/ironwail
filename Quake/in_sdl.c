@@ -422,20 +422,40 @@ static qboolean IN_UseController (int device_index)
 		// orange LED, seemed fitting for Quake
 		SDL_GameControllerSetLED (joy_active_controller, 80, 20, 0);
 	}
-	if (SDL_GameControllerHasSensor (joy_active_controller, SDL_SENSOR_GYRO)
-		&& !SDL_GameControllerSetSensorEnabled (joy_active_controller, SDL_SENSOR_GYRO, SDL_TRUE))
+
+	// Array of sensors to handle
+	SDL_SensorType sensors[] = { SDL_SENSOR_GYRO, SDL_SENSOR_ACCEL };
+	const char* sensor_names[] = { "Gyro", "Accelerometer" };
+	qboolean sensor_enabled[] = { false, false };
+
+	for (int i = 0; i < 2; i++)
 	{
-		gyro_present = true;
+		if (SDL_GameControllerHasSensor (joy_active_controller, sensors[i]) &&
+			!SDL_GameControllerSetSensorEnabled (joy_active_controller, sensors[i], SDL_TRUE))
+		{
+			sensor_enabled[i] = true;
 #if SDL_VERSION_ATLEAST(2, 0, 16)
-		Con_Printf ("Gyro sensor enabled at %g Hz\n", SDL_GameControllerGetSensorDataRate (joy_active_controller, SDL_SENSOR_GYRO));
+			if (sensors[i] == SDL_SENSOR_GYRO)
+			{
+				Con_Printf ("%s sensor enabled at %g Hz\n", sensor_names[i],
+					SDL_GameControllerGetSensorDataRate (joy_active_controller, sensors[i]));
+			}
+			else
+			{
+				Con_Printf ("%s sensor enabled.\n", sensor_names[i]);
+			}
 #else
-		Con_printf ("Gyro sensor enabled.\n")
-#endif // SDL_VERSION_ATLEAST(2, 0, 16)
+			Con_Printf ("%s sensor enabled.\n", sensor_names[i]);
+#endif
+		}
+		else
+		{
+			Con_Printf ("%s sensor not found\n", sensor_names[i]);
+		}
 	}
-	else
-	{
-		Con_Printf ("Gyro sensor not found\n");
-	}
+
+	// Update gyro_present flag if the gyroscope is enabled
+	gyro_present = sensor_enabled[0];
 #endif // SDL_VERSION_ATLEAST(2, 0, 14)
 
 #if SDL_VERSION_ATLEAST (2, 0, 9)
@@ -473,59 +493,64 @@ static qboolean IN_RemapJoystick (void)
 
 void IN_StartupJoystick (void)
 {
-    int i;
-    int nummappings;
-    char controllerdb[MAX_OSPATH];
+	int i;
+	int nummappings;
+	char controllerdb[MAX_OSPATH];
 
-    if (COM_CheckParm("-nojoy"))
-        return;
+	if (COM_CheckParm ("-nojoy"))
+		return;
 
 #if SDL_VERSION_ATLEAST(2, 0, 12)
 	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_GAMECUBE, "1");
 #endif
+
 #if SDL_VERSION_ATLEAST(2, 0, 14)
 	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_PS5, "1");
+	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_STEAM, "1");
 #endif
-#if SDL_VERSION_ATLEAST(2, 0, 22)
-	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI, "1");
-	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_PS4, "1");
-	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_SWITCH, "1");
-	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_JOY_CONS, "1");
 
-	// Enable rumble and motion sensors for PS4 and PS5 controllers while uder Bluetooth connectivitiy
-	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_PS4_RUMBLE, "1");
-	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_PS5_RUMBLE, "1");
-#endif
-#if SDL_VERSION_ATLEAST(2, 23, 2)
-	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_COMBINE_JOY_CONS, "1");
-#endif
-#if SDL_VERSION_ATLEAST(2, 25, 1)
-	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_PS3, "1");
-#endif
-#if SDL_VERSION_ATLEAST(2, 26, 0)
-	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_WII, "1");
-#endif
 #if SDL_VERSION_ATLEAST(2, 0, 18)
 	SDL_SetHint (SDL_HINT_JOYSTICK_RAWINPUT, "1");
 	SDL_SetHint (SDL_HINT_JOYSTICK_RAWINPUT_CORRELATE_XINPUT, "1");
 #endif
 
-    if (SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER) == -1)
-    {
-        Con_Warning("could not initialize SDL Game Controller\n");
-        return;
-    }
+#if SDL_VERSION_ATLEAST(2, 0, 22)
+	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI, "1");
+	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_PS4, "1");
+	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_SWITCH, "1");
+	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_JOY_CONS, "1");
+	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_PS4_RUMBLE, "1");
+	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_PS5_RUMBLE, "1");
+#endif
 
-    // Load additional SDL2 controller definitions from gamecontrollerdb.txt
-    for (i = 0; i < com_numbasedirs; i++)
-    {
-        q_snprintf(controllerdb, sizeof(controllerdb), "%s/gamecontrollerdb.txt", com_basedirs[i]);
-        nummappings = SDL_GameControllerAddMappingsFromFile(controllerdb);
-        if (nummappings > 0)
-            Con_Printf("%d mappings loaded from gamecontrollerdb.txt\n", nummappings);
-    }
+#if SDL_VERSION_ATLEAST(2, 23, 2)
+	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_COMBINE_JOY_CONS, "1");
+#endif
 
-    IN_SetupJoystick();
+#if SDL_VERSION_ATLEAST(2, 25, 1)
+	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_PS3, "1");
+#endif
+
+#if SDL_VERSION_ATLEAST(2, 26, 0)
+	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_WII, "1");
+#endif
+
+	if (SDL_InitSubSystem (SDL_INIT_GAMECONTROLLER) == -1)
+	{
+		Con_Warning ("could not initialize SDL Game Controller\n");
+		return;
+	}
+
+	// Load additional SDL2 controller definitions from gamecontrollerdb.txt
+	for (i = 0; i < com_numbasedirs; i++)
+	{
+		q_snprintf (controllerdb, sizeof (controllerdb), "%s/gamecontrollerdb.txt", com_basedirs[i]);
+		nummappings = SDL_GameControllerAddMappingsFromFile (controllerdb);
+		if (nummappings > 0)
+			Con_Printf ("%d mappings loaded from gamecontrollerdb.txt\n", nummappings);
+	}
+
+	IN_SetupJoystick ();
 }
 
 void IN_ShutdownJoystick (void)
