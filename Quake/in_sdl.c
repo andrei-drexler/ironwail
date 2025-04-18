@@ -110,7 +110,7 @@ static const int buttonremap[] =
 
 /* total accumulated mouse movement since last frame */
 static int		total_dx = 0, total_dy = 0;
-static float	gyro_yaw = 0.f, gyro_pitch = 0.f, gyro_raw_mag = 0.f;
+static float	gyro_yaw = 0.f, gyro_roll = 0.f, gyro_pitch = 0.f, gyro_raw_mag = 0.f;
 static float	gyro_center_frac = 0.f, gyro_center_amount = 0.f;
 
 // used for gyro calibration
@@ -1248,7 +1248,7 @@ void IN_GyroMove(usercmd_t *cmd)
 		break;
 	}
 
-	// apply gyro
+	// Apply camera angles to gyro
 	cl.viewangles[YAW] += scale * gyro_yaw * gyro_yawsensitivity.value;
 	cl.viewangles[PITCH] -= scale * gyro_pitch * gyro_pitchsensitivity.value;
 
@@ -1747,10 +1747,11 @@ void IN_SendKeyEvents (void)
 				{
 					Vector3 localGyro = TransformToLocalSpace (
 						event.csensor.data[1], event.csensor.data[0], event.csensor.data[2],
-						1.0f, 1.0f, 1.0f, 0.5f 
+						1.0f, 1.0f, 1.0f, 0.5f
 					);
 					gyro_yaw = localGyro.x;
 					gyro_pitch = localGyro.y;
+					gyro_roll = -localGyro.z;
 				}
 				break;
 				case 3: // Player Space
@@ -1762,22 +1763,25 @@ void IN_SendKeyEvents (void)
 					);
 					gyro_yaw = playerGyro.x;
 					gyro_pitch = playerGyro.y;
+					gyro_roll = -playerGyro.z;
 				}
 				break;
 				case 4: // World Space
 				{
 					Vector3 worldGyro = TransformToWorldSpace (
 						event.csensor.data[1], event.csensor.data[0], event.csensor.data[2],
-						GetGravityVector (), 
+						GetGravityVector (),
 						1.0f, 1.0f, 1.0f
 					);
 					gyro_yaw = worldGyro.x;
 					gyro_pitch = worldGyro.y;
+					gyro_roll = -worldGyro.z;
 				}
 				break;
 				default:
 					gyro_yaw = 0.f;
 					gyro_pitch = 0.f;
+					gyro_roll = 0.f;
 					break;
 				}
 
