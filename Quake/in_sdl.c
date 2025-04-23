@@ -1214,7 +1214,7 @@ static float IN_RecenterEasing (float frac)
 	return frac * frac;
 }
 
-void IN_GyroMove(usercmd_t *cmd)
+void IN_GyroMove (usercmd_t* cmd)
 {
 	float scale, duration, lerp_frac;
 	if (!gyro_enable.value)
@@ -1248,7 +1248,7 @@ void IN_GyroMove(usercmd_t *cmd)
 		break;
 	}
 
-	// Apply camera angles to gyro
+	// Apply gyro to yaw and pitch
 	cl.viewangles[YAW] += scale * gyro_yaw * gyro_yawsensitivity.value;
 	cl.viewangles[PITCH] -= scale * gyro_pitch * gyro_pitchsensitivity.value;
 
@@ -1731,6 +1731,7 @@ void IN_SendKeyEvents (void)
 			{
 				float prev_yaw = gyro_yaw;
 				float prev_pitch = gyro_pitch;
+				float prev_roll = gyro_roll;
 
 				if (IN_UpdateGyroCalibration (event.csensor.data))
 					break;
@@ -1746,7 +1747,9 @@ void IN_SendKeyEvents (void)
 				case 2: // Local Space
 				{
 					Vector3 localGyro = TransformToLocalSpace (
-						event.csensor.data[1], event.csensor.data[0], event.csensor.data[2],
+						event.csensor.data[1] - gyro_calibration_y.value,
+						event.csensor.data[0] - gyro_calibration_x.value,
+						event.csensor.data[2] - gyro_calibration_z.value,
 						1.0f, 1.0f, 1.0f, 0.5f
 					);
 					gyro_yaw = localGyro.x;
@@ -1757,7 +1760,9 @@ void IN_SendKeyEvents (void)
 				case 3: // Player Space
 				{
 					Vector3 playerGyro = TransformToPlayerSpace (
-						event.csensor.data[1], event.csensor.data[0], event.csensor.data[2],
+						event.csensor.data[1] - gyro_calibration_y.value,
+						event.csensor.data[0] - gyro_calibration_x.value,
+						event.csensor.data[2] - gyro_calibration_z.value,
 						GetGravityVector (),
 						1.0f, 1.0f, 1.0f
 					);
@@ -1769,7 +1774,9 @@ void IN_SendKeyEvents (void)
 				case 4: // World Space
 				{
 					Vector3 worldGyro = TransformToWorldSpace (
-						event.csensor.data[1], event.csensor.data[0], event.csensor.data[2],
+						event.csensor.data[1] - gyro_calibration_y.value,
+						event.csensor.data[0] - gyro_calibration_x.value,
+						event.csensor.data[2] - gyro_calibration_z.value,
 						GetGravityVector (),
 						1.0f, 1.0f, 1.0f
 					);
@@ -1792,6 +1799,7 @@ void IN_SendKeyEvents (void)
 
 				// Apply filtering to smooth gyro movements
 				gyro_yaw = IN_FilterGyroSample (prev_yaw, gyro_yaw);
+				gyro_roll = IN_FilterGyroSample (prev_roll, gyro_roll);
 				gyro_pitch = IN_FilterGyroSample (prev_pitch, gyro_pitch);
 			}
 			break;
