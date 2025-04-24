@@ -1750,7 +1750,7 @@ void IN_SendKeyEvents (void)
 						event.csensor.data[1] - gyro_calibration_y.value,
 						event.csensor.data[0] - gyro_calibration_x.value,
 						event.csensor.data[2] - gyro_calibration_z.value,
-						1.0f, 1.0f, 1.0f, 0.5f
+						1.0f, 1.0f, 1.0f, 0.0f
 					);
 					gyro_yaw = localGyro.x;
 					gyro_pitch = localGyro.y;
