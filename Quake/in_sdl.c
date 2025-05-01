@@ -1750,41 +1750,45 @@ void IN_SendKeyEvents (void)
 						event.csensor.data[1] - gyro_calibration_y.value,
 						event.csensor.data[0] - gyro_calibration_x.value,
 						event.csensor.data[2] - gyro_calibration_z.value,
-						1.0f, 1.0f, 1.0f, 0.0f
+						0.0f
 					);
+
 					gyro_yaw = localGyro.x;
 					gyro_pitch = localGyro.y;
 					gyro_roll = -localGyro.z;
 				}
 				break;
+
 				case 3: // Player Space
 				{
 					Vector3 playerGyro = TransformToPlayerSpace (
 						event.csensor.data[1] - gyro_calibration_y.value,
 						event.csensor.data[0] - gyro_calibration_x.value,
 						event.csensor.data[2] - gyro_calibration_z.value,
-						GetGravityVector (),
-						1.0f, 1.0f, 1.0f
+						GetGravityVector ()
 					);
+
 					gyro_yaw = playerGyro.x;
 					gyro_pitch = playerGyro.y;
 					gyro_roll = -playerGyro.z;
 				}
 				break;
+
 				case 4: // World Space
 				{
 					Vector3 worldGyro = TransformToWorldSpace (
 						event.csensor.data[1] - gyro_calibration_y.value,
 						event.csensor.data[0] - gyro_calibration_x.value,
 						event.csensor.data[2] - gyro_calibration_z.value,
-						GetGravityVector (),
-						1.0f, 1.0f, 1.0f
+						GetGravityVector ()
 					);
+
 					gyro_yaw = worldGyro.x;
 					gyro_pitch = worldGyro.y;
 					gyro_roll = -worldGyro.z;
 				}
 				break;
+
 				default:
 					gyro_yaw = 0.f;
 					gyro_pitch = 0.f;
@@ -1792,6 +1796,7 @@ void IN_SendKeyEvents (void)
 					break;
 				}
 
+				// Preserve direct pitch calibration
 				gyro_pitch = event.csensor.data[0] - gyro_calibration_x.value;
 
 				// Save unfiltered magnitude for UI display
