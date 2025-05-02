@@ -493,64 +493,59 @@ static qboolean IN_RemapJoystick (void)
 
 void IN_StartupJoystick (void)
 {
-	int i;
-	int nummappings;
-	char controllerdb[MAX_OSPATH];
+    int i;
+    int nummappings;
+    char controllerdb[MAX_OSPATH];
 
-	if (COM_CheckParm ("-nojoy"))
-		return;
+    if (COM_CheckParm("-nojoy"))
+        return;
 
 #if SDL_VERSION_ATLEAST(2, 0, 12)
 	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_GAMECUBE, "1");
 #endif
-
 #if SDL_VERSION_ATLEAST(2, 0, 14)
 	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_PS5, "1");
-	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_STEAM, "1");
 #endif
-
-#if SDL_VERSION_ATLEAST(2, 0, 18)
-	SDL_SetHint (SDL_HINT_JOYSTICK_RAWINPUT, "1");
-	SDL_SetHint (SDL_HINT_JOYSTICK_RAWINPUT_CORRELATE_XINPUT, "1");
-#endif
-
 #if SDL_VERSION_ATLEAST(2, 0, 22)
 	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI, "1");
 	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_PS4, "1");
 	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_SWITCH, "1");
 	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_JOY_CONS, "1");
+
+	// Enable rumble and motion sensors for PS4 and PS5 controllers while under Bluetooth connectivitiy
 	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_PS4_RUMBLE, "1");
 	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_PS5_RUMBLE, "1");
 #endif
-
 #if SDL_VERSION_ATLEAST(2, 23, 2)
 	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_COMBINE_JOY_CONS, "1");
 #endif
-
 #if SDL_VERSION_ATLEAST(2, 25, 1)
 	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_PS3, "1");
 #endif
-
 #if SDL_VERSION_ATLEAST(2, 26, 0)
 	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_WII, "1");
 #endif
+#if SDL_VERSION_ATLEAST(2, 0, 18)
+	SDL_SetHint (SDL_HINT_JOYSTICK_RAWINPUT, "1");
+	SDL_SetHint (SDL_HINT_JOYSTICK_RAWINPUT_CORRELATE_XINPUT, "1");
+#endif
 
-	if (SDL_InitSubSystem (SDL_INIT_GAMECONTROLLER) == -1)
-	{
-		Con_Warning ("could not initialize SDL Game Controller\n");
-		return;
-	}
+    if (SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER) == -1)
+    {
+        Con_Warning("could not initialize SDL Game Controller\n");
+        return;
+    }
 
-	// Load additional SDL2 controller definitions from gamecontrollerdb.txt
-	for (i = 0; i < com_numbasedirs; i++)
-	{
-		q_snprintf (controllerdb, sizeof (controllerdb), "%s/gamecontrollerdb.txt", com_basedirs[i]);
-		nummappings = SDL_GameControllerAddMappingsFromFile (controllerdb);
-		if (nummappings > 0)
-			Con_Printf ("%d mappings loaded from gamecontrollerdb.txt\n", nummappings);
-	}
+    // Load additional SDL2 controller definitions from gamecontrollerdb.txt
+    for (i = 0; i < com_numbasedirs; i++)
+    {
+        q_snprintf(controllerdb, sizeof(controllerdb), "%s/gamecontrollerdb.txt", com_basedirs[i]);
+        nummappings = SDL_GameControllerAddMappingsFromFile(controllerdb);
+        if (nummappings > 0)
+            Con_Printf("%d mappings loaded from gamecontrollerdb.txt\n", nummappings);
+    }
 
-	IN_SetupJoystick ();
+    IN_SetupJoystick();
 }
 
 void IN_ShutdownJoystick (void)
@@ -1214,7 +1209,7 @@ static float IN_RecenterEasing (float frac)
 	return frac * frac;
 }
 
-void IN_GyroMove (usercmd_t* cmd)
+void IN_GyroMove(usercmd_t *cmd)
 {
 	float scale, duration, lerp_frac;
 	if (!gyro_enable.value)
@@ -1248,7 +1243,7 @@ void IN_GyroMove (usercmd_t* cmd)
 		break;
 	}
 
-	// Apply gyro to yaw and pitch
+	// apply gyro
 	cl.viewangles[YAW] += scale * gyro_yaw * gyro_yawsensitivity.value;
 	cl.viewangles[PITCH] -= scale * gyro_pitch * gyro_pitchsensitivity.value;
 
@@ -1799,7 +1794,7 @@ void IN_SendKeyEvents (void)
 				// Preserve direct pitch calibration
 				gyro_pitch = event.csensor.data[0] - gyro_calibration_x.value;
 
-				// Save unfiltered magnitude for UI display
+				// Save unfiltered magnitude to display in the UI
 				gyro_raw_mag = RAD2DEG (sqrt (gyro_yaw * gyro_yaw + gyro_pitch * gyro_pitch));
 
 				// Apply filtering to smooth gyro movements
