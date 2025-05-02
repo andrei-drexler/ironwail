@@ -313,7 +313,7 @@ CL_IsPlayerEnt
 */
 qboolean CL_IsPlayerEnt (const entity_t *ent)
 {
-	return (uintptr_t)ent - (uintptr_t)(cl_entities + 1) < (uintptr_t)cl.maxclients;
+	return PTR_IN_RANGE (ent, cl_entities + 1, cl_entities + 1 + cl.maxclients);
 }
 
 /*
