@@ -58,10 +58,14 @@ client_t	*host_client;			// current client
 jmp_buf 	host_abortserver;
 
 byte		*host_colormap;
-float	host_netinterval;
+
+double		host_netinterval; // renderer/network isolation
+qboolean	host_netfixed;
+
 cvar_t	host_framerate = {"host_framerate","0",CVAR_NONE};	// set for slow motion
 cvar_t	host_speeds = {"host_speeds","0",CVAR_NONE};			// set for running times
 cvar_t	host_maxfps = {"host_maxfps", "250", CVAR_ARCHIVE}; //johnfitz
+cvar_t	host_netfps = {"host_netfps", "auto", CVAR_NONE}; // for renderer/network isolation
 cvar_t	host_timescale = {"host_timescale", "0", CVAR_NONE}; //johnfitz
 cvar_t	max_edicts = {"max_edicts", "16384", CVAR_NONE}; //johnfitz //ericw -- changed from 2048 to 8192, removed CVAR_ARCHIVE
 cvar_t	cl_nocsqc = {"cl_nocsqc", "0", CVAR_NONE};	//spike -- blocks the loading of any csqc modules
@@ -112,25 +116,39 @@ static void Max_Edicts_f (cvar_t *var)
 
 /*
 ================
-Max_Fps_f -- ericw
+Host_Fps_f -- ericw
 ================
 */
-static void Max_Fps_f (cvar_t *var)
+static void Host_Fps_f (cvar_t *var)
 {
-	if (var->value > 72 || var->value <= 0)
+	if (!q_strcasecmp (host_netfps.string, "auto"))
 	{
-		if (!host_netinterval)
-			Con_Printf ("Using renderer/network isolation.\n");
-		host_netinterval = 1.0/72;
+		if (!host_netinterval || host_netfixed)
+			Con_Printf ("Using dynamic tickrate renderer/network isolation.\n");
+		if (host_maxfps.value >= 72 || host_maxfps.value <= 0)
+			host_netinterval = 1.0 / 72;
+		else
+			host_netinterval = 1.0 / host_maxfps.value;
+		host_netfixed = false;
 	}
-	else
+	else if (var == &host_netfps)
 	{
-		if (host_netinterval)
-			Con_Printf ("Disabling renderer/network isolation.\n");
-		host_netinterval = 0;
-
-		if (var->value > 72)
-			Con_Warning ("host_maxfps above 72 breaks physics.\n");
+		if (host_netfps.value > 0)
+		{
+			if (!host_netfixed)
+				Con_Printf ("Using fixed tickrate renderer/network isolation.\n");
+			if (host_netfps.value > 72)
+				Con_Warning ("host_netfps above 72 breaks physics.\n");
+			host_netinterval = 1.0 / q_min (host_netfps.value, 1000);
+			host_netfixed = true;
+		}
+		else
+		{
+			if (host_netinterval)
+				Con_Printf ("Disabling renderer/network isolation.\n");
+			host_netinterval = 0;
+			host_netfixed = false;
+		}
 	}
 }
 
@@ -365,8 +383,10 @@ void Host_InitLocal (void)
 	Cvar_RegisterVariable (&host_framerate);
 	Cvar_RegisterVariable (&host_speeds);
 	Cvar_RegisterVariable (&host_maxfps); //johnfitz
-	Cvar_SetCallback (&host_maxfps, Max_Fps_f);
-	Max_Fps_f (&host_maxfps);
+	Cvar_RegisterVariable (&host_netfps);
+	Cvar_SetCallback (&host_maxfps, Host_Fps_f);
+	Cvar_SetCallback (&host_netfps, Host_Fps_f);
+	Host_Fps_f (&host_netfps);
 	Cvar_RegisterVariable (&host_timescale); //johnfitz
 
 	Cvar_RegisterVariable (&cl_nocsqc);	//spike
@@ -1211,8 +1231,11 @@ void _Host_Frame (double time)
 	rand ();
 
 // decide the simulation time
-	accumtime += host_netinterval?CLAMP(0.0, time, 0.2):0.0;	//for renderer/server isolation
 	Host_AdvanceTime (time);
+
+// update accumulated tick time for renderer/network isolation
+	if (host_netinterval)
+		accumtime = CLAMP(0.0, accumtime + host_frametime, q_max (0.2, host_netinterval * 2));
 
 // run async procs
 	AsyncQueue_Drain (&async_queue);
@@ -1246,20 +1269,23 @@ void _Host_Frame (double time)
 	CL_AccumulateCmd ();
 
 	//Run the server+networking (client->server->client), at a different rate from everyt
-	if (accumtime >= host_netinterval)
+	while (accumtime >= host_netinterval)
 	{
-		float realframetime = host_frametime;
+		double realframetime = host_frametime;
 		if (host_netinterval)
 		{
-			host_frametime = q_max(accumtime, (double)host_netinterval);
+			if (host_netfixed)
+			{
+				// fixed mode always simulates one tick at a time
+				host_frametime = host_netinterval;
+			}
+			else
+			{
+				// dynamic mode merges ticks if the frame is too long
+				host_frametime = host_netinterval * (int)(accumtime / host_netinterval);
+			}
 			accumtime -= host_frametime;
-			if (host_timescale.value > 0)
-				host_frametime *= host_timescale.value;
-			else if (host_framerate.value)
-				host_frametime = host_framerate.value;
 		}
-		else
-			accumtime -= host_netinterval;
 		CL_SendCmd ();
 		if (sv.active)
 		{
@@ -1270,6 +1296,9 @@ void _Host_Frame (double time)
 		host_frametime = realframetime;
 		Cbuf_Waited();
 		ranserver = true;
+
+		if (!host_netfixed)
+			break;
 	}
 
 // fetch results from server
