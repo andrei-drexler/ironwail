@@ -17,6 +17,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive # Ensures submodules are checked out recursively
+
+      - name: Update Submodules
+        run: git submodule update --init --recursive
 
       - name: Install Dependencies
         run: sudo apt update && sudo apt install gcc-mingw-w64-${{ matrix.config.package }}
