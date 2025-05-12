@@ -8,7 +8,14 @@ jobs:
       fail-fast: false
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: recursive # Ensures submodules are checked out recursively
+
+    - name: Update Submodules
+      run: git submodule update --init --recursive
+
     - name: Install Dependencies
       run: brew install libvorbis mad sdl2
+
     - name: Build
       run: make --jobs=3 --keep-going --directory=Quake COMMON_LIBS="-framework CoreFoundation -framework IOKit -framework OpenGL -Wl,-alias -Wl,_SDL_main -Wl,_main"

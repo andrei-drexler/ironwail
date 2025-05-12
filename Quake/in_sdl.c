@@ -31,6 +31,9 @@ https://github.com/yquake2/yquake2/blob/master/src/client/input/sdl.c
 #include "SDL.h"
 #endif
 
+// GyroSpace and Play header
+#include "GyroSpace/GyroSpace.h"
+
 extern cvar_t ui_mouse;
 extern cvar_t language;
 
@@ -107,7 +110,7 @@ static const int buttonremap[] =
 
 /* total accumulated mouse movement since last frame */
 static int		total_dx = 0, total_dy = 0;
-static float	gyro_yaw = 0.f, gyro_pitch = 0.f, gyro_raw_mag = 0.f;
+static float	gyro_yaw = 0.f, gyro_roll = 0.f, gyro_pitch = 0.f, gyro_raw_mag = 0.f;
 static float	gyro_center_frac = 0.f, gyro_center_amount = 0.f;
 
 // used for gyro calibration
@@ -419,20 +422,40 @@ static qboolean IN_UseController (int device_index)
 		// orange LED, seemed fitting for Quake
 		SDL_GameControllerSetLED (joy_active_controller, 80, 20, 0);
 	}
-	if (SDL_GameControllerHasSensor (joy_active_controller, SDL_SENSOR_GYRO)
-		&& !SDL_GameControllerSetSensorEnabled (joy_active_controller, SDL_SENSOR_GYRO, SDL_TRUE))
+
+	// Array of sensors to handle
+	SDL_SensorType sensors[] = { SDL_SENSOR_GYRO, SDL_SENSOR_ACCEL };
+	const char* sensor_names[] = { "Gyro", "Accelerometer" };
+	qboolean sensor_enabled[] = { false, false };
+
+	for (int i = 0; i < 2; i++)
 	{
-		gyro_present = true;
+		if (SDL_GameControllerHasSensor (joy_active_controller, sensors[i]) &&
+			!SDL_GameControllerSetSensorEnabled (joy_active_controller, sensors[i], SDL_TRUE))
+		{
+			sensor_enabled[i] = true;
 #if SDL_VERSION_ATLEAST(2, 0, 16)
-		Con_Printf ("Gyro sensor enabled at %g Hz\n", SDL_GameControllerGetSensorDataRate (joy_active_controller, SDL_SENSOR_GYRO));
+			if (sensors[i] == SDL_SENSOR_GYRO)
+			{
+				Con_Printf ("%s sensor enabled at %g Hz\n", sensor_names[i],
+					SDL_GameControllerGetSensorDataRate (joy_active_controller, sensors[i]));
+			}
+			else
+			{
+				Con_Printf ("%s sensor enabled.\n", sensor_names[i]);
+			}
 #else
-		Con_printf ("Gyro sensor enabled.\n")
-#endif // SDL_VERSION_ATLEAST(2, 0, 16)
+			Con_Printf ("%s sensor enabled.\n", sensor_names[i]);
+#endif
+		}
+		else
+		{
+			Con_Printf ("%s sensor not found\n", sensor_names[i]);
+		}
 	}
-	else
-	{
-		Con_Printf ("Gyro sensor not found\n");
-	}
+
+	// Update gyro_present flag if the gyroscope is enabled
+	gyro_present = sensor_enabled[0];
 #endif // SDL_VERSION_ATLEAST(2, 0, 14)
 
 #if SDL_VERSION_ATLEAST (2, 0, 9)
@@ -489,7 +512,7 @@ void IN_StartupJoystick (void)
 	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_SWITCH, "1");
 	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_JOY_CONS, "1");
 
-	// Enable rumble and motion sensors for PS4 and PS5 controllers while uder Bluetooth connectivitiy
+	// Enable rumble and motion sensors for PS4 and PS5 controllers while under Bluetooth connectivitiy
 	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_PS4_RUMBLE, "1");
 	SDL_SetHint (SDL_HINT_JOYSTICK_HIDAPI_PS5_RUMBLE, "1");
 #endif
@@ -1703,20 +1726,80 @@ void IN_SendKeyEvents (void)
 			{
 				float prev_yaw = gyro_yaw;
 				float prev_pitch = gyro_pitch;
+				float prev_roll = gyro_roll;
 
 				if (IN_UpdateGyroCalibration (event.csensor.data))
 					break;
 
-				if (!gyro_turning_axis.value)
-					gyro_yaw = event.csensor.data[1] - gyro_calibration_y.value; // yaw
-				else
-					gyro_yaw = -(event.csensor.data[2] - gyro_calibration_z.value); // roll
+				// Gyro Axis Selection
+				switch ((int)gyro_turning_axis.value) {
+				case 0: // Yaw
+					gyro_yaw = event.csensor.data[1] - gyro_calibration_y.value;
+					break;
+				case 1: // Roll
+					gyro_yaw = -(event.csensor.data[2] - gyro_calibration_z.value);
+					break;
+				case 2: // Local Space
+				{
+					Vector3 localGyro = TransformToLocalSpace (
+						event.csensor.data[1] - gyro_calibration_y.value,
+						event.csensor.data[0] - gyro_calibration_x.value,
+						event.csensor.data[2] - gyro_calibration_z.value,
+						0.0f
+					);
+
+					gyro_yaw = localGyro.x;
+					gyro_pitch = localGyro.y;
+					gyro_roll = -localGyro.z;
+				}
+				break;
+
+				case 3: // Player Space
+				{
+					Vector3 playerGyro = TransformToPlayerSpace (
+						event.csensor.data[1] - gyro_calibration_y.value,
+						event.csensor.data[0] - gyro_calibration_x.value,
+						event.csensor.data[2] - gyro_calibration_z.value,
+						GetGravityVector ()
+					);
+
+					gyro_yaw = playerGyro.x;
+					gyro_pitch = playerGyro.y;
+					gyro_roll = -playerGyro.z;
+				}
+				break;
+
+				case 4: // World Space
+				{
+					Vector3 worldGyro = TransformToWorldSpace (
+						event.csensor.data[1] - gyro_calibration_y.value,
+						event.csensor.data[0] - gyro_calibration_x.value,
+						event.csensor.data[2] - gyro_calibration_z.value,
+						GetGravityVector ()
+					);
+
+					gyro_yaw = worldGyro.x;
+					gyro_pitch = worldGyro.y;
+					gyro_roll = -worldGyro.z;
+				}
+				break;
+
+				default:
+					gyro_yaw = 0.f;
+					gyro_pitch = 0.f;
+					gyro_roll = 0.f;
+					break;
+				}
+
+				// Preserve direct pitch calibration
 				gyro_pitch = event.csensor.data[0] - gyro_calibration_x.value;
 
 				// Save unfiltered magnitude to display in the UI
-				gyro_raw_mag = RAD2DEG (sqrt (gyro_yaw*gyro_yaw + gyro_pitch*gyro_pitch));
+				gyro_raw_mag = RAD2DEG (sqrt (gyro_yaw * gyro_yaw + gyro_pitch * gyro_pitch));
 
+				// Apply filtering to smooth gyro movements
 				gyro_yaw = IN_FilterGyroSample (prev_yaw, gyro_yaw);
+				gyro_roll = IN_FilterGyroSample (prev_roll, gyro_roll);
 				gyro_pitch = IN_FilterGyroSample (prev_pitch, gyro_pitch);
 			}
 			break;
