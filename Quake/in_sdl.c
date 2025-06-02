@@ -1759,8 +1759,7 @@ void IN_SendKeyEvents (void)
 					Vector3 playerGyro = TransformToPlayerSpace (
 						event.csensor.data[1] - gyro_calibration_y.value,
 						event.csensor.data[0] - gyro_calibration_x.value,
-						event.csensor.data[2] - gyro_calibration_z.value,
-						GetGravityVector ()
+						event.csensor.data[2] - gyro_calibration_z.value
 					);
 
 					gyro_yaw = playerGyro.x;
@@ -1774,8 +1773,7 @@ void IN_SendKeyEvents (void)
 					Vector3 worldGyro = TransformToWorldSpace (
 						event.csensor.data[1] - gyro_calibration_y.value,
 						event.csensor.data[0] - gyro_calibration_x.value,
-						event.csensor.data[2] - gyro_calibration_z.value,
-						GetGravityVector ()
+						event.csensor.data[2] - gyro_calibration_z.value
 					);
 
 					gyro_yaw = worldGyro.x;
