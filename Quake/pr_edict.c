@@ -1455,6 +1455,7 @@ to call ED_CallSpawnFunctions () to let the objects initialize themselves.
 void ED_LoadFromFile (const char *data)
 {
 	const char	*classname;
+	char spawnfunc[256];
 	dfunction_t	*func;
 	edict_t		*ent = NULL;
 	int		inhibit = 0;
@@ -1554,14 +1555,21 @@ void ED_LoadFromFile (const char *data)
 // immediately call spawn function
 //
 	// look for the spawn function
-		func = ED_FindFunction (classname);
+	// erysdren: look for FTE/DP spawnfunc_* function first to support QuakeC classes
+		q_snprintf(spawnfunc, sizeof(spawnfunc), "spawnfunc_%s", classname);
+		func = ED_FindFunction (spawnfunc);
 
 		if (!func)
 		{
-			Con_SafePrintf ("No spawn function for:\n"); //johnfitz -- was Con_Printf
-			ED_Print (ent);
-			ED_Free (ent);
-			continue;
+			func = ED_FindFunction (classname);
+
+			if (!func)
+			{
+				Con_SafePrintf ("No spawn function for:\n"); //johnfitz -- was Con_Printf
+				ED_Print (ent);
+				ED_Free (ent);
+				continue;
+			}
 		}
 
 		SV_ReserveSignonSpace (512);
