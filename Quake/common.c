@@ -1959,6 +1959,9 @@ static int COM_FindFile (const char *filename, int *handle, FILE **file,
 
 		if (strcmp(ext, "pcx") != 0 &&
 			strcmp(ext, "tga") != 0 &&
+			strcmp(ext, "png") != 0 &&
+			strcmp(ext, "jpg") != 0 &&
+			strcmp(ext, "lmp") != 0 &&
 			strcmp(ext, "lit") != 0 &&
 			strcmp(ext, "vis") != 0 &&
 			strcmp(ext, "ent") != 0)
