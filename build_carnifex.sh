@@ -33,10 +33,9 @@ if [ $? -eq 0 ]; then
     if [ $? -eq 0 ]; then
         echo "   ✅ Build successful"
         
-        # Rename the executable
-        if [ -f "ironwail" ]; then
-            mv ironwail carnifex-engine
-            echo "   ✅ Executable renamed to carnifex-engine"
+        # Executable is already named correctly
+        if [ -f "carnifex-engine" ]; then
+            echo "   ✅ Executable created: carnifex-engine"
         fi
         
         echo ""

@@ -26,6 +26,7 @@
 
 ### **Carnifex Engine Modifications**
 - **Carnifex Engine Team** - Engine modifications for independent game development
+- **Edward 'Toy' Facundo** - Main developer Carnifex Engine modifications
 - Removed dependency on original Quake files
 - Added support for independent game structures
 - Maintained all original credits and acknowledgments

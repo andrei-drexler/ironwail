@@ -7,11 +7,11 @@ Quake/*.res
 Quake/*.exe
 Quake/ironwail
 Quake/carnifex-engine
+carnifex-engine
 build/
 /.vs
 /out/
 # Carnifex Engine build files
-carnifex-engine
 CMakeCache.txt
 CMakeFiles/
 Makefile
