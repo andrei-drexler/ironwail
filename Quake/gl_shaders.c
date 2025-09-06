@@ -58,7 +58,7 @@ static void GL_InitError (const char *message, ...)
 		"\n"
 		"%s\n"
 		"\n"
-		"Engine:	Ironwail " IRONWAIL_VER_STRING " (%d-bit)\n"
+		"Engine:	Carnifex " CARNIFEX_VER_STRING " (%d-bit)\n"
 		"OpenGL:	%s\n"
 		"GPU:   	%s\n"
 		"Vendor:	%s\n"

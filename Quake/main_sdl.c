@@ -145,7 +145,7 @@ int main(int argc, char *argv[])
 
 	Sys_Init();
 
-	Sys_Printf("Initializing Carnifex v%s\n", IRONWAIL_VER_STRING);
+	Sys_Printf("Initializing Carnifex v%s\n", CARNIFEX_VER_STRING);
 
 	parms.memsize = DEFAULT_MEMORY;
 	if (COM_CheckParm("-heapsize"))

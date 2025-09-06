@@ -299,7 +299,7 @@ void Cmd_Exec_f (void)
 	path = Cmd_Argv (1);
 
 	// HACK:
-	// "exec config.cfg" will execute ironwail.cfg
+	// "exec config.cfg" will execute carnifex.cfg
 	// "exec config.cfg pls" will execute config.cfg
 	if (Cmd_Argc () == 2 && !strcmp (path, "config.cfg"))
 	{

@@ -2666,7 +2666,7 @@ static void COM_AddBaseDir (const char *path)
 COM_MigrateNightdiveUserFiles
 
 Checks the Nightdive dir for subdirs containing
-an ironwail.cfg file and moves known files over
+a carnifex.cfg file and moves known files over
 to the new dir
 =================
 */
