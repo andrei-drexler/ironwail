@@ -5,11 +5,14 @@
  * for the Carnifex Quake engine.
  */
 
+#define _POSIX_C_SOURCE 200809L
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <getopt.h>
-#include "../lib/lmp.h"
+#include "lib/lmp.h"
+#include "lib/pak.h"
 
 /* Command line options */
 static struct option long_options[] = {
@@ -20,6 +23,9 @@ static struct option long_options[] = {
     {"type",        required_argument, 0, 't'},
     {"info",        no_argument,       0, 'I'},
     {"extract",     no_argument,       0, 'e'},
+    {"create",      no_argument,       0, 'c'},
+    {"list",        no_argument,       0, 'l'},
+    {"add",         required_argument, 0, 'a'},
     {0, 0, 0, 0}
 };
 
@@ -29,6 +35,10 @@ static char *output_file = NULL;
 static char *file_type = NULL;
 static bool show_info = false;
 static bool extract_mode = false;
+static bool create_mode = false;
+static bool list_mode = false;
+static char **add_files = NULL;
+static int add_files_count = 0;
 
 /* Function prototypes */
 void print_usage(const char *program_name);
@@ -36,13 +46,17 @@ void print_version(void);
 void print_info(const char *filename);
 bool process_conchars(void);
 bool extract_conchars(void);
+bool process_pak(void);
+bool extract_pak(void);
+bool create_pak(void);
+bool list_pak(void);
 
 int main(int argc, char *argv[]) {
     int option_index = 0;
     int c;
     
     /* Parse command line arguments */
-    while ((c = getopt_long(argc, argv, "hvi:o:t:Ie", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(argc, argv, "hvi:o:t:Iecla:", long_options, &option_index)) != -1) {
         switch (c) {
             case 'h':
                 print_usage(argv[0]);
@@ -72,6 +86,22 @@ int main(int argc, char *argv[]) {
                 extract_mode = true;
                 break;
                 
+            case 'c':
+                create_mode = true;
+                break;
+                
+            case 'l':
+                list_mode = true;
+                break;
+                
+            case 'a':
+                add_files = realloc(add_files, (add_files_count + 1) * sizeof(char*));
+                if (add_files) {
+                    add_files[add_files_count] = strdup(optarg);
+                    add_files_count++;
+                }
+                break;
+                
             case '?':
                 print_usage(argv[0]);
                 return 1;
@@ -82,7 +112,7 @@ int main(int argc, char *argv[]) {
     }
     
     /* Validate arguments */
-    if (!input_file && !show_info) {
+    if (!input_file && !show_info && !create_mode) {
         fprintf(stderr, "Error: Input file required (use -i or --input)\n");
         print_usage(argv[0]);
         return 1;
@@ -99,12 +129,40 @@ int main(int argc, char *argv[]) {
     
     /* For extraction mode, try to auto-detect file type if not specified */
     if (extract_mode && !file_type) {
-        /* Try to load as conchars first */
-        conchars_t *conchars = conchars_load_from_file(input_file);
-        if (conchars) {
-            file_type = "conchars";
-            conchars_free(conchars);
+        /* Try to load as PAK first */
+        if (pak_is_valid(input_file)) {
+            file_type = "pak";
+        } else {
+            /* Try to load as conchars */
+            conchars_t *conchars = conchars_load_from_file(input_file);
+            if (conchars) {
+                file_type = "conchars";
+                conchars_free(conchars);
+            }
         }
+    }
+    
+    /* For list mode, try to auto-detect file type if not specified */
+    if (list_mode && !file_type) {
+        if (pak_is_valid(input_file)) {
+            file_type = "pak";
+        }
+    }
+    
+    /* Handle create mode */
+    if (create_mode) {
+        if (!file_type) {
+            file_type = "pak"; /* Default to PAK for creation */
+        }
+        if (strcmp(file_type, "pak") == 0) {
+            if (!create_pak()) {
+                return 1;
+            }
+        } else {
+            fprintf(stderr, "Error: Can only create PAK files\n");
+            return 1;
+        }
+        return 0;
     }
     
     /* Process based on file type */
@@ -124,30 +182,58 @@ int main(int argc, char *argv[]) {
                 return 1;
             }
         }
+    } else if (strcmp(file_type, "pak") == 0) {
+        if (list_mode) {
+            if (!list_pak()) {
+                return 1;
+            }
+        } else if (extract_mode) {
+            if (!extract_pak()) {
+                return 1;
+            }
+        } else {
+            if (!process_pak()) {
+                return 1;
+            }
+        }
     } else {
         fprintf(stderr, "Error: Unsupported file type '%s'\n", file_type);
-        fprintf(stderr, "Supported types: conchars\n");
+        fprintf(stderr, "Supported types: conchars, pak\n");
         return 1;
+    }
+    
+    /* Cleanup */
+    if (add_files) {
+        for (int i = 0; i < add_files_count; i++) {
+            free(add_files[i]);
+        }
+        free(add_files);
     }
     
     return 0;
 }
 
 void print_usage(const char *program_name) {
-    printf("Carnifex CLI Tool - LMP file generator for Carnifex Quake engine\n\n");
+    printf("Carnifex CLI Tool - LMP and PAK file generator for Carnifex Quake engine\n\n");
     printf("Usage: %s [OPTIONS]\n\n", program_name);
     printf("Options:\n");
     printf("  -h, --help              Show this help message\n");
     printf("  -v, --version           Show version information\n");
     printf("  -i, --input FILE        Input file path\n");
     printf("  -o, --output FILE       Output file path\n");
-    printf("  -t, --type TYPE         File type (conchars)\n");
+    printf("  -t, --type TYPE         File type (conchars, pak)\n");
     printf("  -I, --info              Show file information\n");
-    printf("  -e, --extract           Extract characters to individual files\n\n");
+    printf("  -e, --extract           Extract files from archive\n");
+    printf("  -c, --create            Create new archive\n");
+    printf("  -l, --list              List files in archive\n");
+    printf("  -a, --add FILE          Add file to archive (use with -c)\n\n");
     printf("Examples:\n");
     printf("  %s -i conchars.lmp -I                    # Show conchars info\n", program_name);
     printf("  %s -i image.png -o conchars.lmp -t conchars  # Convert image to conchars\n", program_name);
     printf("  %s -i conchars.lmp -e -o chars/         # Extract all characters\n", program_name);
+    printf("  %s -i pak0.pak -l                       # List files in PAK\n", program_name);
+    printf("  %s -i pak0.pak -e -o extracted/         # Extract all files from PAK\n", program_name);
+    printf("  %s -c -o new.pak -t pak -a file1.txt -a file2.txt  # Create new PAK\n", program_name);
 }
 
 void print_version(void) {
@@ -158,7 +244,22 @@ void print_version(void) {
 void print_info(const char *filename) {
     printf("File: %s\n", filename);
     
-    /* Try to load as conchars first */
+    /* Try to load as PAK first */
+    if (pak_is_valid(filename)) {
+        pak_t *pak = pak_load_from_file(filename);
+        if (pak) {
+            printf("Type: PAK (Quake archive)\n");
+            printf("Files: %d\n", pak->numfiles);
+            printf("Directory offset: %d\n", pak->header.dirofs);
+            printf("Directory length: %d\n", pak->header.dirlen);
+            printf("Total size: %d bytes\n", pak_calculate_size(pak));
+            
+            pak_free(pak);
+            return;
+        }
+    }
+    
+    /* Try to load as conchars */
     conchars_t *conchars = conchars_load_from_file(filename);
     if (conchars) {
         printf("Type: Conchars (console font)\n");
@@ -266,5 +367,108 @@ bool extract_conchars(void) {
     
     printf("Successfully extracted %d characters\n", CONCHARS_TOTAL_CHARS);
     conchars_free(conchars);
+    return true;
+}
+
+bool process_pak(void) {
+    if (!output_file) {
+        fprintf(stderr, "Error: Output file required for processing\n");
+        return false;
+    }
+    
+    printf("Processing PAK from %s to %s\n", input_file, output_file);
+    
+    /* For now, just copy the input to output */
+    pak_t *pak = pak_load_from_file(input_file);
+    if (!pak) {
+        fprintf(stderr, "Error: Failed to load PAK from %s\n", input_file);
+        return false;
+    }
+    
+    if (!pak_save_to_file(pak, output_file)) {
+        fprintf(stderr, "Error: Failed to save PAK to %s\n", output_file);
+        pak_free(pak);
+        return false;
+    }
+    
+    printf("Successfully processed PAK\n");
+    pak_free(pak);
+    return true;
+}
+
+bool extract_pak(void) {
+    if (!output_file) {
+        fprintf(stderr, "Error: Output directory required for extraction\n");
+        return false;
+    }
+    
+    printf("Extracting PAK from %s to %s\n", input_file, output_file);
+    
+    pak_t *pak = pak_load_from_file(input_file);
+    if (!pak) {
+        fprintf(stderr, "Error: Failed to load PAK from %s\n", input_file);
+        return false;
+    }
+    
+    if (!pak_extract_all(pak, output_file)) {
+        fprintf(stderr, "Error: Failed to extract PAK files\n");
+        pak_free(pak);
+        return false;
+    }
+    
+    printf("Successfully extracted %d files\n", pak->numfiles);
+    pak_free(pak);
+    return true;
+}
+
+bool create_pak(void) {
+    if (!output_file) {
+        fprintf(stderr, "Error: Output file required for PAK creation\n");
+        return false;
+    }
+    
+    printf("Creating PAK file: %s\n", output_file);
+    
+    pak_t *pak = pak_create_new();
+    if (!pak) {
+        fprintf(stderr, "Error: Failed to create PAK structure\n");
+        return false;
+    }
+    
+    /* Add files if specified */
+    for (int i = 0; i < add_files_count; i++) {
+        printf("Adding file: %s\n", add_files[i]);
+        if (!pak_add_file(pak, add_files[i], add_files[i])) {
+            fprintf(stderr, "Error: Failed to add file %s\n", add_files[i]);
+            pak_free(pak);
+            return false;
+        }
+    }
+    
+    /* Save PAK file */
+    if (!pak_save_to_file(pak, output_file)) {
+        fprintf(stderr, "Error: Failed to save PAK file\n");
+        pak_free(pak);
+        return false;
+    }
+    
+    printf("Successfully created PAK with %d files\n", pak->numfiles);
+    pak_free(pak);
+    return true;
+}
+
+bool list_pak(void) {
+    printf("Listing PAK file: %s\n", input_file);
+    
+    pak_t *pak = pak_load_from_file(input_file);
+    if (!pak) {
+        fprintf(stderr, "Error: Failed to load PAK from %s\n", input_file);
+        return false;
+    }
+    
+    pak_print_info(pak);
+    pak_list_files(pak);
+    
+    pak_free(pak);
     return true;
 }
