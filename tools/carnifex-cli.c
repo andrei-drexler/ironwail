@@ -26,6 +26,7 @@ static struct option long_options[] = {
     {"create",      no_argument,       0, 'c'},
     {"list",        no_argument,       0, 'l'},
     {"add",         required_argument, 0, 'a'},
+    {"directory",   required_argument, 0, 'd'},
     {0, 0, 0, 0}
 };
 
@@ -39,6 +40,7 @@ static bool create_mode = false;
 static bool list_mode = false;
 static char **add_files = NULL;
 static int add_files_count = 0;
+static char *directory_path = NULL;
 
 /* Function prototypes */
 void print_usage(const char *program_name);
@@ -56,7 +58,7 @@ int main(int argc, char *argv[]) {
     int c;
     
     /* Parse command line arguments */
-    while ((c = getopt_long(argc, argv, "hvi:o:t:Iecla:", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(argc, argv, "hvi:o:t:Iecla:d:", long_options, &option_index)) != -1) {
         switch (c) {
             case 'h':
                 print_usage(argv[0]);
@@ -100,6 +102,10 @@ int main(int argc, char *argv[]) {
                     add_files[add_files_count] = strdup(optarg);
                     add_files_count++;
                 }
+                break;
+                
+            case 'd':
+                directory_path = optarg;
                 break;
                 
             case '?':
@@ -226,7 +232,8 @@ void print_usage(const char *program_name) {
     printf("  -e, --extract           Extract files from archive\n");
     printf("  -c, --create            Create new archive\n");
     printf("  -l, --list              List files in archive\n");
-    printf("  -a, --add FILE          Add file to archive (use with -c)\n\n");
+    printf("  -a, --add FILE          Add file to archive (use with -c)\n");
+    printf("  -d, --directory DIR     Add entire directory contents to archive (use with -c)\n\n");
     printf("Examples:\n");
     printf("  %s -i conchars.lmp -I                    # Show conchars info\n", program_name);
     printf("  %s -i image.png -o conchars.lmp -t conchars  # Convert image to conchars\n", program_name);
@@ -234,6 +241,7 @@ void print_usage(const char *program_name) {
     printf("  %s -i pak0.pak -l                       # List files in PAK\n", program_name);
     printf("  %s -i pak0.pak -e -o extracted/         # Extract all files from PAK\n", program_name);
     printf("  %s -c -o new.pak -t pak -a file1.txt -a file2.txt  # Create new PAK\n", program_name);
+    printf("  %s -c -o music.pak -t pak -d music/     # Create PAK from directory\n", program_name);
 }
 
 void print_version(void) {
@@ -435,7 +443,16 @@ bool create_pak(void) {
         return false;
     }
     
-    /* Add files if specified */
+    /* Add directory contents if specified */
+    if (directory_path) {
+        if (!pak_add_directory(pak, directory_path)) {
+            fprintf(stderr, "Error: Failed to add directory %s\n", directory_path);
+            pak_free(pak);
+            return false;
+        }
+    }
+    
+    /* Add individual files if specified */
     for (int i = 0; i < add_files_count; i++) {
         printf("Adding file: %s\n", add_files[i]);
         if (!pak_add_file(pak, add_files[i], add_files[i])) {
@@ -443,6 +460,13 @@ bool create_pak(void) {
             pak_free(pak);
             return false;
         }
+    }
+    
+    /* Check if any files were added */
+    if (pak->numfiles == 0) {
+        fprintf(stderr, "Error: No files to add to PAK. Use -a or -d options.\n");
+        pak_free(pak);
+        return false;
     }
     
     /* Save PAK file */

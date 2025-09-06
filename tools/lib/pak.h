@@ -69,6 +69,7 @@ bool pak_extract_all(pak_t *pak, const char *output_dir);
 pak_t *pak_create_new(void);
 bool pak_add_file(pak_t *pak, const char *filename, const char *pak_path);
 bool pak_add_file_data(pak_t *pak, const char *pak_path, const uint8_t *data, int32_t size);
+bool pak_add_directory(pak_t *pak, const char *directory_path);
 bool pak_remove_file(pak_t *pak, const char *filename);
 
 /* Utility functions */

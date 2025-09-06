@@ -5,13 +5,15 @@
  */
 
 #define _POSIX_C_SOURCE 200809L
+#define _GNU_SOURCE
 
 #include "pak.h"
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <errno.h>
-#include <arpa/inet.h>
+#include <dirent.h>
+#include <endian.h>
 
 /* Helper function to create directory recursively */
 static bool create_directory_recursive(const char *path) {
@@ -46,10 +48,7 @@ static bool create_directory_recursive(const char *path) {
 /* Endianness conversion functions */
 int32_t pak_little_endian_int32(int32_t value) {
     /* Convert from little-endian to host byte order */
-    return ((value & 0xFF) << 24) |
-           (((value >> 8) & 0xFF) << 16) |
-           (((value >> 16) & 0xFF) << 8) |
-           ((value >> 24) & 0xFF);
+    return le32toh(value);
 }
 
 uint32_t pak_little_endian_uint32(uint32_t value) {
@@ -62,10 +61,8 @@ uint32_t pak_little_endian_uint32(uint32_t value) {
 
 /* Convert from host byte order to little-endian */
 int32_t pak_host_to_little_endian_int32(int32_t value) {
-    return ((value & 0xFF) << 24) |
-           (((value >> 8) & 0xFF) << 16) |
-           (((value >> 16) & 0xFF) << 8) |
-           ((value >> 24) & 0xFF);
+    /* Convert from host byte order to little-endian */
+    return htole32(value);
 }
 
 /* Check if a file is a valid PAK file */
@@ -116,8 +113,27 @@ pak_t *pak_load_from_file(const char *filename) {
         return NULL;
     }
     
-    /* Convert endianness - the data is already in little-endian format */
-    /* No conversion needed on little-endian systems */
+    /* Auto-detect endianness by checking if values make sense */
+    int32_t dirofs_le = le32toh(pak->header.dirofs);
+    int32_t dirlen_le = le32toh(pak->header.dirlen);
+    int32_t dirofs_be = be32toh(pak->header.dirofs);
+    int32_t dirlen_be = be32toh(pak->header.dirlen);
+    
+    /* Check file size to determine which endianness makes sense */
+    fseek(f, 0, SEEK_END);
+    long file_size = ftell(f);
+    fseek(f, PAK_HEADER_SIZE, SEEK_SET);
+    
+    /* Use little-endian if it makes sense, otherwise use big-endian */
+    bool use_little_endian = (dirofs_le > 0 && dirlen_le > 0 && dirofs_le + dirlen_le <= file_size);
+    
+    if (use_little_endian) {
+        pak->header.dirofs = dirofs_le;
+        pak->header.dirlen = dirlen_le;
+    } else {
+        pak->header.dirofs = dirofs_be;
+        pak->header.dirlen = dirlen_be;
+    }
     
     /* Validate directory */
     if (pak->header.dirlen < 0 || pak->header.dirofs < 0) {
@@ -169,8 +185,14 @@ pak_t *pak_load_from_file(const char *filename) {
             return NULL;
         }
         
-        /* Convert endianness - the data is already in little-endian format */
-        /* No conversion needed on little-endian systems */
+        /* Use the same endianness as detected for the header */
+        if (use_little_endian) {
+            entry.filepos = le32toh(entry.filepos);
+            entry.filelen = le32toh(entry.filelen);
+        } else {
+            entry.filepos = be32toh(entry.filepos);
+            entry.filelen = be32toh(entry.filelen);
+        }
         
         /* Store file info */
         pak->files[i].filename = malloc(PAK_MAX_FILENAME_LENGTH + 1);
@@ -201,8 +223,8 @@ bool pak_save_to_file(pak_t *pak, const char *filename) {
     /* Write header */
     pak_header_t header;
     memcpy(header.id, PAK_HEADER_ID, 4);
-    header.dirofs = pak_host_to_little_endian_int32(dirofs);
-    header.dirlen = pak_host_to_little_endian_int32(pak->numfiles * PAK_DIRECTORY_ENTRY_SIZE);
+    header.dirofs = htole32(dirofs);  /* Store in little-endian format (standard Quake PAK) */
+    header.dirlen = htole32(pak->numfiles * PAK_DIRECTORY_ENTRY_SIZE);  /* Store in little-endian format (standard Quake PAK) */
     
     if (fwrite(&header, sizeof(pak_header_t), 1, f) != 1) {
         fprintf(stderr, "Error: Cannot write PAK header\n");
@@ -230,8 +252,8 @@ bool pak_save_to_file(pak_t *pak, const char *filename) {
         pak_directory_entry_t entry;
         memset(entry.name, 0, PAK_MAX_FILENAME_LENGTH);
         strncpy(entry.name, pak->files[i].filename, PAK_MAX_FILENAME_LENGTH - 1);
-        entry.filepos = pak_host_to_little_endian_int32(pak->files[i].filepos);
-        entry.filelen = pak_host_to_little_endian_int32(pak->files[i].filelen);
+        entry.filepos = htole32(pak->files[i].filepos);  /* Store in little-endian format (standard Quake PAK) */
+        entry.filelen = htole32(pak->files[i].filelen);  /* Store in little-endian format (standard Quake PAK) */
         
         if (fwrite(&entry, sizeof(pak_directory_entry_t), 1, f) != 1) {
             fprintf(stderr, "Error: Cannot write directory entry for '%s'\n", 
@@ -509,4 +531,76 @@ int32_t pak_calculate_size(pak_t *pak) {
         size += pak->files[i].filelen;
     }
     return size;
+}
+
+/* Helper function to recursively scan directory and add files */
+static bool scan_directory_recursive(pak_t *pak, const char *dir_path, const char *base_path) {
+    DIR *dir = opendir(dir_path);
+    if (!dir) {
+        fprintf(stderr, "Error: Cannot open directory %s\n", dir_path);
+        return false;
+    }
+    
+    struct dirent *entry;
+    bool success = true;
+    
+    while ((entry = readdir(dir)) != NULL) {
+        /* Skip . and .. */
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+        
+        /* Build full path */
+        char full_path[1024];
+        snprintf(full_path, sizeof(full_path), "%s/%s", dir_path, entry->d_name);
+        
+        /* Build PAK path (relative to base directory) */
+        char pak_path[1024];
+        if (base_path && strlen(base_path) > 0) {
+            snprintf(pak_path, sizeof(pak_path), "%s/%s", base_path, entry->d_name);
+        } else {
+            strncpy(pak_path, entry->d_name, sizeof(pak_path) - 1);
+            pak_path[sizeof(pak_path) - 1] = '\0';
+        }
+        
+        /* Check if it's a directory */
+        struct stat st;
+        if (stat(full_path, &st) == 0) {
+            if (S_ISDIR(st.st_mode)) {
+                /* Recursively scan subdirectory */
+                if (!scan_directory_recursive(pak, full_path, pak_path)) {
+                    success = false;
+                }
+            } else if (S_ISREG(st.st_mode)) {
+                /* Add regular file */
+                printf("Adding file: %s -> %s\n", full_path, pak_path);
+                if (!pak_add_file(pak, full_path, pak_path)) {
+                    fprintf(stderr, "Error: Failed to add file %s\n", full_path);
+                    success = false;
+                }
+            }
+        }
+    }
+    
+    closedir(dir);
+    return success;
+}
+
+/* Add entire directory contents to PAK */
+bool pak_add_directory(pak_t *pak, const char *directory_path) {
+    if (!pak || !directory_path) {
+        return false;
+    }
+    
+    /* Check if directory exists */
+    struct stat st;
+    if (stat(directory_path, &st) != 0 || !S_ISDIR(st.st_mode)) {
+        fprintf(stderr, "Error: Directory %s does not exist or is not a directory\n", directory_path);
+        return false;
+    }
+    
+    printf("Adding directory contents: %s\n", directory_path);
+    
+    /* Scan directory recursively */
+    return scan_directory_recursive(pak, directory_path, "");
 }
