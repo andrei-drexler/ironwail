@@ -41,12 +41,12 @@ Carnifex Engine is a fork of the popular GLQuake descendant [IronWail](https://g
 
 ### 1. Build the Engine
 ```bash
-./build_carnifex.sh
+./scripts/build_carnifex.sh
 ```
 
 ### 2. Run a Game
 ```bash
-./carnifex-engine -game carnifex
+./build-artifacts/carnifex-engine -game carnifex
 ```
 
 ### 3. Game Structure
@@ -95,9 +95,9 @@ This engine is based on IronWail, which is based on QuakeSpasm, which is based o
 
 ## Documentation
 
-- **[Carnifex Engine Guide](CARNIFEX_ENGINE_GUIDE.md)** - Complete development guide
-- **[Credits](CARNIFEX_CREDITS.md)** - Detailed credits and acknowledgments
-- **[Summary](CARNIFEX_ENGINE_SUMMARY.md)** - Project summary
+- **[Carnifex Engine Guide](docs/CARNIFEX_ENGINE_GUIDE.md)** - Complete development guide
+- **[Credits](docs/CARNIFEX_CREDITS.md)** - Detailed credits and acknowledgments
+- **[Summary](docs/CARNIFEX_ENGINE_SUMMARY.md)** - Project summary
 
 ## Purpose
 

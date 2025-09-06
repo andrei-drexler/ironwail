@@ -1,18 +1,35 @@
-Windows/VisualStudio/.vs/
-Windows/VisualStudio/Build-*/
-Windows/VisualStudio/ironwail.vcxproj.user
-Quake/*.o
-Quake/*.d
-Quake/*.res
-Quake/*.exe
-Quake/ironwail
-Quake/carnifex-engine
-carnifex-engine
+# Build artifacts
+build-artifacts/
 build/
-/.vs
-/out/
-# Carnifex Engine build files
 CMakeCache.txt
+cmake_install.cmake
 CMakeFiles/
 Makefile
-cmake_install.cmake
+*.cmake
+
+# Compiled binaries
+carnifex-engine
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Object files and dependencies
+*.o
+*.d
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.log
