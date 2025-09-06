@@ -32,15 +32,8 @@ endif()
 
 file(GLOB IWAIL_SRC CONFIGURE_DEPENDS "Quake/*.c" "Quake/*.h")
 
-# LMP library
-add_library(carnifex-lmp STATIC lib/lmp.c lib/lmp.h)
-
-# Carnifex CLI tool
-add_executable(carnifex-cli tools/carnifex-cli.c)
-target_link_libraries(carnifex-cli carnifex-lmp)
-
-# Install tools
-install(TARGETS carnifex-cli DESTINATION bin)
+# Note: CLI tool removed due to missing LMP library
+# The main engine doesn't require the CLI tool for operation
 
 list(REMOVE_ITEM IWAIL_SRC ${CMAKE_CURRENT_SOURCE_DIR}/Quake/lodepng.h)
 list(REMOVE_ITEM IWAIL_SRC ${CMAKE_CURRENT_SOURCE_DIR}/Quake/lodepng.c)
