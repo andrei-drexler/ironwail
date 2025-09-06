@@ -34,8 +34,14 @@ Thumbs.db
 *.temp
 *.log
 
-# Game data files (should not be in source repository)
-*.pak
+# Game assets (binary files)
 *.wad
-carnifex/*.pak
-carnifex/*.wad
+*.WAD
+*.pak
+*.PAK
+*.bsp
+*.BSP
+*.dat
+*.DAT
+*.lmp
+*.LMP
