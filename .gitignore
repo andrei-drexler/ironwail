@@ -33,6 +33,7 @@ Thumbs.db
 *.tmp
 *.temp
 *.log
+temp/
 
 # Game assets (binary files)
 *.wad
@@ -45,3 +46,4 @@ Thumbs.db
 *.DAT
 *.lmp
 *.LMP
+
