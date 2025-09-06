@@ -459,10 +459,21 @@ void Draw_LoadPics (void)
 	lumpinfo_t	*info;
 	byte		*data;
 	int			i, row, col;
+	unsigned int path_id;
 
 	data = (byte *) W_GetLumpName ("conchars", &info);
 	if (!data)
-		Sys_Error ("Draw_LoadPics: couldn't load conchars");
+	{
+		// Try loading from individual file if not found in WAD
+		Con_SafePrintf ("conchars not found in WAD, trying individual file...\n");
+		data = (byte *) COM_LoadMallocFile ("gfx/conchars.lmp", &path_id);
+		if (!data)
+			Sys_Error ("Draw_LoadPics: couldn't load conchars from WAD or gfx/conchars.lmp");
+		// Create a fake info structure for individual file
+		static lumpinfo_t fake_info;
+		fake_info.disksize = 128*128; // Expected size for conchars
+		info = &fake_info;
+	}
 	if (info->disksize < 128*128)
 		Sys_Error ("Draw_LoadPics: truncated conchars");
 

@@ -374,7 +374,7 @@ void Fog_NewMap (void)
 =============
 Fog_Init
 
-called when quake initializes
+called when carnifex initializes
 =============
 */
 void Fog_Init (void)

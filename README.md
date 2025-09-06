@@ -1,114 +1,119 @@
 # Carnifex Engine
 
-## 🎮 **Carnifex Engine v1.0.0-engine**
+A modern Quake engine based on IronWail, designed for independent game development with enhanced stability and graceful error handling.
 
-**Based on IronWail Engine** - A high-performance Quake engine fork modified for independent game development.
+## 🎮 Features
 
-## What's this?
+- **Graceful Shutdown**: Robust error handling prevents crashes and provides clear error messages
+- **Enhanced Stability**: Comprehensive memory protection and file validation
+- **Cross-Platform**: Supports Linux, Windows, and other platforms
+- **Independent Game Mode**: Designed for custom game development without requiring original Quake assets
+- **Modern Graphics**: OpenGL rendering with advanced features
+- **Sound System**: Enhanced audio handling with corruption detection
 
-Carnifex Engine is a fork of the popular GLQuake descendant [IronWail](https://github.com/andrei-drexler/ironwail) (which is based on [QuakeSpasm](https://sourceforge.net/projects/quakespasm/)) with a focus on **independent game development** without requiring the original Quake game files.
+## 🚀 Quick Start
 
-## Key Features
+### Building the Engine
 
-### 🚀 **Independent Game Development**
-- **No dependency on original Quake files** - Create and run games without needing Quake original
-- **Flexible directory structure** - Support for custom game layouts
-- **Removed shareware restrictions** - Full freedom for game development
-
-### ⚡ **High Performance**
-- All IronWail performance optimizations preserved
-- GPU-accelerated rendering with modern OpenGL features
-- Support for complex maps with high poly counts
-- Decoupled renderer for smooth gameplay
-
-### 🎯 **Developer Friendly**
-- **Carnifex Engine branding** - Professional engine identity
-- **Preserved original credits** - All IronWail and QuakeSpasm credits maintained
-- **Flexible game structure** - Support for custom game directories
-- **Modern build system** - Easy compilation and deployment
-
-## System Requirements
-
-| | Minimum GPU | Recommended GPU |
-|:--|:--|:--|
-|NVIDIA|GeForce GT 420 ("Fermi" 2010)|GeForce GT 630 or newer ("Kepler" 2012)|
-|AMD|Radeon HD 5450 ("TeraScale 2" 2009) |Radeon HD 7700 series or newer ("GCN" 2012)|
-|Intel|HD Graphics 4200 ("Haswell" 2012)|HD Graphics 620 ("Kaby Lake" 2016) or newer|
-
-**Note**: Mac OS is not supported due to OpenGL 4.3 requirements (Apple deprecated OpenGL after 4.1).
-
-## Quick Start
-
-### 1. Build the Engine
 ```bash
-./scripts/build_carnifex.sh
+# Build the engine
+make
+
+# Or use the build script
+./tools/build/build_carnifex.sh
 ```
 
-### 2. Run a Game
+### Running the Engine
+
 ```bash
-./build-artifacts/carnifex-engine -game carnifex
+# Run with default game directory
+./carnifex-engine
+
+# Run with specific game directory
+./carnifex-engine -game your-game-directory
+
+# Run with specific base directory
+./carnifex-engine -basedir /path/to/your/quake/installation
 ```
 
-### 3. Game Structure
+## 📁 Project Structure
+
 ```
 carnifex/
-├── maps/           # Game maps (.bsp)
-├── progs/          # Game logic (progs.dat)
-├── sound/          # Sound effects (.wav)
-├── gfx/            # Graphics and textures
-└── scripts/        # Configuration scripts
+├── carnifex-engine          # Main engine executable
+├── carnifex/                # Default game directory
+│   ├── gfx.wad             # Graphics WAD file
+│   ├── maps/               # Map files
+│   ├── progs/              # Game logic
+│   └── sound/              # Audio files
+├── docs/                   # Documentation
+│   ├── user/               # User documentation
+│   └── development/        # Development documentation
+├── tools/                  # Development tools
+│   ├── build/              # Build scripts
+│   └── scripts/            # Utility scripts
+├── Quake/                  # Engine source code
+└── README.md               # This file
 ```
 
-## Development
+## 🛠️ Development Tools
 
-### Creating Games
-1. **Maps**: Use TrenchBroom or NetRadiant to create levels
-2. **Logic**: Develop game logic in QuakeC
-3. **Assets**: Add sounds, textures, and models
-4. **Testing**: Use the Carnifex Engine for testing
+The `tools/scripts/` directory contains utility scripts for game development:
 
-### Build System
-- **CMake-based** build system
-- **Cross-platform** support (Linux, Windows)
-- **Automated scripts** for easy compilation
+- `create_basic_progs.py` - Create basic game logic files
+- `create_placeholder_graphics.py` - Generate placeholder graphics
+- `create_simple_map.py` - Create simple test maps
+- `fix_bsp.py` - Fix BSP map files
 
-## Credits and Acknowledgments
+## 📚 Documentation
 
-### Original Developers
-- **IronWail Team** - High-performance Quake engine
-- **QuakeSpasm Team** - Modern GLQuake descendant
-- **id Software** - Original Quake engine creators
+- **User Guide**: `docs/user/CARNIFEX_ENGINE_GUIDE.md`
+- **Development Guide**: `docs/development/`
+- **Engine Summary**: `docs/user/CARNIFEX_ENGINE_SUMMARY.md`
 
-### Carnifex Engine Modifications
-- **Carnifex Engine Team** - Independent game development modifications
-- All original credits and acknowledgments preserved
-- Modifications made under GNU General Public License v2
+## 🔧 Recent Improvements
 
-## License
+### Graceful Shutdown Implementation
+- Added signal handlers for SIGSEGV, SIGTERM, SIGINT, and SIGFPE
+- Implemented proper error handling for corrupted WAV files
+- Fixed segmentation faults in file operations
+- Enhanced memory safety with bounds checking
 
-This engine is based on IronWail, which is based on QuakeSpasm, which is based on the original Quake engine.
+### Error Handling
+- Clear error messages instead of cryptic crashes
+- Proper cleanup on shutdown
+- Robust file validation
+- Cross-platform compatibility
 
-- **Quake Engine**: Copyright (C) 1996-2001 Id Software, Inc.
-- **QuakeSpasm**: GNU General Public License v2
-- **IronWail**: GNU General Public License v2
-- **Carnifex Engine**: GNU General Public License v2
+## 🎯 Command Line Options
 
-## Documentation
+- `-game <directory>` - Specify game directory
+- `-basedir <path>` - Set base directory
+- `-rogue` - Load Rogue mission pack
+- `-hipnotic` - Load Hipnotic mission pack
+- `-quoth` - Load Quoth mission pack
 
-- **[Carnifex Engine Guide](docs/CARNIFEX_ENGINE_GUIDE.md)** - Complete development guide
-- **[Credits](docs/CARNIFEX_CREDITS.md)** - Detailed credits and acknowledgments
-- **[Summary](docs/CARNIFEX_ENGINE_SUMMARY.md)** - Project summary
+## 🐛 Troubleshooting
 
-## Purpose
+If you encounter issues:
 
-The Carnifex Engine was created to:
-- Enable independent game development without requiring original Quake files
-- Maintain the performance and features of IronWail
-- Preserve all original developer credits and acknowledgments
-- Provide a solid foundation for new games
+1. Check that your game directory contains the necessary files
+2. Ensure WAD files are not corrupted
+3. Verify file permissions
+4. Check the console output for specific error messages
 
----
+## 📄 License
 
-**Carnifex Engine** - Building the future while honoring the past.
+This project is based on IronWail and follows the same licensing terms. See the original IronWail documentation for details.
 
-*This engine is a modification of IronWail, created with respect for the original developers and their contributions to the gaming community.*
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## 📞 Support
+
+For issues and questions, please check the documentation in the `docs/` directory or create an issue in the project repository.

@@ -1,55 +1,55 @@
 # Carnifex Game Template
 
-## 🎮 **Estrutura de Jogo para Carnifex Engine**
+## 🎮 **Game Structure for Carnifex Engine**
 
-Este é um template de jogo para o Carnifex Engine, baseado no IronWail.
+This is a game template for the Carnifex Engine, based on IronWail.
 
-## 📁 **Estrutura de Diretórios**
+## 📁 **Directory Structure**
 
 ```
 carnifex/
-├── maps/           # Mapas do jogo (.bsp)
-├── progs/          # Lógica do jogo (progs.dat)
-├── sound/          # Efeitos sonoros (.wav)
-├── gfx/            # Gráficos e texturas
-├── scripts/        # Scripts de configuração
-└── README.md       # Este arquivo
+├── maps/           # Game maps (.bsp)
+├── progs/          # Game logic (progs.dat)
+├── sound/          # Sound effects (.wav)
+├── gfx/            # Graphics and textures
+├── scripts/        # Configuration scripts
+└── README.md       # This file
 ```
 
-## 🚀 **Como Usar**
+## 🚀 **How to Use**
 
-1. **Compile o engine:**
+1. **Compile the engine:**
    ```bash
    cd /home/deck/development/ironwail
    ./build_carnifex.sh
    ```
 
-2. **Execute seu jogo:**
+2. **Run your game:**
    ```bash
    ./carnifex-engine -game carnifex
    ```
 
-## 🎯 **Vantagens do Carnifex Engine**
+## 🎯 **Carnifex Engine Advantages**
 
-- ✅ **Sem dependência do Quake original**
-- ✅ **Performance otimizada do IronWail**
-- ✅ **Suporte a jogos independentes**
-- ✅ **Todos os créditos originais preservados**
-- ✅ **Estrutura flexível de diretórios**
+- ✅ **No dependency on original Quake**
+- ✅ **Optimised IronWail performance**
+- ✅ **Support for independent games**
+- ✅ **All original credits preserved**
+- ✅ **Flexible directory structure**
 
-## 📚 **Recursos**
+## 📚 **Resources**
 
-- **Maps**: Crie mapas com TrenchBroom ou NetRadiant
-- **Progs**: Desenvolva lógica em QuakeC
-- **Sound**: Adicione efeitos sonoros
-- **Gfx**: Inclua texturas e gráficos
+- **Maps**: Create maps with TrenchBroom or NetRadiant
+- **Progs**: Develop logic in QuakeC
+- **Sound**: Add sound effects
+- **Gfx**: Include textures and graphics
 
-## 🏆 **Créditos**
+## 🏆 **Credits**
 
-Baseado no IronWail Engine, que é baseado no QuakeSpasm, que é baseado no Quake original da id Software.
+Based on the IronWail Engine, which is based on QuakeSpasm, which is based on the original Quake by id Software.
 
-Todos os créditos originais foram preservados.
+All original credits have been preserved.
 
 ---
 
-**Carnifex Engine** - Construindo o futuro honrando o passado.
+**Carnifex Engine** - Building the future whilst honouring the past.

@@ -1447,7 +1447,7 @@ void Host_Init (void)
 	host_hunklevel = Hunk_LowMark ();
 
 	host_initialized = true;
-	Con_Printf ("\n========= Quake Initialized =========\n\n");
+	Con_Printf ("\n========= Carnifex Initialized =========\n\n");
 
 	if (!COM_CheckParm ("-nomapchecks") && Sys_IsStartedFromMapEditor ())
 	{

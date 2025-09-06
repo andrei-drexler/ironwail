@@ -1,0 +1,270 @@
+/*
+ * Carnifex CLI Tool
+ * 
+ * Command-line interface for generating and manipulating LMP files
+ * for the Carnifex Quake engine.
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <getopt.h>
+#include "../lib/lmp.h"
+
+/* Command line options */
+static struct option long_options[] = {
+    {"help",        no_argument,       0, 'h'},
+    {"version",     no_argument,       0, 'v'},
+    {"input",       required_argument, 0, 'i'},
+    {"output",      required_argument, 0, 'o'},
+    {"type",        required_argument, 0, 't'},
+    {"info",        no_argument,       0, 'I'},
+    {"extract",     no_argument,       0, 'e'},
+    {0, 0, 0, 0}
+};
+
+/* Global variables */
+static char *input_file = NULL;
+static char *output_file = NULL;
+static char *file_type = NULL;
+static bool show_info = false;
+static bool extract_mode = false;
+
+/* Function prototypes */
+void print_usage(const char *program_name);
+void print_version(void);
+void print_info(const char *filename);
+bool process_conchars(void);
+bool extract_conchars(void);
+
+int main(int argc, char *argv[]) {
+    int option_index = 0;
+    int c;
+    
+    /* Parse command line arguments */
+    while ((c = getopt_long(argc, argv, "hvi:o:t:Ie", long_options, &option_index)) != -1) {
+        switch (c) {
+            case 'h':
+                print_usage(argv[0]);
+                return 0;
+                
+            case 'v':
+                print_version();
+                return 0;
+                
+            case 'i':
+                input_file = optarg;
+                break;
+                
+            case 'o':
+                output_file = optarg;
+                break;
+                
+            case 't':
+                file_type = optarg;
+                break;
+                
+            case 'I':
+                show_info = true;
+                break;
+                
+            case 'e':
+                extract_mode = true;
+                break;
+                
+            case '?':
+                print_usage(argv[0]);
+                return 1;
+                
+            default:
+                abort();
+        }
+    }
+    
+    /* Validate arguments */
+    if (!input_file && !show_info) {
+        fprintf(stderr, "Error: Input file required (use -i or --input)\n");
+        print_usage(argv[0]);
+        return 1;
+    }
+    
+    if (show_info) {
+        if (!input_file) {
+            fprintf(stderr, "Error: Input file required for info mode\n");
+            return 1;
+        }
+        print_info(input_file);
+        return 0;
+    }
+    
+    /* For extraction mode, try to auto-detect file type if not specified */
+    if (extract_mode && !file_type) {
+        /* Try to load as conchars first */
+        conchars_t *conchars = conchars_load_from_file(input_file);
+        if (conchars) {
+            file_type = "conchars";
+            conchars_free(conchars);
+        }
+    }
+    
+    /* Process based on file type */
+    if (!file_type) {
+        fprintf(stderr, "Error: File type required (use -t or --type)\n");
+        print_usage(argv[0]);
+        return 1;
+    }
+    
+    if (strcmp(file_type, "conchars") == 0) {
+        if (extract_mode) {
+            if (!extract_conchars()) {
+                return 1;
+            }
+        } else {
+            if (!process_conchars()) {
+                return 1;
+            }
+        }
+    } else {
+        fprintf(stderr, "Error: Unsupported file type '%s'\n", file_type);
+        fprintf(stderr, "Supported types: conchars\n");
+        return 1;
+    }
+    
+    return 0;
+}
+
+void print_usage(const char *program_name) {
+    printf("Carnifex CLI Tool - LMP file generator for Carnifex Quake engine\n\n");
+    printf("Usage: %s [OPTIONS]\n\n", program_name);
+    printf("Options:\n");
+    printf("  -h, --help              Show this help message\n");
+    printf("  -v, --version           Show version information\n");
+    printf("  -i, --input FILE        Input file path\n");
+    printf("  -o, --output FILE       Output file path\n");
+    printf("  -t, --type TYPE         File type (conchars)\n");
+    printf("  -I, --info              Show file information\n");
+    printf("  -e, --extract           Extract characters to individual files\n\n");
+    printf("Examples:\n");
+    printf("  %s -i conchars.lmp -I                    # Show conchars info\n", program_name);
+    printf("  %s -i image.png -o conchars.lmp -t conchars  # Convert image to conchars\n", program_name);
+    printf("  %s -i conchars.lmp -e -o chars/         # Extract all characters\n", program_name);
+}
+
+void print_version(void) {
+    printf("Carnifex CLI Tool v1.0.0\n");
+    printf("LMP file generator for Carnifex Quake engine\n");
+}
+
+void print_info(const char *filename) {
+    printf("File: %s\n", filename);
+    
+    /* Try to load as conchars first */
+    conchars_t *conchars = conchars_load_from_file(filename);
+    if (conchars) {
+        printf("Type: Conchars (console font)\n");
+        printf("Size: %dx%d pixels\n", CONCHARS_WIDTH, CONCHARS_HEIGHT);
+        printf("Characters: %d (16x16 grid)\n", CONCHARS_TOTAL_CHARS);
+        printf("Character size: %dx%d pixels\n", CONCHARS_CHAR_WIDTH, CONCHARS_CHAR_HEIGHT);
+        printf("Custom: %s\n", conchars->is_custom ? "Yes" : "No (original Quake)");
+        
+        conchars_free(conchars);
+        return;
+    }
+    
+    /* Try to load as general LMP */
+    lmp_file_t *lmp = lmp_load_from_file(filename);
+    if (lmp) {
+        printf("Type: LMP (generic)\n");
+        printf("Size: %dx%d pixels\n", lmp->width, lmp->height);
+        printf("Data size: %zu bytes\n", lmp->data_size);
+        
+        lmp_free(lmp);
+        return;
+    }
+    
+    printf("Type: Unknown or invalid file\n");
+}
+
+bool process_conchars(void) {
+    if (!output_file) {
+        fprintf(stderr, "Error: Output file required for processing\n");
+        return false;
+    }
+    
+    printf("Processing conchars from %s to %s\n", input_file, output_file);
+    
+    /* For now, just copy the input to output */
+    /* TODO: Add image conversion functionality */
+    conchars_t *conchars = conchars_load_from_file(input_file);
+    if (!conchars) {
+        fprintf(stderr, "Error: Failed to load conchars from %s\n", input_file);
+        return false;
+    }
+    
+    if (!conchars_save_to_file(conchars, output_file)) {
+        fprintf(stderr, "Error: Failed to save conchars to %s\n", output_file);
+        conchars_free(conchars);
+        return false;
+    }
+    
+    printf("Successfully processed conchars\n");
+    conchars_free(conchars);
+    return true;
+}
+
+bool extract_conchars(void) {
+    if (!output_file) {
+        fprintf(stderr, "Error: Output directory required for extraction\n");
+        return false;
+    }
+    
+    printf("Extracting conchars from %s to %s\n", input_file, output_file);
+    
+    conchars_t *conchars = conchars_load_from_file(input_file);
+    if (!conchars) {
+        fprintf(stderr, "Error: Failed to load conchars from %s\n", input_file);
+        return false;
+    }
+    
+    /* Create output directory if it doesn't exist */
+    char mkdir_cmd[512];
+    snprintf(mkdir_cmd, sizeof(mkdir_cmd), "mkdir -p %s", output_file);
+    if (system(mkdir_cmd) != 0) {
+        fprintf(stderr, "Warning: Failed to create output directory\n");
+    }
+    
+    /* Extract each character */
+    uint8_t char_data[CONCHARS_CHAR_WIDTH * CONCHARS_CHAR_HEIGHT];
+    char filename[256];
+    
+    for (int i = 0; i < CONCHARS_TOTAL_CHARS; i++) {
+        if (!conchars_get_character(conchars, i, char_data)) {
+            fprintf(stderr, "Error: Failed to extract character %d\n", i);
+            conchars_free(conchars);
+            return false;
+        }
+        
+        snprintf(filename, sizeof(filename), "%s/char_%03d.raw", output_file, i);
+        
+        FILE *f = fopen(filename, "wb");
+        if (!f) {
+            fprintf(stderr, "Error: Failed to create file %s\n", filename);
+            conchars_free(conchars);
+            return false;
+        }
+        
+        if (fwrite(char_data, 1, CONCHARS_CHAR_WIDTH * CONCHARS_CHAR_HEIGHT, f) != 
+            CONCHARS_CHAR_WIDTH * CONCHARS_CHAR_HEIGHT) {
+            fprintf(stderr, "Error: Failed to write character %d\n", i);
+            fclose(f);
+            conchars_free(conchars);
+            return false;
+        }
+        
+        fclose(f);
+    }
+    
+    printf("Successfully extracted %d characters\n", CONCHARS_TOTAL_CHARS);
+    conchars_free(conchars);
+    return true;
+}
