@@ -28,6 +28,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "SDL.h"
 #endif
 #include <stdio.h>
+#include <signal.h>
+#include <setjmp.h>
 
 static void Sys_AtExit (void)
 {
@@ -117,6 +119,58 @@ static double Sys_Throttle (double oldtime)
 #define DEFAULT_MEMORY (384 * 1024 * 1024) // ericw -- was 72MB (64-bit) / 64MB (32-bit)
 
 static quakeparms_t	parms;
+static jmp_buf		crash_recovery;
+static qboolean		crash_handler_installed = false;
+
+// Signal handler for graceful shutdown
+static void Sys_SignalHandler(int sig)
+{
+	const char *signal_name;
+	
+	switch (sig) {
+		case SIGSEGV:
+			signal_name = "SIGSEGV (Segmentation Fault)";
+			break;
+		case SIGTERM:
+			signal_name = "SIGTERM (Termination Request)";
+			break;
+		case SIGINT:
+			signal_name = "SIGINT (Interrupt)";
+			break;
+		case SIGFPE:
+			signal_name = "SIGFPE (Floating Point Exception)";
+			break;
+		default:
+			signal_name = "Unknown Signal";
+			break;
+	}
+	
+	fprintf(stderr, "\n\nCARNIFEX ENGINE CRASH DETECTED\n");
+	fprintf(stderr, "Signal: %s (%d)\n", signal_name, sig);
+	fprintf(stderr, "Attempting graceful shutdown...\n\n");
+	
+	// Try to clean up gracefully
+	if (host_initialized) {
+		Host_Shutdown();
+	}
+	
+	// Exit with error code
+	exit(1);
+}
+
+// Install signal handlers for crash recovery
+static void Sys_InstallSignalHandlers(void)
+{
+	if (crash_handler_installed)
+		return;
+		
+	signal(SIGSEGV, Sys_SignalHandler);
+	signal(SIGTERM, Sys_SignalHandler);
+	signal(SIGINT, Sys_SignalHandler);
+	signal(SIGFPE, Sys_SignalHandler);
+	
+	crash_handler_installed = true;
+}
 
 // On OS X we call SDL_main from the launcher, but SDL2 doesn't redefine main
 // as SDL_main on OS X anymore, so we do it ourselves.
@@ -136,6 +190,9 @@ int main(int argc, char *argv[])
 	parms.argv = argv;
 
 	parms.errstate = 0;
+
+	// Install signal handlers early for crash recovery
+	Sys_InstallSignalHandlers();
 
 	COM_InitArgv(parms.argc, parms.argv);
 

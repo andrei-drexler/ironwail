@@ -7537,7 +7537,9 @@ static qboolean M_CheckCustomGfx (const char *custompath, const char *basepath, 
 		Hunk_FreeToLowMark (mark);
 	}
 
-	COM_CloseFile (h);
+	// Only close the file if it was successfully opened (h != -1)
+	if (h != -1)
+		COM_CloseFile (h);
 
 	return ret;
 }

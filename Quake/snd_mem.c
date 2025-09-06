@@ -123,6 +123,15 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 	}
 
 	info = GetWavinfo (s->name, data, com_filesize);
+	
+	// Check for corrupted or invalid WAV files
+	if (info.rate <= 0 || info.rate > 192000)
+	{
+		free (data);
+		Con_Printf("%s has invalid sample rate: %d\n", s->name, info.rate);
+		return NULL;
+	}
+	
 	if (info.channels != 1)
 	{
 		free (data);
@@ -148,6 +157,21 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 		Con_Printf("%s has zero samples\n", s->name);
 		return NULL;
 	}
+	
+	// Additional safety checks for corrupted data
+	if (info.dataofs < 0 || info.dataofs >= com_filesize)
+	{
+		free (data);
+		Con_Printf("%s has invalid data offset: %d\n", s->name, info.dataofs);
+		return NULL;
+	}
+	
+	if (info.dataofs + len > com_filesize)
+	{
+		free (data);
+		Con_Printf("%s data extends beyond file size\n", s->name);
+		return NULL;
+	}
 
 	sc = (sfxcache_t *) Cache_Alloc ( &s->cache, len + sizeof(sfxcache_t), s->name);
 	if (!sc)
@@ -161,6 +185,15 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 	sc->speed = info.rate;
 	sc->width = info.width;
 	sc->stereo = info.channels;
+
+	// Additional safety check before resampling
+	if (data + info.dataofs < data || data + info.dataofs >= data + com_filesize)
+	{
+		free (data);
+		Cache_Free (&s->cache, false);
+		Con_Printf("%s has invalid data pointer after validation\n", s->name);
+		return NULL;
+	}
 
 	ResampleSfx (s, sc->speed, sc->width, data + info.dataofs);
 
@@ -188,6 +221,10 @@ static int	iff_chunk_len;
 static short GetLittleShort (void)
 {
 	short val = 0;
+	if (data_p + 1 >= iff_end) {
+		data_p = iff_end; // Mark as invalid
+		return 0;
+	}
 	val = *data_p;
 	val = val + (*(data_p+1)<<8);
 	data_p += 2;
@@ -197,6 +234,10 @@ static short GetLittleShort (void)
 static int GetLittleLong (void)
 {
 	int val = 0;
+	if (data_p + 3 >= iff_end) {
+		data_p = iff_end; // Mark as invalid
+		return 0;
+	}
 	val = *data_p;
 	val = val + (*(data_p+1)<<8);
 	val = val + (*(data_p+2)<<16);
@@ -269,7 +310,7 @@ wavinfo_t GetWavinfo (const char *name, byte *wav, int wavlength)
 
 	memset (&info, 0, sizeof(info));
 
-	if (!wav)
+	if (!wav || wavlength < 12)
 		return info;
 
 	iff_data = wav;

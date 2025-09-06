@@ -175,6 +175,10 @@ int Sys_FileOpenWrite (const char *path)
 
 void Sys_FileClose (int handle)
 {
+	// Safety check for invalid handles
+	if (handle < 0 || handle >= MAX_HANDLES || sys_handles[handle] == NULL)
+		return;
+		
 	fclose (sys_handles[handle]);
 	sys_handles[handle] = NULL;
 }
