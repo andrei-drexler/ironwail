@@ -33,3 +33,9 @@ Thumbs.db
 *.tmp
 *.temp
 *.log
+
+# Game data files (should not be in source repository)
+*.pak
+*.wad
+carnifex/*.pak
+carnifex/*.wad
