@@ -79,9 +79,9 @@ void W_LoadWadFile (void) //johnfitz -- filename is now hard-coded for honesty
 		free (wad_base);
 	wad_base = COM_LoadMallocFile (filename, NULL);
 	if (!wad_base)
-		Sys_Error ("W_LoadWadFile: couldn't load %s\n\n"
+		Sys_Error ("Carnifex Engine - W_LoadWadFile: couldn't load %s\n\n"
 			   "Basedir is: %s\n\n"
-			   "Check that this has an " GAMENAME " subdirectory containing pak0.pak and pak1.pak, "
+			   "Check that this has an " GAMENAME " subdirectory with game files, "
 			   "or use the -basedir command-line option to specify another directory.",
 			   filename, com_basedirs[0]);
 

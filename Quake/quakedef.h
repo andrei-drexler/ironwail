@@ -47,28 +47,37 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define IRONWAIL_VER_SUFFIX		"-dev"	// optional version suffix string literal like "-beta1"
 #endif
 
+// Carnifex Engine - Based on IronWail
+#define CARNIFEX_VER_MAJOR		1
+#define CARNIFEX_VER_MINOR		0
+#define CARNIFEX_VER_PATCH		0
+#ifndef CARNIFEX_VER_SUFFIX
+#define CARNIFEX_VER_SUFFIX		"-engine"	// Carnifex Engine version
+#endif
+
 #define	QS_STRINGIFY_(x)	#x
 #define	QS_STRINGIFY(x)	QS_STRINGIFY_(x)
 
 // combined version string like "0.92.1-beta1"
 #define	QUAKESPASM_VER_STRING	QS_STRINGIFY(QUAKESPASM_VERSION) "." QS_STRINGIFY(QUAKESPASM_VER_PATCH) QUAKESPASM_VER_SUFFIX
 #define	IRONWAIL_VER_STRING		QS_STRINGIFY(IRONWAIL_VER_MAJOR) "." QS_STRINGIFY(IRONWAIL_VER_MINOR) "." QS_STRINGIFY(IRONWAIL_VER_PATCH) IRONWAIL_VER_SUFFIX
+#define	CARNIFEX_VER_STRING	QS_STRINGIFY(CARNIFEX_VER_MAJOR) "." QS_STRINGIFY(CARNIFEX_VER_MINOR) "." QS_STRINGIFY(CARNIFEX_VER_PATCH) CARNIFEX_VER_SUFFIX
 
 // SDL version the code was compiled with
 #define Q_SDL_COMPILED_VERSION_STRING	QS_STRINGIFY(SDL_MAJOR_VERSION) "." QS_STRINGIFY(SDL_MINOR_VERSION) "." QS_STRINGIFY(SDL_PATCHLEVEL)
 
-#define CONSOLE_TITLE_STRING	"Ironwail " IRONWAIL_VER_STRING
-#define WINDOW_TITLE_STRING		"Quake/Ironwail " IRONWAIL_VER_STRING
-#define CONFIG_NAME				"ironwail.cfg"
-#define SCREENSHOT_PREFIX		"ironwail"
-#define ENGINE_PAK				"ironwail.pak"
-#define ENGINE_USERDIR_WIN		"Ironwail"
-#define ENGINE_USERDIR_OSX		"Ironwail"
-#define ENGINE_USERDIR_UNIX		".ironwail"
+#define CONSOLE_TITLE_STRING	"Carnifex Engine " CARNIFEX_VER_STRING " (Based on Ironwail " IRONWAIL_VER_STRING ")"
+#define WINDOW_TITLE_STRING		"Carnifex Engine " CARNIFEX_VER_STRING
+#define CONFIG_NAME				"carnifex.cfg"
+#define SCREENSHOT_PREFIX		"carnifex"
+#define ENGINE_PAK				"carnifex.pak"
+#define ENGINE_USERDIR_WIN		"CarnifexEngine"
+#define ENGINE_USERDIR_OSX		"CarnifexEngine"
+#define ENGINE_USERDIR_UNIX		".carnifex"
 
 //define	PARANOID			// speed sapping error checking
 
-#define	GAMENAME	"id1"		// directory to look in by default
+#define	GAMENAME	"carnifex"		// directory to look in by default for Carnifex games
 
 #ifndef RC_INVOKED // skip the rest of the file when compiling resources
 #include "q_stdinc.h"

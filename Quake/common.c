@@ -1473,45 +1473,20 @@ int COM_CheckParm (const char *parm)
 ================
 COM_CheckRegistered
 
-Looks for the pop.txt file and verifies it.
-Sets the "registered" cvar.
-Immediately exits out if an alternate game was attempted to be started without
-being registered.
+Carnifex Engine - Modified to not require original Quake
+Sets the "registered" cvar to always be true for Carnifex games.
+This allows the engine to run independent games without requiring Quake original.
 ================
 */
 static void COM_CheckRegistered (void)
 {
-	int		h;
-	unsigned short	check[128];
 	int		i;
 
-	COM_OpenFile("gfx/pop.lmp", &h, NULL);
-
-	if (h == -1)
-	{
-		Cvar_SetROM ("registered", "0");
-		Con_Printf ("Playing shareware version.\n");
-		if (com_modified)
-			Sys_Error ("You must have the registered version to use modified games.\n\n"
-				   "Basedir is: %s\n\n"
-				   "Check that this has an " GAMENAME " subdirectory containing pak0.pak and pak1.pak, "
-				   "or use the -basedir command-line option to specify another directory.",
-				   com_basedirs[0]);
-		return;
-	}
-
-	i = Sys_FileRead (h, check, sizeof(check));
-	COM_CloseFile (h);
-	if (i != (int) sizeof(check))
-		goto corrupt;
-
-	for (i = 0; i < 128; i++)
-	{
-		if (pop[i] != (unsigned short)BigShort (check[i]))
-		{ corrupt:
-			Sys_Error ("Corrupted data file.");
-		}
-	}
+	// Carnifex Engine - Always set as registered
+	// This removes the dependency on original Quake files
+	Cvar_SetROM ("registered", "1");
+	Con_Printf ("Carnifex Engine - Independent game mode enabled.\n");
+	Con_Printf ("Based on IronWail engine. Credits to original developers preserved.\n");
 
 	for (i = 0; com_cmdline[i]; i++)
 	{
@@ -1520,8 +1495,6 @@ static void COM_CheckRegistered (void)
 	}
 
 	Cvar_SetROM ("cmdline", &com_cmdline[i]);
-	Cvar_SetROM ("registered", "1");
-	Con_Printf ("Playing registered version.\n");
 }
 
 
@@ -2591,10 +2564,12 @@ static void COM_Game_f (void)
 		int i, pri;
 		char paths[1024];
 
-		if (!registered.value) //disable shareware quake
+		// Carnifex Engine - Allow modified games
+		// Removed shareware restriction for independent game development
+		if (!registered.value) 
 		{
-			Con_Printf("You must have the registered version to use modified games\n");
-			return;
+			Con_Printf("Carnifex Engine - Modified games are always allowed.\n");
+			// Don't return, continue with game loading
 		}
 
 		*paths = 0;
@@ -2643,6 +2618,8 @@ COM_SetBaseDir
 */
 static qboolean COM_SetBaseDir (const char *path)
 {
+	// Carnifex Engine - Modified to not require pak0.pak
+	// Allow any directory structure for independent games
 	const char pak0[] = "/" GAMENAME "/pak0.pak";
 	char pakpath[countof (com_basedirs[0])];
 	size_t i;
@@ -2653,10 +2630,16 @@ static qboolean COM_SetBaseDir (const char *path)
 	if (i + countof (pak0) > countof (pakpath))
 		return false;
 
+	// Carnifex Engine - Don't require pak0.pak for independent games
+	// Allow any directory structure
 	memcpy (pakpath, path, i);
 	memcpy (pakpath + i, pak0, sizeof (pak0));
+	// Check if pak0.pak exists, but don't fail if it doesn't
 	if (!Sys_FileExists (pakpath))
-		return false;
+	{
+		Con_Printf("Carnifex Engine - No pak0.pak found, using directory structure.\n");
+		// Continue anyway for independent games
+	}
 
 	memcpy (com_basedirs[0], path, i);
 	com_basedirs[0][i] = 0;
@@ -2998,17 +2981,17 @@ static void COM_InitBaseDir (void)
 	{
 		const char *dir;
 		if (i >= com_argc - 1)
-			Sys_Error (
-				"Please specify a valid Quake directory after -basedir\n"
-				"(one that has an " GAMENAME " subdirectory containing pak0.pak)\n"
-			);
+		Sys_Error (
+			"Carnifex Engine - Please specify a valid game directory after -basedir\n"
+			"(one that has an " GAMENAME " subdirectory with game files)\n"
+		);
 
 		dir = com_argv[++i];
 		if (!COM_SetBaseDir (dir))
 			Sys_Error (
-				"The specified -basedir is not a valid Quake directory:\n"
+				"Carnifex Engine - The specified -basedir is not a valid game directory:\n"
 				"%s\n"
-				"doesn't have an " GAMENAME " subdirectory containing pak0.pak.\n",
+				"doesn't have an " GAMENAME " subdirectory with game files.\n",
 				dir
 			);
 
@@ -3161,9 +3144,9 @@ storesetup:
 		Sys_Error ("Couldn't find Epic Games Store Quake");
 
 	Sys_Error (
-		"Couldn't determine where Quake is installed.\n"
+		"Carnifex Engine - Couldn't determine where the game is installed.\n"
 		"Please use the -basedir option to specify a path\n"
-		"(with an " GAMENAME " subdirectory containing pak0.pak)"
+		"(with an " GAMENAME " subdirectory containing game files)"
 	);
 }
 
