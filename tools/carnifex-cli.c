@@ -52,6 +52,8 @@ bool process_pak(void);
 bool extract_pak(void);
 bool create_pak(void);
 bool list_pak(void);
+bool process_lmp(void);
+bool extract_lmp(void);
 
 int main(int argc, char *argv[]) {
     int option_index = 0;
@@ -139,11 +141,16 @@ int main(int argc, char *argv[]) {
         if (pak_is_valid(input_file)) {
             file_type = "pak";
         } else {
-            /* Try to load as conchars */
-            conchars_t *conchars = conchars_load_from_file(input_file);
-            if (conchars) {
-                file_type = "conchars";
-                conchars_free(conchars);
+            /* Try to load as general LMP first */
+            lmp_file_t *lmp = lmp_load_from_file(input_file);
+            if (lmp) {
+                /* Check if it's a conchars file */
+                if (lmp->width == CONCHARS_WIDTH && lmp->height == CONCHARS_HEIGHT) {
+                    file_type = "conchars";
+                } else {
+                    file_type = "lmp";
+                }
+                lmp_free(lmp);
             }
         }
     }
@@ -202,9 +209,19 @@ int main(int argc, char *argv[]) {
                 return 1;
             }
         }
+    } else if (strcmp(file_type, "lmp") == 0) {
+        if (extract_mode) {
+            if (!extract_lmp()) {
+                return 1;
+            }
+        } else {
+            if (!process_lmp()) {
+                return 1;
+            }
+        }
     } else {
         fprintf(stderr, "Error: Unsupported file type '%s'\n", file_type);
-        fprintf(stderr, "Supported types: conchars, pak\n");
+        fprintf(stderr, "Supported types: conchars, pak, lmp\n");
         return 1;
     }
     
@@ -227,7 +244,7 @@ void print_usage(const char *program_name) {
     printf("  -v, --version           Show version information\n");
     printf("  -i, --input FILE        Input file path\n");
     printf("  -o, --output FILE       Output file path\n");
-    printf("  -t, --type TYPE         File type (conchars, pak)\n");
+    printf("  -t, --type TYPE         File type (conchars, pak, lmp)\n");
     printf("  -I, --info              Show file information\n");
     printf("  -e, --extract           Extract files from archive\n");
     printf("  -c, --create            Create new archive\n");
@@ -240,6 +257,7 @@ void print_usage(const char *program_name) {
     printf("  %s -i conchars.lmp -e -o chars/         # Extract all characters\n", program_name);
     printf("  %s -i pak0.pak -l                       # List files in PAK\n", program_name);
     printf("  %s -i pak0.pak -e -o extracted/         # Extract all files from PAK\n", program_name);
+    printf("  %s -i sp_menu.lmp -e -o extracted/      # Extract LMP file to raw data\n", program_name);
     printf("  %s -c -o new.pak -t pak -a file1.txt -a file2.txt  # Create new PAK\n", program_name);
     printf("  %s -c -o music.pak -t pak -d music/     # Create PAK from directory\n", program_name);
 }
@@ -494,5 +512,87 @@ bool list_pak(void) {
     pak_list_files(pak);
     
     pak_free(pak);
+    return true;
+}
+
+bool process_lmp(void) {
+    printf("Processing LMP file: %s\n", input_file);
+    
+    lmp_file_t *lmp = lmp_load_from_file(input_file);
+    if (!lmp) {
+        fprintf(stderr, "Error: Failed to load LMP from %s\n", input_file);
+        return false;
+    }
+    
+    printf("LMP Info:\n");
+    printf("  Width: %d\n", lmp->width);
+    printf("  Height: %d\n", lmp->height);
+    printf("  Data size: %zu bytes\n", lmp->data_size);
+    
+    if (output_file) {
+        printf("Saving LMP to: %s\n", output_file);
+        if (!lmp_save_to_file(lmp, output_file)) {
+            fprintf(stderr, "Error: Failed to save LMP to %s\n", output_file);
+            lmp_free(lmp);
+            return false;
+        }
+        printf("LMP saved successfully\n");
+    }
+    
+    lmp_free(lmp);
+    return true;
+}
+
+bool extract_lmp(void) {
+    printf("Extracting LMP file: %s\n", input_file);
+    
+    lmp_file_t *lmp = lmp_load_from_file(input_file);
+    if (!lmp) {
+        fprintf(stderr, "Error: Failed to load LMP from %s\n", input_file);
+        return false;
+    }
+    
+    if (!output_file) {
+        fprintf(stderr, "Error: Output directory required for extraction (use -o)\n");
+        lmp_free(lmp);
+        return false;
+    }
+    
+    /* Create output directory if it doesn't exist */
+    char mkdir_cmd[512];
+    snprintf(mkdir_cmd, sizeof(mkdir_cmd), "mkdir -p %s", output_file);
+    system(mkdir_cmd);
+    
+    /* Save LMP data as raw image data */
+    char output_path[512];
+    snprintf(output_path, sizeof(output_path), "%s/%s.raw", output_file, 
+             strrchr(input_file, '/') ? strrchr(input_file, '/') + 1 : input_file);
+    
+    FILE *f = fopen(output_path, "wb");
+    if (!f) {
+        fprintf(stderr, "Error: Failed to create output file %s\n", output_path);
+        lmp_free(lmp);
+        return false;
+    }
+    
+    /* Write width and height as header */
+    fwrite(&lmp->width, sizeof(uint32_t), 1, f);
+    fwrite(&lmp->height, sizeof(uint32_t), 1, f);
+    
+    /* Write pixel data */
+    if (fwrite(lmp->data, lmp->data_size, 1, f) != 1) {
+        fprintf(stderr, "Error: Failed to write LMP data\n");
+        fclose(f);
+        lmp_free(lmp);
+        return false;
+    }
+    
+    fclose(f);
+    
+    printf("LMP extracted successfully to: %s\n", output_path);
+    printf("  Width: %d, Height: %d, Size: %zu bytes\n", 
+           lmp->width, lmp->height, lmp->data_size);
+    
+    lmp_free(lmp);
     return true;
 }

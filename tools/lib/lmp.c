@@ -20,14 +20,14 @@ lmp_file_t *lmp_load_from_file(const char *filename) {
         return NULL;
     }
     
-    /* Read width and height */
-    if (fread(&lmp->width, sizeof(uint16_t), 1, f) != 1) {
+    /* Read width and height (4 bytes each) */
+    if (fread(&lmp->width, sizeof(uint32_t), 1, f) != 1) {
         free(lmp);
         fclose(f);
         return NULL;
     }
     
-    if (fread(&lmp->height, sizeof(uint16_t), 1, f) != 1) {
+    if (fread(&lmp->height, sizeof(uint32_t), 1, f) != 1) {
         free(lmp);
         fclose(f);
         return NULL;
@@ -60,8 +60,8 @@ bool lmp_save_to_file(lmp_file_t *lmp, const char *filename) {
     FILE *f = fopen(filename, "wb");
     if (!f) return false;
     
-    bool success = (fwrite(&lmp->width, sizeof(uint16_t), 1, f) == 1) &&
-                   (fwrite(&lmp->height, sizeof(uint16_t), 1, f) == 1) &&
+    bool success = (fwrite(&lmp->width, sizeof(uint32_t), 1, f) == 1) &&
+                   (fwrite(&lmp->height, sizeof(uint32_t), 1, f) == 1) &&
                    (fwrite(lmp->data, lmp->data_size, 1, f) == 1);
     
     fclose(f);
