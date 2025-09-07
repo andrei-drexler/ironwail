@@ -2,7 +2,7 @@
 
 A modern, independent game engine based on IronWail, designed for creating original games without dependency on original Quake files.
 
-## 🎮 Overview
+## [OVERVIEW]
 
 Carnifex Engine is a complete game development platform that provides:
 - **Independent Game Development**: No dependency on original Quake files
@@ -10,7 +10,7 @@ Carnifex Engine is a complete game development platform that provides:
 - **Cross-Platform Support**: Linux, Windows, and other platforms
 - **Extensible Architecture**: Easy to modify and extend for custom games
 
-## 🚀 Quick Start
+## [QUICK START]
 
 ### Building the Engine
 
@@ -39,7 +39,7 @@ make
 ./build-artifacts/carnifex-engine -game carnifex-game -window
 ```
 
-## 🎵 Music System
+## [MUSIC SYSTEM]
 
 ### Enhanced Music Metadata System
 
@@ -80,7 +80,7 @@ The Carnifex Engine features a sophisticated music metadata system that automati
 - **WAV** (.wav) - Basic support
 - **Module formats** (.it, .s3m, .xm, .mod, .umx) - Basic support
 
-## 🎨 Graphics Features
+## [GRAPHICS FEATURES]
 
 - **OpenGL Rendering**: Modern OpenGL-based graphics
 - **High Resolution Support**: Up to 4K and beyond
@@ -88,14 +88,14 @@ The Carnifex Engine features a sophisticated music metadata system that automati
 - **Modern Shaders**: Advanced lighting and effects
 - **Cross-Platform Compatibility**: Works on various graphics hardware
 
-## 🎮 Input System
+## [INPUT SYSTEM]
 
 - **Gamepad Support**: Full controller support including Steam Deck
 - **Gyro Controls**: Motion sensor support for compatible devices
 - **Keyboard & Mouse**: Traditional PC input methods
 - **Customizable Controls**: Configurable key bindings
 
-## 🛠️ Development
+## [DEVELOPMENT]
 
 ### Project Structure
 
@@ -167,7 +167,7 @@ To add music files with proper metadata:
 
 3. **Place Files**: Put music files in `carnifex-game/music/` directory
 
-## 🎯 Game Development
+## [GAME DEVELOPMENT]
 
 ### Creating Custom Games
 
@@ -190,7 +190,7 @@ The engine automatically:
 - Displays information when music plays
 - Supports both automatic and manual music playback
 
-## 🔧 Configuration
+## [CONFIGURATION]
 
 ### Engine Configuration
 
@@ -205,7 +205,7 @@ The engine automatically:
 - `default.cfg` - Default settings
 - `autoexec.cfg` - Auto-executed commands
 
-## 🐛 Troubleshooting
+## [TROUBLESHOOTING]
 
 ### Common Issues
 
@@ -231,7 +231,7 @@ Run with `-dev` flag for additional debugging information:
 ./build-artifacts/carnifex-engine -game carnifex-game -dev
 ```
 
-## 📚 Documentation
+## [DOCUMENTATION]
 
 - [Engine Guide](docs/user/CARNIFEX_ENGINE_GUIDE.md)
 - [Engine Summary](docs/user/CARNIFEX_ENGINE_SUMMARY.md)
@@ -239,7 +239,7 @@ Run with `-dev` flag for additional debugging information:
 - [Audio Formats](docs/development/AUDIO_FORMATS.md)
 - [Tools Documentation](docs/development/TOOLS_README.md)
 
-## 🤝 Contributing
+## [CONTRIBUTING]
 
 1. Fork the repository
 2. Create a feature branch
@@ -254,18 +254,18 @@ Run with `-dev` flag for additional debugging information:
 - Update documentation for new features
 - Test on multiple platforms when possible
 
-## 📄 License
+## [LICENSE]
 
 This project is licensed under the GNU General Public License v2.0. See the LICENSE file for details.
 
-## 🙏 Credits
+## [CREDITS]
 
 - **Based on IronWail**: Credits to original IronWail developers
 - **Quake Engine**: Built upon the original Quake engine
 - **Open Source Libraries**: Various open source audio and graphics libraries
 - **Community**: Thanks to the Quake and game development community
 
-## 🎵 Music Credits
+## [MUSIC CREDITS]
 
 - **Composer**: Edward 'Toy' Facundo
 - **Album**: Carnifex (2025)

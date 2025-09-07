@@ -2,7 +2,7 @@
 
 This directory contains all documentation for the Carnifex project.
 
-## 📁 Directory Structure
+## [DIRECTORY STRUCTURE]
 
 ```
 docs/
@@ -25,7 +25,7 @@ docs/
 └── README.md              # This file
 ```
 
-## 📚 Documentation Files
+## [DOCUMENTATION FILES]
 
 ### User Documentation (`user/`)
 - `CARNIFEX_CREDITS.md` - Credits and acknowledgments
@@ -51,7 +51,7 @@ docs/
 ### Localization (`localization/`)
 - `loc_english.txt` - English localization strings
 
-## 🎯 Project Structure
+## [PROJECT STRUCTURE]
 
 The Carnifex project is organized as follows:
 
@@ -68,7 +68,7 @@ carnifex/
 └── build-artifacts/       # Build output
 ```
 
-## 🚀 Quick Start
+## [QUICK START]
 
 1. **Build the engine:**
    ```bash
@@ -80,6 +80,6 @@ carnifex/
    ./build-artifacts/carnifex-engine -game carnifex-game
    ```
 
-## 📖 Documentation Organization
+## [DOCUMENTATION ORGANIZATION]
 
 All project documentation has been organized into logical categories to keep the project structure clean and make information easy to find.

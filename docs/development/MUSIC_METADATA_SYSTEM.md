@@ -2,7 +2,7 @@
 
 The Carnifex Engine features a sophisticated music metadata system that automatically extracts and displays information about playing music files.
 
-## 🎵 Overview
+## [OVERVIEW]
 
 The music metadata system provides:
 - **Automatic metadata extraction** from audio files
@@ -11,7 +11,7 @@ The music metadata system provides:
 - **Menu configuration** options
 - **Fallback support** for files without metadata
 
-## 🎯 Features
+## [FEATURES]
 
 ### Metadata Extraction
 - **OGG Vorbis Comments**: Full support for TITLE, ARTIST, ALBUM, DATE
@@ -30,7 +30,7 @@ The music metadata system provides:
 - **Menu Options**: User-friendly toggle switches
 - **Persistent Settings**: Configuration saved to config files
 
-## 🛠️ Implementation
+## [IMPLEMENTATION]
 
 ### Core Files
 
@@ -62,7 +62,7 @@ Header file with:
 - Provides menu options for configuration
 - Toggle switches for console and toaster display
 
-## 🎮 Usage
+## [USAGE]
 
 ### Console Commands
 
@@ -89,7 +89,7 @@ The system automatically displays metadata when:
 - Demos play music tracks
 - Any automatic music playback occurs
 
-## 🎨 Visual Design
+## [VISUAL DESIGN]
 
 ### Toaster Notifications
 
@@ -110,7 +110,7 @@ Console messages follow the format:
 MUSIC: Gallows Pole Awaits by Edward 'Toy' Facundo
 ```
 
-## 🔧 Configuration Variables
+## [CONFIGURATION VARIABLES]
 
 ### `music_info_log`
 - **Type**: Integer (0/1)
@@ -130,7 +130,7 @@ MUSIC: Gallows Pole Awaits by Edward 'Toy' Facundo
 - **Description**: Toaster display duration in seconds
 - **Usage**: `music_info_toaster_duration 3` for 3 seconds
 
-## 📁 File Support
+## [FILE SUPPORT]
 
 ### Supported Formats
 
@@ -155,7 +155,7 @@ MUSIC: Gallows Pole Awaits by Edward 'Toy' Facundo
 - Album (30 characters)
 - Year (4 characters)
 
-## 🎵 Adding Music with Metadata
+## [ADDING MUSIC WITH METADATA]
 
 ### OGG Files
 
@@ -193,7 +193,7 @@ carnifex-game/
     └── ...
 ```
 
-## 🔍 Technical Details
+## [TECHNICAL DETAILS]
 
 ### Metadata Extraction Process
 
@@ -218,7 +218,7 @@ carnifex-game/
 - **Memory Usage**: Minimal memory footprint
 - **File I/O**: Efficient file reading with limited buffer sizes
 
-## 🐛 Troubleshooting
+## [TROUBLESHOOTING]
 
 ### Common Issues
 
@@ -244,7 +244,7 @@ Enable debug mode for additional information:
 ./build-artifacts/carnifex-engine -game carnifex-game -dev
 ```
 
-## 🔮 Future Enhancements
+## [FUTURE ENHANCEMENTS]
 
 Potential improvements for the music metadata system:
 
@@ -255,7 +255,7 @@ Potential improvements for the music metadata system:
 5. **Visual Enhancements**: Album art display, progress bars
 6. **Audio Analysis**: BPM detection, waveform display
 
-## 📚 Related Documentation
+## [RELATED DOCUMENTATION]
 
 - [Audio Formats](AUDIO_FORMATS.md) - Supported audio formats
 - [Audio Quick Reference](AUDIO_QUICK_REFERENCE.md) - Quick audio guide
