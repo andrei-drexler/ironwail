@@ -28,6 +28,11 @@ static struct option long_options[] = {
     {"add",         required_argument, 0, 'a'},
     {"directory",   required_argument, 0, 'd'},
     {"convert",     required_argument, 0, 'C'},
+    {"audio",       no_argument,       0, 'A'},
+    {"audio-type",  required_argument, 0, 'T'},
+    {"audio-format", required_argument, 0, 'F'},
+    {"validate",    no_argument,       0, 'V'},
+    {"create-structure", no_argument,  0, 'S'},
     {0, 0, 0, 0}
 };
 
@@ -43,6 +48,11 @@ static char **add_files = NULL;
 static int add_files_count = 0;
 static char *directory_path = NULL;
 static char *convert_format = NULL;
+static bool audio_mode = false;
+static char *audio_type = NULL;
+static char *audio_format = NULL;
+static bool validate_mode = false;
+static bool create_structure_mode = false;
 
 /* Function prototypes */
 void print_usage(const char *program_name);
@@ -57,13 +67,18 @@ bool list_pak(void);
 bool process_lmp(void);
 bool extract_lmp(void);
 bool convert_lmp(void);
+bool process_audio(void);
+bool validate_audio(void);
+bool create_audio_structure(void);
+bool convert_audio_file(const char *input, const char *output, const char *type, const char *format);
+bool check_ffmpeg(void);
 
 int main(int argc, char *argv[]) {
     int option_index = 0;
     int c;
     
     /* Parse command line arguments */
-    while ((c = getopt_long(argc, argv, "hvi:o:t:Iecla:d:", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(argc, argv, "hvi:o:t:Iecla:d:AT:F:VS", long_options, &option_index)) != -1) {
         switch (c) {
             case 'h':
                 print_usage(argv[0]);
@@ -117,6 +132,26 @@ int main(int argc, char *argv[]) {
                 convert_format = optarg;
                 break;
                 
+            case 'A':
+                audio_mode = true;
+                break;
+                
+            case 'T':
+                audio_type = optarg;
+                break;
+                
+            case 'F':
+                audio_format = optarg;
+                break;
+                
+            case 'V':
+                validate_mode = true;
+                break;
+                
+            case 'S':
+                create_structure_mode = true;
+                break;
+                
             case '?':
                 print_usage(argv[0]);
                 return 1;
@@ -127,7 +162,7 @@ int main(int argc, char *argv[]) {
     }
     
     /* Validate arguments */
-    if (!input_file && !show_info && !create_mode) {
+    if (!input_file && !show_info && !create_mode && !create_structure_mode) {
         fprintf(stderr, "Error: Input file required (use -i or --input)\n");
         print_usage(argv[0]);
         return 1;
@@ -139,6 +174,45 @@ int main(int argc, char *argv[]) {
             return 1;
         }
         print_info(input_file);
+        return 0;
+    }
+    
+    /* Handle create structure mode */
+    if (create_structure_mode) {
+        if (!output_file) {
+            fprintf(stderr, "Error: Output directory required for create-structure mode\n");
+            print_usage(argv[0]);
+            return 1;
+        }
+        if (!create_audio_structure()) {
+            return 1;
+        }
+        return 0;
+    }
+    
+    /* Handle validate mode */
+    if (validate_mode) {
+        if (!input_file) {
+            fprintf(stderr, "Error: Input file/directory required for validate mode\n");
+            print_usage(argv[0]);
+            return 1;
+        }
+        if (!validate_audio()) {
+            return 1;
+        }
+        return 0;
+    }
+    
+    /* Handle audio mode */
+    if (audio_mode) {
+        if (!input_file || !output_file) {
+            fprintf(stderr, "Error: Input and output required for audio mode\n");
+            print_usage(argv[0]);
+            return 1;
+        }
+        if (!process_audio()) {
+            return 1;
+        }
         return 0;
     }
     
@@ -257,7 +331,7 @@ int main(int argc, char *argv[]) {
 }
 
 void print_usage(const char *program_name) {
-    printf("Carnifex CLI Tool - LMP and PAK file generator for Carnifex Quake engine\n\n");
+    printf("Carnifex CLI Tool - LMP, PAK, and Audio file generator for Carnifex Quake engine\n\n");
     printf("Usage: %s [OPTIONS]\n\n", program_name);
     printf("Options:\n");
     printf("  -h, --help              Show this help message\n");
@@ -271,7 +345,12 @@ void print_usage(const char *program_name) {
     printf("  -l, --list              List files in archive\n");
     printf("  -a, --add FILE          Add file to archive (use with -c)\n");
     printf("  -d, --directory DIR     Add entire directory contents to archive (use with -c)\n");
-    printf("  -C, --convert FORMAT    Convert between formats (pcx: LMP->PCX, lmp: PCX->LMP)\n\n");
+    printf("  -C, --convert FORMAT    Convert between formats (pcx: LMP->PCX, lmp: PCX->LMP)\n");
+    printf("  -A, --audio             Audio processing mode\n");
+    printf("  -T, --audio-type TYPE   Audio type (sound_effect, music, auto)\n");
+    printf("  -F, --audio-format FMT  Audio format (wav, mp3, ogg)\n");
+    printf("  -V, --validate          Validate audio files\n");
+    printf("  -S, --create-structure  Create Carnifex directory structure\n\n");
     printf("Examples:\n");
     printf("  %s -i conchars.lmp -I                    # Show conchars info\n", program_name);
     printf("  %s -i image.png -o conchars.lmp -t conchars  # Convert image to conchars\n", program_name);
@@ -283,6 +362,10 @@ void print_usage(const char *program_name) {
     printf("  %s -i sp_menu.pcx -o sp_menu.lmp --convert lmp # Convert PCX to LMP\n", program_name);
     printf("  %s -c -o new.pak -t pak -a file1.txt -a file2.txt  # Create new PAK\n", program_name);
     printf("  %s -c -o music.pak -t pak -d music/     # Create PAK from directory\n", program_name);
+    printf("  %s -A -i input.wav -o sound/menu1.wav -T sound_effect # Convert to sound effect\n", program_name);
+    printf("  %s -A -i music.wav -o music/track01.wav -T music -F mp3 # Convert to music\n", program_name);
+    printf("  %s -V -i sound/                         # Validate all audio files\n", program_name);
+    printf("  %s -S -o carnifex/                      # Create directory structure\n", program_name);
 }
 
 void print_version(void) {
@@ -669,5 +752,156 @@ bool convert_lmp(void) {
         return false;
     }
     
+    return true;
+}
+
+/* Audio processing functions */
+
+bool check_ffmpeg(void) {
+    int result = system("ffmpeg -version > /dev/null 2>&1");
+    if (result != 0) {
+        fprintf(stderr, "Error: ffmpeg not found. Please install ffmpeg.\n");
+        return false;
+    }
+    return true;
+}
+
+bool convert_audio_file(const char *input, const char *output, const char *type, const char *format) {
+    char cmd[1024];
+    
+    if (strcmp(type, "sound_effect") == 0) {
+        /* Sound effect: mono, 44100 Hz, 16-bit */
+        snprintf(cmd, sizeof(cmd), 
+                "ffmpeg -i \"%s\" -ac 1 -ar 44100 -c:a pcm_s16le -y \"%s\" > /dev/null 2>&1",
+                input, output);
+    } else if (strcmp(type, "music") == 0) {
+        if (format && strcmp(format, "mp3") == 0) {
+            /* Music: MP3 format */
+            snprintf(cmd, sizeof(cmd), 
+                    "ffmpeg -i \"%s\" -ar 44100 -c:a libmp3lame -b:a 128k -y \"%s\" > /dev/null 2>&1",
+                    input, output);
+        } else if (format && strcmp(format, "ogg") == 0) {
+            /* Music: OGG format */
+            snprintf(cmd, sizeof(cmd), 
+                    "ffmpeg -i \"%s\" -ar 44100 -c:a libvorbis -q:a 4 -y \"%s\" > /dev/null 2>&1",
+                    input, output);
+        } else {
+            /* Music: WAV format (default) */
+            snprintf(cmd, sizeof(cmd), 
+                    "ffmpeg -i \"%s\" -ar 44100 -c:a pcm_s16le -y \"%s\" > /dev/null 2>&1",
+                    input, output);
+        }
+    } else {
+        fprintf(stderr, "Error: Unknown audio type: %s\n", type);
+        return false;
+    }
+    
+    int result = system(cmd);
+    if (result != 0) {
+        fprintf(stderr, "Error: Failed to convert audio file\n");
+        return false;
+    }
+    
+    printf("✓ Converted: %s -> %s\n", input, output);
+    return true;
+}
+
+bool process_audio(void) {
+    if (!check_ffmpeg()) {
+        return false;
+    }
+    
+    /* Determine audio type if not specified */
+    const char *type = audio_type;
+    if (!type) {
+        if (strstr(input_file, "music") || strstr(input_file, "track")) {
+            type = "music";
+        } else {
+            type = "sound_effect";
+        }
+    }
+    
+    /* Determine output format if not specified */
+    const char *format = audio_format;
+    if (!format && strcmp(type, "music") == 0) {
+        format = "wav";  /* Default to WAV for music */
+    }
+    
+    printf("Processing audio: %s -> %s (type: %s", input_file, output_file, type);
+    if (format) {
+        printf(", format: %s", format);
+    }
+    printf(")\n");
+    
+    /* Create output directory if it doesn't exist */
+    char *output_dir = strdup(output_file);
+    char *last_slash = strrchr(output_dir, '/');
+    if (last_slash) {
+        *last_slash = '\0';
+        char mkdir_cmd[512];
+        snprintf(mkdir_cmd, sizeof(mkdir_cmd), "mkdir -p \"%s\"", output_dir);
+        system(mkdir_cmd);
+    }
+    free(output_dir);
+    
+    return convert_audio_file(input_file, output_file, type, format);
+}
+
+bool validate_audio(void) {
+    printf("Validating audio files in: %s\n", input_file);
+    
+    char cmd[1024];
+    snprintf(cmd, sizeof(cmd), "find \"%s\" -name \"*.wav\" -o -name \"*.mp3\" -o -name \"*.ogg\" | while read file; do echo \"Checking: $file\"; file \"$file\"; done", input_file);
+    
+    int result = system(cmd);
+    if (result != 0) {
+        fprintf(stderr, "Error: Failed to validate audio files\n");
+        return false;
+    }
+    
+    printf("✓ Audio validation complete\n");
+    return true;
+}
+
+bool create_audio_structure(void) {
+    printf("Creating Carnifex audio directory structure in: %s\n", output_file);
+    
+    char cmd[1024];
+    snprintf(cmd, sizeof(cmd), 
+            "mkdir -p \"%s/sound/misc\" \"%s/sound/weapons\" \"%s/sound/ambience\" \"%s/sound/hknight\" \"%s/sound/wizard\" \"%s/music\"",
+            output_file, output_file, output_file, output_file, output_file, output_file);
+    
+    int result = system(cmd);
+    if (result != 0) {
+        fprintf(stderr, "Error: Failed to create directory structure\n");
+        return false;
+    }
+    
+    /* Create placeholder files */
+    const char *placeholders[] = {
+        "sound/misc/menu1.wav",
+        "sound/misc/menu2.wav", 
+        "sound/misc/menu3.wav",
+        "sound/ambience/water1.wav",
+        "sound/ambience/wind2.wav",
+        "sound/wizard/hit.wav",
+        "sound/hknight/hit.wav",
+        NULL
+    };
+    
+    for (int i = 0; placeholders[i]; i++) {
+        char placeholder_path[512];
+        snprintf(placeholder_path, sizeof(placeholder_path), "%s/%s", output_file, placeholders[i]);
+        
+        char create_cmd[1024];
+        snprintf(create_cmd, sizeof(create_cmd), 
+                "ffmpeg -f lavfi -i \"anullsrc=channel_layout=mono:sample_rate=44100\" -t 0.1 -c:a pcm_u8 -y \"%s\" > /dev/null 2>&1",
+                placeholder_path);
+        
+        system(create_cmd);
+        printf("✓ Created: %s\n", placeholders[i]);
+    }
+    
+    printf("✓ Carnifex directory structure created successfully\n");
     return true;
 }

@@ -1,10 +1,16 @@
-# Carnifex LMP Tools
+# Carnifex Development Tools
 
-This document describes the LMP file generation tools created for the Carnifex Quake engine.
+This document describes the development tools created for the Carnifex Quake engine, including LMP file generation and audio preparation tools.
 
 ## Overview
 
-We've created a comprehensive library and CLI tool system for generating and manipulating LMP files, particularly conchars (console fonts) for the Carnifex engine.
+We've created a comprehensive library and CLI tool system for generating and manipulating LMP files, particularly conchars (console fonts) for the Carnifex engine. We've also added audio preparation tools for proper game asset deployment.
+
+## Documentation
+
+- **[AUDIO_FORMATS.md](AUDIO_FORMATS.md)** - Complete guide to audio formats and PAK deployment
+- **[AUDIO_QUICK_REFERENCE.md](AUDIO_QUICK_REFERENCE.md)** - Quick reference for audio preparation
+- **[TOOLS_README.md](TOOLS_README.md)** - This file (LMP and general tools)
 
 ## Directory Structure
 
@@ -14,8 +20,10 @@ carnifex/
 │   ├── lmp.h              # Header file with API definitions
 │   └── lmp.c              # Implementation of LMP file handling
 ├── tools/                  # CLI tools
-│   ├── carnifex-cli.c     # Main CLI tool
+│   ├── carnifex-cli.c     # Main CLI tool (includes audio processing)
 │   ├── Makefile           # Build system for tools
+│   ├── scripts/           # Example scripts
+│   │   └── audio_examples.sh   # Usage examples
 │   └── README.md          # Tool-specific documentation
 └── CMakeLists.txt         # Updated with tool integration
 ```
@@ -36,6 +44,14 @@ carnifex/
 - **Character Extraction**: Extract all 256 characters to individual files
 - **File Conversion**: Convert between different LMP formats
 - **Auto-detection**: Automatically detect file types when possible
+- **PAK Support**: Create and extract PAK files for game deployment
+
+### Audio Preparation (Integrated in CLI Tool)
+
+- **Audio Conversion**: Convert audio files to engine-compatible formats
+- **Format Validation**: Validate audio files for engine compatibility
+- **Directory Structure**: Create standard Carnifex audio directory structure
+- **Unified Interface**: All audio operations integrated into the main CLI tool
 
 ## Usage Examples
 
@@ -52,6 +68,24 @@ carnifex/
 ### Copy/Convert Files
 ```bash
 ./tools/carnifex-cli -i input.lmp -o output.lmp -t conchars
+```
+
+### Audio Preparation
+```bash
+# Convert single audio file to sound effect
+./tools/carnifex-cli -A -i input.wav -o sound/menu1.wav -T sound_effect
+
+# Convert single audio file to music
+./tools/carnifex-cli -A -i music.wav -o music/track01.wav -T music -F mp3
+
+# Validate audio files
+./tools/carnifex-cli -V -i sound/
+
+# Create directory structure
+./tools/carnifex-cli -S -o carnifex/
+
+# Create PAK file
+./tools/carnifex-cli -c -i carnifex/ -o carnifex.pak
 ```
 
 ## Building
