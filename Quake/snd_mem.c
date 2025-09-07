@@ -166,7 +166,9 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 		return NULL;
 	}
 	
-	if (info.dataofs + len > com_filesize)
+	// Check original data size, not resampled size
+	int original_data_size = info.samples * info.width * info.channels;
+	if (info.dataofs + original_data_size > com_filesize)
 	{
 		free (data);
 		Con_Printf("%s data extends beyond file size\n", s->name);
