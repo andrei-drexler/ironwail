@@ -42,6 +42,12 @@ docs/
 - `MINIMAL_GAME_SUMMARY.md` - Minimal game implementation summary
 - `TOOLS_README.md` - Tools documentation
 
+### Music System Documentation
+- **Enhanced Music Metadata System**: Automatic extraction and display of music metadata
+- **Supported Formats**: OGG Vorbis comments, MP3 ID3v1 tags
+- **Features**: Console logging, colored toaster notifications, menu configuration
+- **Usage**: Console commands (`music track02`), automatic playback, configurable display
+
 ### Localization (`localization/`)
 - `loc_english.txt` - English localization strings
 
