@@ -208,13 +208,30 @@ bool lmp_to_pcx(lmp_file_t *lmp, const char *pcx_filename) {
         i += count;
     }
     
-    /* Write default Quake palette (256 colors) */
+    /* Write Quake palette (256 colors) */
     unsigned char palette[768];
-    for (int i = 0; i < 256; i++) {
-        /* Generate a simple grayscale palette */
-        palette[i * 3 + 0] = i;     /* Red */
-        palette[i * 3 + 1] = i;     /* Green */
-        palette[i * 3 + 2] = i;     /* Blue */
+    
+    /* Try to load the actual Quake palette */
+    FILE *pal_file = fopen("carnifex/gfx/palette.lmp", "rb");
+    if (pal_file) {
+        if (fread(palette, 768, 1, pal_file) == 1) {
+            fclose(pal_file);
+        } else {
+            fclose(pal_file);
+            /* Fallback to grayscale if palette read fails */
+            for (int i = 0; i < 256; i++) {
+                palette[i * 3 + 0] = i;     /* Red */
+                palette[i * 3 + 1] = i;     /* Green */
+                palette[i * 3 + 2] = i;     /* Blue */
+            }
+        }
+    } else {
+        /* Fallback to grayscale if palette file not found */
+        for (int i = 0; i < 256; i++) {
+            palette[i * 3 + 0] = i;     /* Red */
+            palette[i * 3 + 1] = i;     /* Green */
+            palette[i * 3 + 2] = i;     /* Blue */
+        }
     }
     
     if (fwrite(palette, 768, 1, f) != 1) {
