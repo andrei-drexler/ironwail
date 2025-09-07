@@ -47,3 +47,15 @@ temp/
 *.lmp
 *.LMP
 
+# Audio files (binary)
+*.wav
+*.WAV
+*.mp3
+*.MP3
+*.ogg
+*.OGG
+*.flac
+*.FLAC
+*.opus
+*.OPUS
+
