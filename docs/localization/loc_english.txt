@@ -1,0 +1,30 @@
+// Carnifex Engine - English Localization
+// Basic localization file for English language support
+
+// Game messages
+GAME_QUIT=Quit Game
+GAME_LOADING=Loading...
+GAME_SAVING=Saving...
+GAME_PAUSED=Game Paused
+
+// Menu items
+MENU_NEW_GAME=New Game
+MENU_LOAD_GAME=Load Game
+MENU_SAVE_GAME=Save Game
+MENU_OPTIONS=Options
+MENU_QUIT=Quit
+
+// Console messages
+CONSOLE_WELCOME=Welcome to Carnifex Engine!
+CONSOLE_HELP=Type 'help' for available commands
+CONSOLE_READY=Ready
+
+// Error messages
+ERROR_FILE_NOT_FOUND=File not found
+ERROR_INVALID_COMMAND=Invalid command
+ERROR_ACCESS_DENIED=Access denied
+
+// Status messages
+STATUS_CONNECTING=Connecting...
+STATUS_CONNECTED=Connected
+STATUS_DISCONNECTED=Disconnected

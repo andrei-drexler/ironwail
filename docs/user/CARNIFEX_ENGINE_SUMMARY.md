@@ -29,13 +29,13 @@ O **Carnifex Engine** foi criado com sucesso, baseado no IronWail, para desenvol
 
 ### **1. Build do Engine:**
 ```bash
-cd /home/deck/development/ironwail
-./build_carnifex.sh
+cd /home/deck/development/carnifex
+make build
 ```
 
 ### **2. Executar um Jogo:**
 ```bash
-./carnifex-engine -game carnifex
+./build-artifacts/carnifex-engine -game carnifex-game
 ```
 
 ## 🎯 **Status Atual:**

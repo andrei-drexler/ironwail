@@ -39,27 +39,41 @@ The engine now successfully:
 - ✅ Processes configuration files
 - ✅ Gets much further in initialization
 
-## 📁 **Game Structure Created**
+## 📁 **Project Structure Created**
+
+The Carnifex project is now organized as follows:
 
 ```
 carnifex/
-├── gfx.wad              # Complete graphics package (417KB)
-├── gfx/                 # Individual graphics files (119 files)
-├── progs/
-│   └── progs.dat        # Game logic
-├── maps/
-│   ├── e1m1.bsp         # Test map
-│   ├── start.bsp        # Startup map
-│   └── README.md        # Map information
-├── sound/               # Sound effects
-│   ├── ambience/
-│   ├── weapons/
-│   ├── wizard/
-│   └── hknight/
-├── scripts/
-│   └── quake.rc         # Configuration
-├── autoexec.cfg         # Auto-execution config
-└── README.md            # Game information
+├── core/                  # Engine core files (formerly Quake/)
+├── platforms/             # Platform-specific files
+│   ├── Windows/          # Windows build files and libraries
+│   ├── Linux/            # Linux build files and tools
+│   └── Misc/             # Miscellaneous platform utilities
+├── tools/                 # CLI tools and utilities
+├── carnifex-game/         # Game-specific assets
+│   ├── gfx.wad           # Complete graphics package (417KB)
+│   ├── gfx/              # Individual graphics files (119 files)
+│   ├── progs/
+│   │   └── progs.dat     # Game logic
+│   ├── maps/
+│   │   ├── e1m1.bsp      # Test map
+│   │   ├── start.bsp     # Startup map
+│   │   └── README.md     # Map information
+│   ├── sound/            # Sound effects
+│   │   ├── ambience/
+│   │   ├── weapons/
+│   │   ├── wizard/
+│   │   └── hknight/
+│   ├── music/            # Music files
+│   ├── localization/     # Localization files
+│   ├── pak0.pak          # Game data package
+│   ├── pak1.pak          # Game data package
+│   ├── quake.rc          # Resource file
+│   ├── autoexec.cfg      # Auto-execution config
+│   └── README.md         # Game information
+├── docs/                  # Documentation
+└── build-artifacts/       # Build output
 ```
 
 ## 🎯 **Current Status**
@@ -82,13 +96,13 @@ carnifex/
 
 ### **Run in Dedicated Server Mode**
 ```bash
-./carnifex-engine -game carnifex -dedicated
+./build-artifacts/carnifex-engine -game carnifex-game -dedicated
 ```
 This mode works well and shows the engine is functional.
 
 ### **Run in Normal Mode**
 ```bash
-./carnifex-engine -game carnifex
+./build-artifacts/carnifex-engine -game carnifex-game
 ```
 This mode gets much further than before but still crashes due to incomplete game logic.
 

@@ -27,23 +27,32 @@ Modificamos com sucesso o IronWail para criar o **Carnifex Engine**, uma base pa
 
 ### **1. Build do Engine**
 ```bash
-cd /home/deck/development/ironwail
-./build_carnifex.sh
+cd /home/deck/development/carnifex
+make build
 ```
 
 ### **2. Executar um Jogo**
 ```bash
-./carnifex-engine -game carnifex
+./build-artifacts/carnifex-engine -game carnifex-game
 ```
 
-### **3. Estrutura de Jogo**
+### **3. Estrutura do Projeto**
 ```
 carnifex/
-├── maps/           # Mapas (.bsp)
-├── progs/          # Lógica (progs.dat)
-├── sound/          # Sons (.wav)
-├── gfx/            # Gráficos
-└── scripts/        # Configurações
+├── core/                  # Arquivos do engine (anteriormente Quake/)
+├── platforms/             # Arquivos específicos de plataforma
+│   ├── Windows/          # Arquivos de build do Windows
+│   ├── Linux/            # Arquivos de build do Linux
+│   └── Misc/             # Utilitários diversos
+├── tools/                 # Ferramentas CLI e utilitários
+├── carnifex-game/         # Assets específicos do jogo
+│   ├── maps/             # Mapas (.bsp)
+│   ├── progs/            # Lógica (progs.dat)
+│   ├── sound/            # Sons (.wav)
+│   ├── gfx/              # Gráficos
+│   └── scripts/          # Configurações
+├── docs/                  # Documentação
+└── build-artifacts/       # Saída do build
 ```
 
 ## 🎯 **Vantagens do Carnifex Engine**
