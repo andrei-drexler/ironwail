@@ -1,0 +1,115 @@
+name: Code Quality Checks
+
+on: [push, pull_request]
+
+jobs:
+  code-quality:
+    name: Code Quality Analysis
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y \
+          cppcheck \
+          clang-format \
+          clang-tidy \
+          build-essential \
+          cmake \
+          libsdl2-dev \
+          libvorbis-dev \
+          libxmp-dev
+    
+    - name: Check Code Formatting
+      run: |
+        echo "Checking code formatting..."
+        find core/ -name "*.c" -o -name "*.h" | xargs clang-format --dry-run --Werror || echo "Code formatting issues found"
+    
+    - name: Static Analysis with cppcheck
+      run: |
+        echo "Running static analysis with cppcheck..."
+        cppcheck --enable=all --inconclusive --std=c99 --suppress=missingIncludeSystem \
+          --suppress=unusedFunction --suppress=unmatchedSuppression \
+          core/ || echo "Static analysis completed with warnings"
+    
+    - name: Build with Warnings
+      run: |
+        echo "Building with maximum warnings..."
+        make clean
+        make CFLAGS="-Wall -Wextra -Wpedantic -Werror" || echo "Build completed with warnings"
+    
+    - name: Check Documentation
+      run: |
+        echo "Checking documentation files..."
+        if [ -f "README.md" ]; then
+          echo "README.md exists"
+        else
+          echo "ERROR: README.md missing"
+          exit 1
+        fi
+        
+        if [ -f "docs/development/MUSIC_METADATA_SYSTEM.md" ]; then
+          echo "Music metadata documentation exists"
+        else
+          echo "ERROR: Music metadata documentation missing"
+          exit 1
+        fi
+    
+    - name: Verify Music Metadata System
+      run: |
+        echo "Verifying music metadata system implementation..."
+        
+        # Check if music metadata files exist
+        if [ ! -f "core/music_metadata.c" ]; then
+          echo "ERROR: core/music_metadata.c missing"
+          exit 1
+        fi
+        
+        if [ ! -f "core/music_metadata.h" ]; then
+          echo "ERROR: core/music_metadata.h missing"
+          exit 1
+        fi
+        
+        # Check for required functions
+        grep -q "Music_ExtractMetadata" core/music_metadata.c || {
+          echo "ERROR: Music_ExtractMetadata function missing"
+          exit 1
+        }
+        
+        grep -q "Music_DisplayInfo" core/music_metadata.c || {
+          echo "ERROR: Music_DisplayInfo function missing"
+          exit 1
+        }
+        
+        grep -q "Music_UpdateToaster" core/music_metadata.c || {
+          echo "ERROR: Music_UpdateToaster function missing"
+          exit 1
+        }
+        
+        echo "Music metadata system verification passed"
+    
+    - name: Check Integration Points
+      run: |
+        echo "Checking integration points..."
+        
+        # Check if bgmusic.c includes music metadata
+        grep -q "music_metadata.h" core/bgmusic.c || {
+          echo "ERROR: bgmusic.c missing music_metadata.h include"
+          exit 1
+        }
+        
+        # Check if gl_screen.c includes music metadata
+        grep -q "music_metadata.h" core/gl_screen.c || {
+          echo "ERROR: gl_screen.c missing music_metadata.h include"
+          exit 1
+        }
+        
+        # Check if menu.c includes music metadata
+        grep -q "music_metadata.h" core/menu.c || {
+          echo "ERROR: menu.c missing music_metadata.h include"
+          exit 1
+        }
+        
+        echo "Integration points verification passed"

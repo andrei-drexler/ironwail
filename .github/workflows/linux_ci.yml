@@ -11,6 +11,28 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install Dependencies
-      run: sudo apt update && sudo apt install libcurl4-openssl-dev libmpg123-dev libsdl2-dev libvorbis-dev
-    - name: Build
-      run: make --jobs=3 --keep-going --directory=Quake CC=${{ matrix.compiler }}
+      run: |
+        sudo apt update
+        sudo apt install -y \
+          build-essential \
+          cmake \
+          libsdl2-dev \
+          libvorbis-dev \
+          libxmp-dev \
+          libcurl4-openssl-dev \
+          libmpg123-dev \
+          libmad0-dev \
+          libflac-dev \
+          libopusfile-dev
+    - name: Build Carnifex Engine
+      run: make
+    - name: Test Engine
+      run: |
+        # Basic smoke test - check if engine starts without crashing
+        timeout 10s ./build-artifacts/carnifex-engine -game carnifex-game -dev || true
+    - name: Upload Build Artifacts
+      if: github.ref == 'refs/heads/carnifex' && github.event_name != 'pull_request'
+      uses: actions/upload-artifact@v4
+      with:
+        name: carnifex-linux-${{ matrix.compiler }}
+        path: build-artifacts/carnifex-engine

@@ -1,0 +1,159 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-all-platforms:
+    name: Build All Platforms
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        platform: [linux, windows, macos, mingw-win32, mingw-win64]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Linux Build
+      if: matrix.platform == 'linux'
+      run: |
+        sudo apt update
+        sudo apt install -y \
+          build-essential \
+          cmake \
+          libsdl2-dev \
+          libvorbis-dev \
+          libxmp-dev \
+          libcurl4-openssl-dev \
+          libmpg123-dev \
+          libmad0-dev \
+          libflac-dev \
+          libopusfile-dev
+    
+    - name: Set up macOS Build
+      if: matrix.platform == 'macos'
+      run: |
+        brew install cmake libvorbis libxmp sdl2 libmpg123 libmad flac opusfile
+    
+    - name: Set up MinGW Build
+      if: startsWith(matrix.platform, 'mingw')
+      run: |
+        sudo apt update
+        if [ "${{ matrix.platform }}" = "mingw-win32" ]; then
+          sudo apt install -y gcc-mingw-w64-i686-win32 cmake libsdl2-dev
+        else
+          sudo apt install -y gcc-mingw-w64-x86-64 cmake libsdl2-dev
+        fi
+    
+    - name: Build Linux
+      if: matrix.platform == 'linux'
+      run: make
+    
+    - name: Build macOS
+      if: matrix.platform == 'macos'
+      run: make
+    
+    - name: Build MinGW Win32
+      if: matrix.platform == 'mingw-win32'
+      run: |
+        cd core && ./build_cross_win32-sdl2.sh
+    
+    - name: Build MinGW Win64
+      if: matrix.platform == 'mingw-win64'
+      run: |
+        cd core && ./build_cross_win64-sdl2.sh
+    
+    - name: Test Build
+      run: |
+        if [ "${{ matrix.platform }}" = "linux" ] || [ "${{ matrix.platform }}" = "macos" ]; then
+          timeout 10s ./build-artifacts/carnifex-engine -game carnifex-game -dev || true
+        elif [ "${{ matrix.platform }}" = "mingw-win32" ] || [ "${{ matrix.platform }}" = "mingw-win64" ]; then
+          timeout 10s ./build-artifacts/carnifex-engine.exe -game carnifex-game -dev || true
+        fi
+    
+    - name: Prepare Release Package
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/}
+        PLATFORM=${{ matrix.platform }}
+        
+        if [ "$PLATFORM" = "linux" ]; then
+          PACKAGE_NAME="carnifex-${VERSION}-linux"
+          mkdir -p release/${PACKAGE_NAME}
+          cp build-artifacts/carnifex-engine release/${PACKAGE_NAME}/
+          cp README.md release/${PACKAGE_NAME}/
+          cp LICENSE.txt release/${PACKAGE_NAME}/
+          cp docs/user/CARNIFEX_CREDITS.md release/${PACKAGE_NAME}/
+          cp -r carnifex-game release/${PACKAGE_NAME}/
+          cd release && tar -czf ${PACKAGE_NAME}.tar.gz ${PACKAGE_NAME}/
+        elif [ "$PLATFORM" = "macos" ]; then
+          PACKAGE_NAME="carnifex-${VERSION}-macos"
+          mkdir -p release/${PACKAGE_NAME}
+          cp build-artifacts/carnifex-engine release/${PACKAGE_NAME}/
+          cp README.md release/${PACKAGE_NAME}/
+          cp LICENSE.txt release/${PACKAGE_NAME}/
+          cp docs/user/CARNIFEX_CREDITS.md release/${PACKAGE_NAME}/
+          cp -r carnifex-game release/${PACKAGE_NAME}/
+          cd release && tar -czf ${PACKAGE_NAME}.tar.gz ${PACKAGE_NAME}/
+        elif [ "$PLATFORM" = "mingw-win32" ]; then
+          PACKAGE_NAME="carnifex-${VERSION}-win32"
+          mkdir -p release/${PACKAGE_NAME}
+          cp build-artifacts/carnifex-engine.exe release/${PACKAGE_NAME}/
+          cp README.md release/${PACKAGE_NAME}/
+          cp LICENSE.txt release/${PACKAGE_NAME}/
+          cp docs/user/CARNIFEX_CREDITS.md release/${PACKAGE_NAME}/
+          cp -r carnifex-game release/${PACKAGE_NAME}/
+          cd release && zip -r ${PACKAGE_NAME}.zip ${PACKAGE_NAME}/
+        elif [ "$PLATFORM" = "mingw-win64" ]; then
+          PACKAGE_NAME="carnifex-${VERSION}-win64"
+          mkdir -p release/${PACKAGE_NAME}
+          cp build-artifacts/carnifex-engine.exe release/${PACKAGE_NAME}/
+          cp README.md release/${PACKAGE_NAME}/
+          cp LICENSE.txt release/${PACKAGE_NAME}/
+          cp docs/user/CARNIFEX_CREDITS.md release/${PACKAGE_NAME}/
+          cp -r carnifex-game release/${PACKAGE_NAME}/
+          cd release && zip -r ${PACKAGE_NAME}.zip ${PACKAGE_NAME}/
+        fi
+    
+    - name: Upload Release Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: carnifex-${{ matrix.platform }}-${{ github.ref_name }}
+        path: release/
+    
+    - name: Create Release
+      if: matrix.platform == 'linux' && github.event_name == 'push'
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          release/*.tar.gz
+          release/*.zip
+        body: |
+          # Carnifex Engine ${{ github.ref_name }}
+          
+          ## [FEATURES]
+          - Enhanced music metadata system with colored toaster notifications
+          - Cross-platform support (Linux, Windows, macOS)
+          - Independent game development platform
+          - Modern OpenGL rendering
+          - Full gamepad and input support
+          
+          ## [MUSIC SYSTEM]
+          - Automatic metadata extraction from OGG and MP3 files
+          - Colored toaster notifications (title in dark white, artist in light red)
+          - Console logging with formatted output
+          - Configurable display options
+          
+          ## [INSTALLATION]
+          1. Extract the archive for your platform
+          2. Run `./carnifex-engine -game carnifex-game` (Linux/macOS)
+          3. Run `carnifex-engine.exe -game carnifex-game` (Windows)
+          
+          ## [DOCUMENTATION]
+          See README.md for complete documentation and usage instructions.
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

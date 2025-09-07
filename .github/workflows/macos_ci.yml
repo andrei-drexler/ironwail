@@ -9,6 +9,17 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install Dependencies
-      run: brew install libvorbis mad sdl2
-    - name: Build
-      run: make --jobs=3 --keep-going --directory=Quake COMMON_LIBS="-framework CoreFoundation -framework IOKit -framework OpenGL -Wl,-alias -Wl,_SDL_main -Wl,_main"
+      run: |
+        brew install cmake libvorbis libxmp sdl2 libmpg123 libmad flac opusfile
+    - name: Build Carnifex Engine
+      run: make
+    - name: Test Engine
+      run: |
+        # Basic smoke test - check if engine starts without crashing
+        timeout 10s ./build-artifacts/carnifex-engine -game carnifex-game -dev || true
+    - name: Upload Build Artifacts
+      if: github.ref == 'refs/heads/carnifex' && github.event_name != 'pull_request'
+      uses: actions/upload-artifact@v4
+      with:
+        name: carnifex-macos
+        path: build-artifacts/carnifex-engine

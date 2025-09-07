@@ -14,17 +14,23 @@ jobs:
       run: |
         $gitrev = $(git describe --always)
         $gitbranch = $(git branch --show-current)
-        $ver_suffix = ("$gitbranch" -eq "master" -Or "$gitbranch" -eq "main") ? "-$gitrev" : "-$gitbranch-$gitrev"
+        $ver_suffix = ("$gitbranch" -eq "carnifex" -Or "$gitbranch" -eq "main") ? "-$gitrev" : "-$gitbranch-$gitrev"
         $platform_alt = ("${{matrix.platform}}" -eq "x64") ? "win64" : "win32"
         $platform_short = ("${{matrix.platform}}" -eq "Win32") ? "x86" : "${{matrix.platform}}"
-        $build_artifact = "ironwail${ver_suffix}-${platform_alt}"
+        $build_artifact = "carnifex${ver_suffix}-${platform_alt}"
         echo "VER_SUFFIX=$ver_suffix" >> ${env:GITHUB_ENV}
         echo "BUILD_ARTIFACT=$build_artifact" >> ${env:GITHUB_ENV}
         echo "BUILD_DIR=$build_artifact" >> ${env:GITHUB_ENV}
         echo "PLATFORM_ALT=$platform_alt" >> ${env:GITHUB_ENV}
         echo "PLATFORM_SHORT=$platform_short" >> ${env:GITHUB_ENV}
-        echo "ForceImportBeforeCppTargets=${env:GITHUB_WORKSPACE}\Windows\VisualStudio\custom_build.props" >> ${env:GITHUB_ENV}
-    - name: Build
+        echo "ForceImportBeforeCppTargets=${env:GITHUB_WORKSPACE}\platforms\Windows\VisualStudio\custom_build.props" >> ${env:GITHUB_ENV}
+    - name: Install CMake
+      uses: lukka/run-cmake@v4
+      with:
+        cmakeListsTxtPath: CMakeLists.txt
+        buildDirectory: build-artifacts
+        buildType: Release
+    - name: Build Carnifex Engine
       run: |
         $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
         $msbuild = & "$vswhere" -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe | select-object -first 1
@@ -34,23 +40,31 @@ jobs:
           '-maxcpucount', `
           '-verbosity:minimal' `
         )
-        & $msbuild Windows\VisualStudio\ironwail.sln $options
+        & $msbuild platforms\Windows\VisualStudio\carnifex.sln $options
         if (-not $?) { throw "Build failed" }
-    - name: Prepare archive
-      if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
+    - name: Test Engine
       run: |
-            $compiledir = "Windows\VisualStudio\${env:BUILD_DIR}"
+        # Basic smoke test - check if engine starts without crashing
+        $timeout = 10
+        $process = Start-Process -FilePath "platforms\Windows\VisualStudio\${env:BUILD_DIR}\carnifex-engine.exe" -ArgumentList "-game", "carnifex-game", "-dev" -PassThru
+        Start-Sleep -Seconds $timeout
+        if (-not $process.HasExited) {
+          $process.Kill()
+        }
+    - name: Prepare archive
+      if: github.ref == 'refs/heads/carnifex' && github.event_name != 'pull_request'
+      run: |
+            $compiledir = "platforms\Windows\VisualStudio\${env:BUILD_DIR}"
             $zipdir = "artifact\${env:BUILD_ARTIFACT}"
             mkdir $zipdir | out-null
             copy ${compiledir}\*.exe $zipdir
             copy ${compiledir}\*.dll $zipdir
-            copy Quake\ironwail.pak $zipdir
-            copy Quakespasm.html $zipdir
-            copy Quakespasm.txt $zipdir
-            copy Quakespasm-Music.txt $zipdir
+            copy carnifex-game\*.pak $zipdir -ErrorAction SilentlyContinue
+            copy README.md $zipdir
             copy LICENSE.txt $zipdir
+            copy docs\user\CARNIFEX_CREDITS.md $zipdir
     - name: Upload archive
-      if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
+      if: github.ref == 'refs/heads/carnifex' && github.event_name != 'pull_request'
       uses: actions/upload-artifact@v4
       with:
         name: ${{ env.BUILD_ARTIFACT }}

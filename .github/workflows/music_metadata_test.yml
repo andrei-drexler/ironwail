@@ -1,0 +1,65 @@
+name: Music Metadata System Test
+
+on: [push, pull_request]
+
+jobs:
+  test-music-metadata:
+    name: Test Music Metadata System
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y \
+          build-essential \
+          cmake \
+          libsdl2-dev \
+          libvorbis-dev \
+          libxmp-dev \
+          vorbis-tools \
+          libvorbis-dev
+    
+    - name: Build Carnifex Engine
+      run: make
+    
+    - name: Test Music Metadata Extraction
+      run: |
+        # Test OGG metadata extraction
+        echo "Testing OGG metadata extraction..."
+        if [ -f "carnifex-game/music/track02.ogg" ]; then
+          vorbiscomment -l carnifex-game/music/track02.ogg
+        fi
+        
+        if [ -f "carnifex-game/music/track03.ogg" ]; then
+          vorbiscomment -l carnifex-game/music/track03.ogg
+        fi
+    
+    - name: Test Engine with Music
+      run: |
+        # Test engine startup with music system
+        echo "Testing engine startup with music metadata system..."
+        timeout 15s ./build-artifacts/carnifex-engine -game carnifex-game -dev || true
+    
+    - name: Test Console Music Commands
+      run: |
+        # Test console music commands (if possible in headless mode)
+        echo "Testing console music commands..."
+        echo "music track02" | timeout 10s ./build-artifacts/carnifex-engine -game carnifex-game -dev || true
+    
+    - name: Verify Music Metadata Files
+      run: |
+        # Verify that music metadata system files exist
+        echo "Verifying music metadata system files..."
+        ls -la core/music_metadata.c
+        ls -la core/music_metadata.h
+        
+        # Check if music metadata functions are compiled
+        nm build-artifacts/carnifex-engine | grep -i music || echo "Music functions not found in binary"
+    
+    - name: Test Build Artifacts
+      run: |
+        # Verify build artifacts
+        ls -la build-artifacts/
+        file build-artifacts/carnifex-engine

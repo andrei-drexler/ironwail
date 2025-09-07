@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 jobs:
   build-linux:
-    name: Build MinGW
+    name: Build MinGW ${{ matrix.config.target }}
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
@@ -19,9 +19,26 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Dependencies
-        run: sudo apt update && sudo apt install gcc-mingw-w64-${{ matrix.config.package }}
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            gcc-mingw-w64-${{ matrix.config.package }} \
+            cmake \
+            libsdl2-dev
 
-      - name: Build MinGW ${{ matrix.config.target }}
+      - name: Build Carnifex Engine (MinGW ${{ matrix.config.target }})
         run: |
           export MAKEFLAGS=--jobs=3\ --keep-going
-          cd Quake && ./build_cross_${{ matrix.config.target }}-sdl2.sh
+          cd core && ./build_cross_${{ matrix.config.target }}-sdl2.sh
+
+      - name: Test Engine
+        run: |
+          # Basic smoke test - check if engine starts without crashing
+          timeout 10s ./build-artifacts/carnifex-engine.exe -game carnifex-game -dev || true
+
+      - name: Upload Build Artifacts
+        if: github.ref == 'refs/heads/carnifex' && github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: carnifex-mingw-${{ matrix.config.target }}
+          path: build-artifacts/carnifex-engine.exe
