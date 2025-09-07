@@ -173,6 +173,17 @@ qboolean BGM_Init (void)
 		}
 		if (wanted_handlers[i].is_available != -1)
 		{
+			if (wanted_handlers[i].is_available)
+			{
+				Con_Printf("MUSIC: Codec available: %s (format: %s)\n", 
+						wanted_handlers[i].ext, wanted_handlers[i].ext);
+			}
+			else
+			{
+				Con_Printf("MUSIC: Codec unavailable: %s (format: %s)\n", 
+						wanted_handlers[i].ext, wanted_handlers[i].ext);
+			}
+			
 			if (handlers)
 			{
 				handlers->next = &wanted_handlers[i];
@@ -186,6 +197,8 @@ qboolean BGM_Init (void)
 		}
 	}
 
+	Con_Printf("MUSIC: Music system initialized. External music: %s\n", 
+			bgm_extmusic.value ? "enabled" : "disabled");
 	return true;
 }
 
@@ -243,20 +256,25 @@ void BGM_Play (const char *filename)
 	const char *ext;
 	music_handler_t *handler;
 
+	Con_Printf("MUSIC: Request to play music file: %s\n", filename ? filename : "(null)");
 	BGM_Stop();
 
 	if (music_handlers == NULL)
+	{
+		Con_Printf("MUSIC: Music handlers not initialized\n");
 		return;
+	}
 
 	if (!filename || !*filename)
 	{
-		Con_DPrintf("null music file name\n");
+		Con_Printf("MUSIC: Invalid music file name\n");
 		return;
 	}
 
 	ext = COM_FileGetExtension(filename);
 	if (! *ext)	/* try all things */
 	{
+		Con_Printf("MUSIC: No extension specified, trying all supported formats\n");
 		BGM_Play_noext(filename, ANY_CODECTYPE);
 		return;
 	}
@@ -271,26 +289,32 @@ void BGM_Play (const char *filename)
 	}
 	if (!handler)
 	{
-		Con_Printf("Unhandled extension for %s\n", filename);
+		Con_Printf("MUSIC: Unhandled extension '%s' for file %s\n", ext, filename);
 		return;
 	}
 	q_snprintf(tmp, sizeof(tmp), "%s/%s", handler->dir, filename);
+	Con_Printf("MUSIC: Attempting to load: %s (format: %s)\n", tmp, handler->ext);
 	switch (handler->player)
 	{
 	case BGM_MIDIDRV:
 	/* not supported in quake */
+		Con_Printf("MUSIC: MIDI driver not supported in Quake\n");
 		break;
 	case BGM_STREAMER:
 		bgmstream = S_CodecOpenStreamType(tmp, handler->type, bgmloop);
 		if (bgmstream)
+		{
+			Con_Printf("MUSIC: Successfully loaded: %s\n", tmp);
 			return;		/* success */
+		}
 		break;
 	case BGM_NONE:
 	default:
+		Con_Printf("MUSIC: No player available for format %s\n", handler->ext);
 		break;
 	}
 
-	Con_Printf("Couldn't handle music file %s\n", filename);
+	Con_Printf("MUSIC: Failed to load music file: %s\n", filename);
 }
 
 void BGM_PlayCDtrack (byte track, qboolean looping)
@@ -307,12 +331,15 @@ void BGM_PlayCDtrack (byte track, qboolean looping)
 	unsigned int path_id, prev_id, type;
 	music_handler_t *handler;
 
+	Con_Printf("MUSIC: Request to play track %d (looping: %s)\n", (int)track, looping ? "Yes" : "No");
+
 	/* if replaying the same track, just resume playing instead of stopping and restarting*/
 	if (bgmstream)
 	{
 		q_snprintf (tmp, sizeof (tmp), "%s/track%02d.%s", MUSIC_DIRNAME, track, bgmstream->codec->ext);
 		if (strcmp (tmp, bgmstream->name) == 0)
 		{
+			Con_Printf("MUSIC: Resuming same track %d: %s\n", (int)track, bgmstream->name);
 			BGM_Resume ();
 			return;
 		}
@@ -340,13 +367,13 @@ void BGM_PlayCDtrack (byte track, qboolean looping)
 	//		goto _next;
 		q_snprintf(tmp, sizeof(tmp), "%s/track%02d.%s",
 				MUSIC_DIRNAME, (int)track, handler->ext);
-		Con_Printf("DEBUG: Looking for music file: %s\n", tmp);
+			Con_Printf("MUSIC: Searching for track %d in format %s: %s\n", (int)track, handler->ext, tmp);
 		if (! COM_FileExists(tmp, &path_id))
 		{
-			Con_Printf("DEBUG: File not found: %s\n", tmp);
+			Con_Printf("MUSIC: File not found: %s\n", tmp);
 			goto _next;
 		}
-		Con_Printf("DEBUG: Found music file: %s (path_id: %u)\n", tmp, path_id);
+		Con_Printf("MUSIC: Found music file: %s (priority: %u)\n", tmp, path_id);
 		if (path_id > prev_id)
 		{
 			prev_id = path_id;
@@ -357,14 +384,26 @@ void BGM_PlayCDtrack (byte track, qboolean looping)
 		handler = handler->next;
 	}
 	if (ext == NULL)
-		Con_Printf("Couldn't find a cdrip for track %d\n", (int)track);
+	{
+		Con_Printf("MUSIC: No suitable music file found for track %d\n", (int)track);
+		Con_Printf("MUSIC: Available formats: ogg, opus, mp3, flac, wav, it, s3m, xm, mod, umx\n");
+	}
 	else
 	{
 		q_snprintf(tmp, sizeof(tmp), "%s/track%02d.%s",
 				MUSIC_DIRNAME, (int)track, ext);
+		Con_Printf("MUSIC: Loading track %d: %s\n", (int)track, tmp);
 		bgmstream = S_CodecOpenStreamType(tmp, type, bgmloop);
 		if (! bgmstream)
-			Con_Printf("Couldn't handle music file %s\n", tmp);
+		{
+			Con_Printf("MUSIC: Failed to load music file: %s\n", tmp);
+		}
+		else
+		{
+			Con_Printf("MUSIC: Successfully loaded track %d: %s\n", (int)track, tmp);
+			Con_Printf("MUSIC: Format: %s, Codec: %s, Looping: %s\n", 
+					ext, bgmstream->codec->ext, bgmloop ? "Yes" : "No");
+		}
 	}
 }
 
@@ -372,10 +411,15 @@ void BGM_Stop (void)
 {
 	if (bgmstream)
 	{
+		Con_Printf("MUSIC: Stopping current track: %s\n", bgmstream->name);
 		bgmstream->status = STREAM_NONE;
 		S_CodecCloseStream(bgmstream);
 		bgmstream = NULL;
 		s_rawend = 0;
+	}
+	else
+	{
+		Con_Printf("MUSIC: No music currently playing to stop\n");
 	}
 }
 
@@ -385,9 +429,18 @@ void BGM_Pause (void)
 	{
 		if (bgmstream->status == STREAM_PLAY)
 		{
+			Con_Printf("MUSIC: Pausing track: %s\n", bgmstream->name);
 			bgmstream->status = STREAM_PAUSE;
 			bgmstream->volume = 0.f;
 		}
+		else
+		{
+			Con_Printf("MUSIC: Track already paused: %s\n", bgmstream->name);
+		}
+	}
+	else
+	{
+		Con_Printf("MUSIC: No music currently playing to pause\n");
 	}
 }
 
@@ -396,7 +449,18 @@ void BGM_Resume (void)
 	if (bgmstream)
 	{
 		if (bgmstream->status == STREAM_PAUSE)
+		{
+			Con_Printf("MUSIC: Resuming track: %s\n", bgmstream->name);
 			bgmstream->status = STREAM_PLAY;
+		}
+		else
+		{
+			Con_Printf("MUSIC: Track already playing: %s\n", bgmstream->name);
+		}
+	}
+	else
+	{
+		Con_Printf("MUSIC: No music currently paused to resume\n");
 	}
 }
 
@@ -467,15 +531,16 @@ static void BGM_UpdateStream (void)
 			{
 				if (did_rewind)
 				{
-					Con_Printf("Stream keeps returning EOF.\n");
+					Con_Printf("MUSIC: Stream keeps returning EOF, stopping: %s\n", bgmstream->name);
 					BGM_Stop();
 					return;
 				}
 
+				Con_Printf("MUSIC: End of track reached, looping: %s\n", bgmstream->name);
 				res = S_CodecRewindStream(bgmstream);
 				if (res != 0)
 				{
-					Con_Printf("Stream seek error (%i), stopping.\n", res);
+					Con_Printf("MUSIC: Stream seek error (%i), stopping: %s\n", res, bgmstream->name);
 					BGM_Stop();
 					return;
 				}
@@ -483,6 +548,7 @@ static void BGM_UpdateStream (void)
 			}
 			else
 			{
+				Con_Printf("MUSIC: End of track reached, stopping (no loop): %s\n", bgmstream->name);
 				BGM_Stop();
 				return;
 			}
