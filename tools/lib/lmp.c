@@ -225,3 +225,105 @@ bool lmp_to_pcx(lmp_file_t *lmp, const char *pcx_filename) {
     fclose(f);
     return true;
 }
+
+lmp_file_t *pcx_to_lmp(const char *pcx_filename) {
+    if (!pcx_filename) return NULL;
+    
+    FILE *f = fopen(pcx_filename, "rb");
+    if (!f) return NULL;
+    
+    /* PCX header structure */
+    typedef struct {
+        char signature;           /* 0x0A */
+        char version;            /* 5 */
+        char encoding;           /* 1 (RLE) */
+        char bits_per_pixel;     /* 8 */
+        unsigned short xmin, ymin, xmax, ymax;  /* Image bounds */
+        unsigned short hdpi, vdpi;              /* DPI (not used) */
+        unsigned char colortable[48];           /* Not used for 8-bit */
+        char reserved;           /* 0 */
+        char color_planes;       /* 1 */
+        unsigned short bytes_per_line;          /* Width */
+        unsigned short palette_type;            /* 1 */
+        char filler[58];         /* Padding */
+    } pcx_header_t;
+    
+    /* Read PCX header */
+    pcx_header_t header;
+    if (fread(&header, sizeof(pcx_header_t), 1, f) != 1) {
+        fclose(f);
+        return NULL;
+    }
+    
+    /* Validate PCX header */
+    if (header.signature != 0x0A) {
+        fclose(f);
+        return NULL;
+    }
+    
+    if (header.version != 5) {
+        fclose(f);
+        return NULL;
+    }
+    
+    if (header.encoding != 1 || header.bits_per_pixel != 8 || header.color_planes != 1) {
+        fclose(f);
+        return NULL;
+    }
+    
+    /* Calculate image dimensions */
+    uint32_t width = header.xmax - header.xmin + 1;
+    uint32_t height = header.ymax - header.ymin + 1;
+    size_t data_size = width * height;
+    
+    /* Allocate LMP structure */
+    lmp_file_t *lmp = malloc(sizeof(lmp_file_t));
+    if (!lmp) {
+        fclose(f);
+        return NULL;
+    }
+    
+    lmp->width = width;
+    lmp->height = height;
+    lmp->data_size = data_size;
+    lmp->data = malloc(data_size);
+    if (!lmp->data) {
+        free(lmp);
+        fclose(f);
+        return NULL;
+    }
+    
+    /* Skip to image data (after header) */
+    fseek(f, sizeof(pcx_header_t), SEEK_SET);
+    
+    /* Decode RLE compressed image data */
+    size_t pixel_count = 0;
+    int c;
+    
+    while (pixel_count < data_size && (c = fgetc(f)) != EOF) {
+        if (c >= 0xC0) {
+            /* RLE encoded data */
+            int run_length = c & 0x3F;
+            int pixel_value = fgetc(f);
+            
+            if (pixel_value == EOF) break;
+            
+            for (int i = 0; i < run_length && pixel_count < data_size; i++) {
+                lmp->data[pixel_count++] = (unsigned char)pixel_value;
+            }
+        } else {
+            /* Single pixel */
+            lmp->data[pixel_count++] = (unsigned char)c;
+        }
+    }
+    
+    fclose(f);
+    
+    /* Verify we read the correct amount of data */
+    if (pixel_count != data_size) {
+        lmp_free(lmp);
+        return NULL;
+    }
+    
+    return lmp;
+}

@@ -41,6 +41,7 @@ void lmp_free(lmp_file_t *lmp);
 
 /* PCX conversion operations */
 bool lmp_to_pcx(lmp_file_t *lmp, const char *pcx_filename);
+lmp_file_t *pcx_to_lmp(const char *pcx_filename);
 
 /* Conchars operations */
 conchars_t *conchars_load_from_file(const char *filename);

@@ -271,7 +271,7 @@ void print_usage(const char *program_name) {
     printf("  -l, --list              List files in archive\n");
     printf("  -a, --add FILE          Add file to archive (use with -c)\n");
     printf("  -d, --directory DIR     Add entire directory contents to archive (use with -c)\n");
-    printf("  -C, --convert FORMAT    Convert LMP file to specified format (pcx)\n\n");
+    printf("  -C, --convert FORMAT    Convert between formats (pcx: LMP->PCX, lmp: PCX->LMP)\n\n");
     printf("Examples:\n");
     printf("  %s -i conchars.lmp -I                    # Show conchars info\n", program_name);
     printf("  %s -i image.png -o conchars.lmp -t conchars  # Convert image to conchars\n", program_name);
@@ -279,7 +279,8 @@ void print_usage(const char *program_name) {
     printf("  %s -i pak0.pak -l                       # List files in PAK\n", program_name);
     printf("  %s -i pak0.pak -e -o extracted/         # Extract all files from PAK\n", program_name);
     printf("  %s -i sp_menu.lmp -e -o extracted/      # Extract LMP file to raw data\n", program_name);
-    printf("  %s -i sp_menu.lmp -o sp_menu.pcx -C pcx # Convert LMP to PCX\n", program_name);
+    printf("  %s -i sp_menu.lmp -o sp_menu.pcx --convert pcx # Convert LMP to PCX\n", program_name);
+    printf("  %s -i sp_menu.pcx -o sp_menu.lmp --convert lmp # Convert PCX to LMP\n", program_name);
     printf("  %s -c -o new.pak -t pak -a file1.txt -a file2.txt  # Create new PAK\n", program_name);
     printf("  %s -c -o music.pak -t pak -d music/     # Create PAK from directory\n", program_name);
 }
@@ -620,31 +621,53 @@ bool extract_lmp(void) {
 }
 
 bool convert_lmp(void) {
-    printf("Converting LMP file: %s to %s format\n", input_file, convert_format);
-    
-    lmp_file_t *lmp = lmp_load_from_file(input_file);
-    if (!lmp) {
-        fprintf(stderr, "Error: Failed to load LMP from %s\n", input_file);
-        return false;
-    }
-    
-    printf("LMP Info: %dx%d pixels, %zu bytes\n", lmp->width, lmp->height, lmp->data_size);
+    printf("Converting file: %s to %s format\n", input_file, convert_format);
     
     if (strcmp(convert_format, "pcx") == 0) {
+        /* LMP to PCX conversion */
+        lmp_file_t *lmp = lmp_load_from_file(input_file);
+        if (!lmp) {
+            fprintf(stderr, "Error: Failed to load LMP from %s\n", input_file);
+            return false;
+        }
+        
+        printf("LMP Info: %dx%d pixels, %zu bytes\n", lmp->width, lmp->height, lmp->data_size);
         printf("Converting to PCX format: %s\n", output_file);
+        
         if (!lmp_to_pcx(lmp, output_file)) {
             fprintf(stderr, "Error: Failed to convert LMP to PCX\n");
             lmp_free(lmp);
             return false;
         }
+        
         printf("PCX conversion successful\n");
+        lmp_free(lmp);
+        
+    } else if (strcmp(convert_format, "lmp") == 0) {
+        /* PCX to LMP conversion */
+        lmp_file_t *lmp = pcx_to_lmp(input_file);
+        if (!lmp) {
+            fprintf(stderr, "Error: Failed to load PCX from %s\n", input_file);
+            return false;
+        }
+        
+        printf("PCX Info: %dx%d pixels, %zu bytes\n", lmp->width, lmp->height, lmp->data_size);
+        printf("Converting to LMP format: %s\n", output_file);
+        
+        if (!lmp_save_to_file(lmp, output_file)) {
+            fprintf(stderr, "Error: Failed to convert PCX to LMP\n");
+            lmp_free(lmp);
+            return false;
+        }
+        
+        printf("LMP conversion successful\n");
+        lmp_free(lmp);
+        
     } else {
         fprintf(stderr, "Error: Unsupported conversion format: %s\n", convert_format);
-        fprintf(stderr, "Supported formats: pcx\n");
-        lmp_free(lmp);
+        fprintf(stderr, "Supported formats: pcx (LMP->PCX), lmp (PCX->LMP)\n");
         return false;
     }
     
-    lmp_free(lmp);
     return true;
 }
