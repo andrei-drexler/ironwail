@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 #include "bgmusic.h"
+#include "music_metadata.h"
 #include "q_ctype.h"
 
 #include <time.h>
@@ -36,6 +37,8 @@ extern cvar_t crosshair;
 extern cvar_t language;
 extern cvar_t scr_fov;
 extern cvar_t cl_gun_fovscale;
+extern cvar_t music_info_log;
+extern cvar_t music_info_toaster;
 extern cvar_t v_gunkick;
 extern cvar_t cl_bob;
 extern cvar_t cl_rollangle;
@@ -3240,6 +3243,8 @@ void M_Menu_Gamepad_f (void)
 		item (OPT_LANGUAGE,				"Language")						\
 		item (SPACER,					"")								\
 		item (OPT_MUSICEXT,				"External Music")				\
+		item (OPT_MUSICINFOLOG,			"Music Info Log")				\
+		item (OPT_MUSICINFOTOASTER,		"Music Info Toaster")			\
 		item (OPT_WATERSNDFX,			"Water Muffling")				\
 	end_menu ()															\
 ////////////////////////////////////////////////////////////////////////
@@ -3699,6 +3704,12 @@ void M_AdjustSliders (int dir)
 		break;
 	case OPT_MUSICEXT:	// enable external music vs cdaudio
 		Cvar_Set ("bgm_extmusic", bgm_extmusic.value ? "0" : "1");
+		break;
+	case OPT_MUSICINFOLOG:	// music info log
+		Cvar_Set ("music_info_log", music_info_log.value ? "0" : "1");
+		break;
+	case OPT_MUSICINFOTOASTER:	// music info toaster
+		Cvar_Set ("music_info_toaster", music_info_toaster.value ? "0" : "1");
 		break;
 	case OPT_SNDVOL:	// sfx volume
 		f = sfxvolume.value + dir * 0.05f;
@@ -4357,6 +4368,14 @@ static void M_Options_DrawItem (int y, int item)
 
 	case OPT_MUSICEXT:
 		M_DrawCheckbox (x, y, bgm_extmusic.value);
+		break;
+
+	case OPT_MUSICINFOLOG:
+		M_DrawCheckbox (x, y, music_info_log.value);
+		break;
+
+	case OPT_MUSICINFOTOASTER:
+		M_DrawCheckbox (x, y, music_info_toaster.value);
 		break;
 
 	case OPT_WATERSNDFX:

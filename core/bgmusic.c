@@ -26,6 +26,7 @@
 #include "snd_codec.h"
 #include "snd_codeci.h"
 #include "bgmusic.h"
+#include "music_metadata.h"
 
 #define MUSIC_DIRNAME	"music"
 
@@ -156,6 +157,9 @@ qboolean BGM_Init (void)
 	Cmd_AddCommand("music_loop", BGM_Loop_f);
 	Cmd_AddCommand("music_stop", BGM_Stop_f);
 	Cmd_AddCommand("music_jump", BGM_Jump_f);
+	
+	/* Initialize music metadata system */
+	Music_MetadataInit();
 
 	if (COM_CheckParm("-noextmusic") != 0)
 		no_extmusic = true;
@@ -214,6 +218,9 @@ void BGM_Shutdown (void)
 /* sever our connections to
  * midi_drv and snd_codec */
 	music_handlers = NULL;
+	
+	/* Shutdown music metadata system */
+	Music_MetadataShutdown();
 }
 
 static void BGM_Play_noext (const char *filename, unsigned int allowed_types)
@@ -244,7 +251,15 @@ static void BGM_Play_noext (const char *filename, unsigned int allowed_types)
 		case BGM_STREAMER:
 			bgmstream = S_CodecOpenStreamType(tmp, handler->type, bgmloop);
 			if (bgmstream)
+			{
+				/* Extract and display metadata */
+				{
+					music_metadata_t metadata;
+					Music_ExtractMetadata(tmp, &metadata);
+					Music_DisplayInfo(&metadata, tmp);
+				}
 				return;		/* success */
+			}
 			break;
 		case BGM_NONE:
 		default:
@@ -311,6 +326,14 @@ void BGM_Play (const char *filename)
 		if (bgmstream)
 		{
 			Con_Printf("MUSIC: Successfully loaded: %s\n", tmp);
+			
+			/* Extract and display metadata */
+			{
+				music_metadata_t metadata;
+				Music_ExtractMetadata(tmp, &metadata);
+				Music_DisplayInfo(&metadata, tmp);
+			}
+			
 			return;		/* success */
 		}
 		break;
@@ -409,6 +432,13 @@ void BGM_PlayCDtrack (byte track, qboolean looping)
 			Con_Printf("MUSIC: Successfully loaded track %d: %s\n", (int)track, tmp);
 			Con_Printf("MUSIC: Format: %s, Codec: %s, Looping: %s\n", 
 					ext, bgmstream->codec->ext, bgmloop ? "Yes" : "No");
+			
+			/* Extract and display metadata */
+			{
+				music_metadata_t metadata;
+				Music_ExtractMetadata(tmp, &metadata);
+				Music_DisplayInfo(&metadata, tmp);
+			}
 		}
 	}
 }
