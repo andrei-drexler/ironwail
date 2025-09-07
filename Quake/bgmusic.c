@@ -340,8 +340,13 @@ void BGM_PlayCDtrack (byte track, qboolean looping)
 	//		goto _next;
 		q_snprintf(tmp, sizeof(tmp), "%s/track%02d.%s",
 				MUSIC_DIRNAME, (int)track, handler->ext);
+		Con_Printf("DEBUG: Looking for music file: %s\n", tmp);
 		if (! COM_FileExists(tmp, &path_id))
+		{
+			Con_Printf("DEBUG: File not found: %s\n", tmp);
 			goto _next;
+		}
+		Con_Printf("DEBUG: Found music file: %s (path_id: %u)\n", tmp, path_id);
 		if (path_id > prev_id)
 		{
 			prev_id = path_id;
