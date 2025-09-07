@@ -27,6 +27,7 @@ static struct option long_options[] = {
     {"list",        no_argument,       0, 'l'},
     {"add",         required_argument, 0, 'a'},
     {"directory",   required_argument, 0, 'd'},
+    {"convert",     required_argument, 0, 'C'},
     {0, 0, 0, 0}
 };
 
@@ -41,6 +42,7 @@ static bool list_mode = false;
 static char **add_files = NULL;
 static int add_files_count = 0;
 static char *directory_path = NULL;
+static char *convert_format = NULL;
 
 /* Function prototypes */
 void print_usage(const char *program_name);
@@ -54,6 +56,7 @@ bool create_pak(void);
 bool list_pak(void);
 bool process_lmp(void);
 bool extract_lmp(void);
+bool convert_lmp(void);
 
 int main(int argc, char *argv[]) {
     int option_index = 0;
@@ -108,6 +111,10 @@ int main(int argc, char *argv[]) {
                 
             case 'd':
                 directory_path = optarg;
+                break;
+                
+            case 'C':
+                convert_format = optarg;
                 break;
                 
             case '?':
@@ -173,6 +180,19 @@ int main(int argc, char *argv[]) {
             }
         } else {
             fprintf(stderr, "Error: Can only create PAK files\n");
+            return 1;
+        }
+        return 0;
+    }
+    
+    /* Handle convert mode */
+    if (convert_format) {
+        if (!input_file || !output_file) {
+            fprintf(stderr, "Error: Input and output files required for conversion\n");
+            print_usage(argv[0]);
+            return 1;
+        }
+        if (!convert_lmp()) {
             return 1;
         }
         return 0;
@@ -250,7 +270,8 @@ void print_usage(const char *program_name) {
     printf("  -c, --create            Create new archive\n");
     printf("  -l, --list              List files in archive\n");
     printf("  -a, --add FILE          Add file to archive (use with -c)\n");
-    printf("  -d, --directory DIR     Add entire directory contents to archive (use with -c)\n\n");
+    printf("  -d, --directory DIR     Add entire directory contents to archive (use with -c)\n");
+    printf("  -C, --convert FORMAT    Convert LMP file to specified format (pcx)\n\n");
     printf("Examples:\n");
     printf("  %s -i conchars.lmp -I                    # Show conchars info\n", program_name);
     printf("  %s -i image.png -o conchars.lmp -t conchars  # Convert image to conchars\n", program_name);
@@ -258,6 +279,7 @@ void print_usage(const char *program_name) {
     printf("  %s -i pak0.pak -l                       # List files in PAK\n", program_name);
     printf("  %s -i pak0.pak -e -o extracted/         # Extract all files from PAK\n", program_name);
     printf("  %s -i sp_menu.lmp -e -o extracted/      # Extract LMP file to raw data\n", program_name);
+    printf("  %s -i sp_menu.lmp -o sp_menu.pcx -C pcx # Convert LMP to PCX\n", program_name);
     printf("  %s -c -o new.pak -t pak -a file1.txt -a file2.txt  # Create new PAK\n", program_name);
     printf("  %s -c -o music.pak -t pak -d music/     # Create PAK from directory\n", program_name);
 }
@@ -592,6 +614,36 @@ bool extract_lmp(void) {
     printf("LMP extracted successfully to: %s\n", output_path);
     printf("  Width: %d, Height: %d, Size: %zu bytes\n", 
            lmp->width, lmp->height, lmp->data_size);
+    
+    lmp_free(lmp);
+    return true;
+}
+
+bool convert_lmp(void) {
+    printf("Converting LMP file: %s to %s format\n", input_file, convert_format);
+    
+    lmp_file_t *lmp = lmp_load_from_file(input_file);
+    if (!lmp) {
+        fprintf(stderr, "Error: Failed to load LMP from %s\n", input_file);
+        return false;
+    }
+    
+    printf("LMP Info: %dx%d pixels, %zu bytes\n", lmp->width, lmp->height, lmp->data_size);
+    
+    if (strcmp(convert_format, "pcx") == 0) {
+        printf("Converting to PCX format: %s\n", output_file);
+        if (!lmp_to_pcx(lmp, output_file)) {
+            fprintf(stderr, "Error: Failed to convert LMP to PCX\n");
+            lmp_free(lmp);
+            return false;
+        }
+        printf("PCX conversion successful\n");
+    } else {
+        fprintf(stderr, "Error: Unsupported conversion format: %s\n", convert_format);
+        fprintf(stderr, "Supported formats: pcx\n");
+        lmp_free(lmp);
+        return false;
+    }
     
     lmp_free(lmp);
     return true;

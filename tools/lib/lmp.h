@@ -39,6 +39,9 @@ lmp_file_t *lmp_load_from_file(const char *filename);
 bool lmp_save_to_file(lmp_file_t *lmp, const char *filename);
 void lmp_free(lmp_file_t *lmp);
 
+/* PCX conversion operations */
+bool lmp_to_pcx(lmp_file_t *lmp, const char *pcx_filename);
+
 /* Conchars operations */
 conchars_t *conchars_load_from_file(const char *filename);
 bool conchars_save_to_file(conchars_t *conchars, const char *filename);

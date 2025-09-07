@@ -132,3 +132,96 @@ bool conchars_get_character(conchars_t *conchars, int char_index, uint8_t *char_
     
     return true;
 }
+
+/* PCX conversion operations */
+bool lmp_to_pcx(lmp_file_t *lmp, const char *pcx_filename) {
+    if (!lmp || !pcx_filename) return false;
+    
+    FILE *f = fopen(pcx_filename, "wb");
+    if (!f) return false;
+    
+    /* PCX header structure */
+    typedef struct {
+        char signature;           /* 0x0A */
+        char version;            /* 5 */
+        char encoding;           /* 1 (RLE) */
+        char bits_per_pixel;     /* 8 */
+        unsigned short xmin, ymin, xmax, ymax;  /* Image bounds */
+        unsigned short hdpi, vdpi;              /* DPI (not used) */
+        unsigned char colortable[48];           /* Not used for 8-bit */
+        char reserved;           /* 0 */
+        char color_planes;       /* 1 */
+        unsigned short bytes_per_line;          /* Width */
+        unsigned short palette_type;            /* 1 */
+        char filler[58];         /* Padding */
+    } pcx_header_t;
+    
+    /* Initialize PCX header */
+    pcx_header_t header = {0};
+    header.signature = 0x0A;
+    header.version = 5;
+    header.encoding = 1;
+    header.bits_per_pixel = 8;
+    header.xmin = 0;
+    header.ymin = 0;
+    header.xmax = lmp->width - 1;
+    header.ymax = lmp->height - 1;
+    header.hdpi = 72;
+    header.vdpi = 72;
+    header.reserved = 0;
+    header.color_planes = 1;
+    header.bytes_per_line = lmp->width;
+    header.palette_type = 1;
+    
+    /* Write PCX header */
+    if (fwrite(&header, sizeof(pcx_header_t), 1, f) != 1) {
+        fclose(f);
+        return false;
+    }
+    
+    /* Write image data with RLE encoding */
+    size_t i = 0;
+    while (i < lmp->data_size) {
+        unsigned char pixel = lmp->data[i];
+        unsigned char count = 1;
+        
+        /* Count consecutive identical pixels (max 63 for RLE) */
+        while (count < 63 && i + count < lmp->data_size && lmp->data[i + count] == pixel) {
+            count++;
+        }
+        
+        if (count > 1 || pixel >= 0xC0) {
+            /* Use RLE encoding */
+            unsigned char rle_byte = 0xC0 | count;
+            if (fwrite(&rle_byte, 1, 1, f) != 1) {
+                fclose(f);
+                return false;
+            }
+        }
+        
+        /* Write the pixel value */
+        if (fwrite(&pixel, 1, 1, f) != 1) {
+            fclose(f);
+            return false;
+        }
+        
+        i += count;
+    }
+    
+    /* Write default Quake palette (256 colors) */
+    unsigned char palette[768];
+    for (int i = 0; i < 256; i++) {
+        /* Generate a simple grayscale palette */
+        palette[i * 3 + 0] = i;     /* Red */
+        palette[i * 3 + 1] = i;     /* Green */
+        palette[i * 3 + 2] = i;     /* Blue */
+    }
+    
+    if (fwrite(palette, 768, 1, f) != 1) {
+        fclose(f);
+        return false;
+    }
+    
+    fclose(f);
+    return true;
+}
