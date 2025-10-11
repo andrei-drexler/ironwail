@@ -1800,20 +1800,34 @@ R_SetupGL
 */
 void R_SetupGL (void)
 {
-	if (!GL_NeedsSceneEffects ())
-	{
-		GL_BindFramebufferFunc (GL_FRAMEBUFFER, GL_NeedsPostprocess () ? framebufs.composite.fbo : 0u);
-		framesetup.scene_fbo = framebufs.composite.fbo;
-		framesetup.oit_fbo = framebufs.oit.fbo_composite;
-		glViewport (glx + r_refdef.vrect.x, gly + glheight - r_refdef.vrect.y - r_refdef.vrect.height, r_refdef.vrect.width, r_refdef.vrect.height);
-	}
-	else
-	{
-		GL_BindFramebufferFunc (GL_FRAMEBUFFER, framebufs.scene.fbo);
-		framesetup.scene_fbo = framebufs.scene.fbo;
-		framesetup.oit_fbo = framebufs.oit.fbo_scene;
-		glViewport (0, 0, r_refdef.vrect.width / r_refdef.scale, r_refdef.vrect.height / r_refdef.scale);
-	}
+       if (!GL_NeedsSceneEffects ())
+       {
+               GLuint target = GL_NeedsPostprocess () ? framebufs.composite.fbo : 0u;
+
+               GL_BindFramebufferFunc (GL_FRAMEBUFFER, target);
+               framesetup.scene_fbo = framebufs.composite.fbo;
+               framesetup.oit_fbo = framebufs.oit.fbo_composite;
+               if (target)
+               {
+                       glDrawBuffer (GL_COLOR_ATTACHMENT0);
+                       glReadBuffer (GL_COLOR_ATTACHMENT0);
+               }
+               else
+               {
+                       glDrawBuffer (GL_BACK);
+                       glReadBuffer (GL_BACK);
+               }
+               glViewport (glx + r_refdef.vrect.x, gly + glheight - r_refdef.vrect.y - r_refdef.vrect.height, r_refdef.vrect.width, r_refdef.vrect.height);
+       }
+       else
+       {
+               GL_BindFramebufferFunc (GL_FRAMEBUFFER, framebufs.scene.fbo);
+               framesetup.scene_fbo = framebufs.scene.fbo;
+               framesetup.oit_fbo = framebufs.oit.fbo_scene;
+               glDrawBuffer (GL_COLOR_ATTACHMENT0);
+               glReadBuffer (GL_COLOR_ATTACHMENT0);
+               glViewport (0, 0, r_refdef.vrect.width / r_refdef.scale, r_refdef.vrect.height / r_refdef.scale);
+       }
 }
 
 /*
@@ -2866,27 +2880,43 @@ void R_WarpScaleView (void)
 	needwarpscale = r_refdef.scale != 1 || water_warp || (v_blend[3] && gl_polyblend.value && !softemu);
 	fbodest = GL_NeedsPostprocess () ? framebufs.composite.fbo : 0;
 
-	if (msaa)
-	{
-		GL_BeginGroup ("MSAA resolve");
+        if (msaa)
+        {
+                GL_BeginGroup ("MSAA resolve");
 
-		GL_BindFramebufferFunc (GL_READ_FRAMEBUFFER, framebufs.scene.fbo);
-		if (needwarpscale)
-		{
-			GL_BindFramebufferFunc (GL_DRAW_FRAMEBUFFER, framebufs.resolved_scene.fbo);
-			GL_BlitFramebufferFunc (0, 0, srcw, srch, 0, 0, srcw, srch, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-		}
-		else
-		{
-			GL_BindFramebufferFunc (GL_DRAW_FRAMEBUFFER, fbodest);
-			GL_BlitFramebufferFunc (0, 0, srcw, srch, srcx, srcy, srcx + srcw, srcy + srch, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-		}
+                GL_BindFramebufferFunc (GL_READ_FRAMEBUFFER, framebufs.scene.fbo);
+                glReadBuffer (GL_COLOR_ATTACHMENT0);
+                if (needwarpscale)
+                {
+                        GL_BindFramebufferFunc (GL_DRAW_FRAMEBUFFER, framebufs.resolved_scene.fbo);
+                        glDrawBuffer (GL_COLOR_ATTACHMENT0);
+                        GL_BlitFramebufferFunc (0, 0, srcw, srch, 0, 0, srcw, srch, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+                }
+                else
+                {
+                        GL_BindFramebufferFunc (GL_DRAW_FRAMEBUFFER, fbodest);
+                        if (fbodest)
+                                glDrawBuffer (GL_COLOR_ATTACHMENT0);
+                        else
+                                glDrawBuffer (GL_BACK);
+                        GL_BlitFramebufferFunc (0, 0, srcw, srch, srcx, srcy, srcx + srcw, srcy + srch, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+                }
 
-		GL_EndGroup ();
-	}
+                GL_EndGroup ();
+        }
 
-	GL_BindFramebufferFunc (GL_FRAMEBUFFER, fbodest);
-	glViewport (srcx, srcy, r_refdef.vrect.width, r_refdef.vrect.height);
+        GL_BindFramebufferFunc (GL_FRAMEBUFFER, fbodest);
+        if (fbodest)
+        {
+                glDrawBuffer (GL_COLOR_ATTACHMENT0);
+                glReadBuffer (GL_COLOR_ATTACHMENT0);
+        }
+        else
+        {
+                glDrawBuffer (GL_BACK);
+                glReadBuffer (GL_BACK);
+        }
+        glViewport (srcx, srcy, r_refdef.vrect.width, r_refdef.vrect.height);
 
 	if (!needwarpscale)
 		return;
