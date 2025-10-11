@@ -104,6 +104,23 @@ vec3 Transform(vec3 p, Instance instance)
 	return mat3(world[0], world[1], world[2]) * p + world[3];
 }
 
+layout(location=0) flat in uint in_flags;
+layout(location=1) flat in float in_alpha;
+layout(location=2) in vec3 in_pos;
+#if MODE == 1
+        layout(location=3) centroid in vec2 in_uv;
+#else
+        layout(location=3) in vec2 in_uv;
+#endif
+layout(location=4) centroid in vec2 in_lmuv;
+layout(location=5) in float in_depth;
+layout(location=6) noperspective in vec2 in_coord;
+layout(location=7) flat in vec4 in_styles;
+layout(location=8) flat in float in_lmofs;
+#if BINDLESS
+        layout(location=9) flat in uvec4 in_samplers;
+#endif
+
 // ALU-only 16x16 Bayer matrix
 float bayer01(ivec2 coord)
 {
@@ -348,23 +365,6 @@ vec3 ComputeSunLight(vec3 world_pos, vec3 normal)
         float visibility = EvaluateShadow(world_pos, normal, light_dir, in_depth);
         return ShadowSunColor.rgb * intensity * ndotl * visibility;
 }
-
-layout(location=0) flat in uint in_flags;
-layout(location=1) flat in float in_alpha;
-layout(location=2) in vec3 in_pos;
-#if MODE == 1
-	layout(location=3) centroid in vec2 in_uv;
-#else
-	layout(location=3) in vec2 in_uv;
-#endif
-layout(location=4) centroid in vec2 in_lmuv;
-layout(location=5) in float in_depth;
-layout(location=6) noperspective in vec2 in_coord;
-layout(location=7) flat in vec4 in_styles;
-layout(location=8) flat in float in_lmofs;
-#if BINDLESS
-	layout(location=9) flat in uvec4 in_samplers;
-#endif
 
 #define OUT_COLOR out_fragcolor
 #if OIT
