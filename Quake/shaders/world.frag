@@ -5,13 +5,25 @@
 	layout(binding=1) uniform sampler2D FullbrightTex;
 #endif
 layout(binding=2) uniform sampler2D LMTex;
-layout(binding=3) uniform sampler2D ShadowMap;
+layout(binding=3) uniform sampler2DArray ShadowMap;
 
 #include "shadow_common.glsl"
 
+int   gShadowCascadeCount = 0;
+int   gShadowCascadeIndex = 0;
+int   gShadowCascadeNext = -1;
+float gShadowCascadeBlend = 0.0;
+float gShadowPrimaryValid = 0.0;
+float gShadowSecondaryValid = 0.0;
+vec3  gShadowCoordPrimary = vec3(0.0);
+vec3  gShadowCoordSecondary = vec3(0.0);
+float gShadowViewDepth = 0.0;
+float gShadowCanonicalPrimary = 0.0;
+float gShadowCanonicalSecondary = 0.0;
+
 vec3 ApplyFog(vec3 clr, vec3 p)
 {
-	float fog = exp2(-Fog.w * dot(p, p));
+        float fog = exp2(-Fog.w * dot(p, p));
 	fog = clamp(fog, 0.0, 1.0);
 	return mix(Fog.rgb, clr, fog);
 }
@@ -149,18 +161,18 @@ float DepthToCanonical(float depth)
 #endif
 }
 
-float SampleShadowHard(vec2 uv, float canonical_depth)
+float SampleShadowHard(vec3 coord, float canonical_depth)
 {
-        float sample_depth = texture(ShadowMap, uv).r;
+        float sample_depth = texture(ShadowMap, coord).r;
         float sample_canonical = DepthToCanonical(sample_depth);
         return canonical_depth <= sample_canonical ? 1.0 : 0.0;
 }
 
-float SampleShadowPCF(vec2 uv, float canonical_depth, float texel_size, int kernel_radius, float radius_scale)
+float SampleShadowPCF(vec3 coord, float canonical_depth, float texel_size, int kernel_radius, float radius_scale)
 {
         const int MAX_RADIUS = 3;
         if (kernel_radius <= 0 || texel_size <= 0.0)
-                return SampleShadowHard(uv, canonical_depth);
+                return SampleShadowHard(coord, canonical_depth);
         float step_size = texel_size * radius_scale;
         float sum = 0.0;
         float weight = 0.0;
@@ -173,16 +185,16 @@ float SampleShadowPCF(vec2 uv, float canonical_depth, float texel_size, int kern
                         if (abs(x) > kernel_radius)
                                 continue;
                         vec2 offset = vec2(float(x), float(y)) * step_size;
-                        sum += SampleShadowHard(uv + offset, canonical_depth);
+                        sum += SampleShadowHard(vec3(coord.xy + offset, coord.z), canonical_depth);
                         weight += 1.0;
                 }
         }
         return weight > 0.0 ? sum / weight : 1.0;
 }
 
-float EvaluateShadowVSM(vec2 uv, float canonical_depth)
+float EvaluateShadowVSM(vec3 coord, float canonical_depth)
 {
-        vec2 moments = texture(ShadowMap, uv).rg;
+        vec2 moments = texture(ShadowMap, coord).rg;
 #if REVERSED_Z
         float Ex = 1.0 - moments.x;
         float Ex2 = 1.0 - 2.0 * moments.x + moments.y;
@@ -199,48 +211,123 @@ float EvaluateShadowVSM(vec2 uv, float canonical_depth)
         return p;
 }
 
-float EvaluateShadow(vec3 world_pos, vec3 normal, vec3 light_dir)
+bool ComputeCascadeCoord(int cascadeIndex, vec3 offset_pos, float ndotl, out vec3 out_coord, out float out_canonical)
 {
-	float ndotl = max(dot(normal, light_dir), 0.0);
-	float receiver_offset = ShadowFilter[2] * (1.0 - ndotl);
-	vec3 offset_pos = world_pos;
-	if (receiver_offset > 0.0)
-		offset_pos += normal * receiver_offset;
-
-	vec4 shadow_clip = ShadowViewProj * vec4(offset_pos, 1.0);
-	if (shadow_clip.w <= 0.0)
-		return 1.0;
-	vec3 shadow_coord = shadow_clip.xyz / shadow_clip.w;
+        vec4 shadow_clip = ShadowViewProj[cascadeIndex] * vec4(offset_pos, 1.0);
+        if (shadow_clip.w <= 0.0)
+                return false;
+        vec3 projected = shadow_clip.xyz / shadow_clip.w;
 #if !REVERSED_Z
-	shadow_coord.z = shadow_coord.z * 0.5 + 0.5;
+        projected.z = projected.z * 0.5 + 0.5;
 #endif
-	shadow_coord.xy = shadow_coord.xy * 0.5 + 0.5;
-	float bias = ShadowParams.x + ShadowParams.y * ShadowParams.z * (1.0 - ndotl);
+        projected.xy = projected.xy * 0.5 + 0.5;
+        float bias = ShadowParams.x + ShadowParams.y * ShadowParams.z * (1.0 - ndotl);
 #if REVERSED_Z
-	shadow_coord.z -= bias;
+        projected.z -= bias;
 #else
-	shadow_coord.z += bias;
+        projected.z += bias;
 #endif
-	if (shadow_coord.x < 0.0 || shadow_coord.x > 1.0 || shadow_coord.y < 0.0 || shadow_coord.y > 1.0)
-		return 1.0;
-	if (shadow_coord.z <= 0.0 || shadow_coord.z >= 1.0)
-		return 1.0;
+        if (projected.x < 0.0 || projected.x > 1.0 || projected.y < 0.0 || projected.y > 1.0)
+                return false;
+        if (projected.z <= 0.0 || projected.z >= 1.0)
+                return false;
+        out_coord = vec3(projected.xy, float(cascadeIndex));
+        out_canonical = DepthToCanonical(clamp(projected.z, 0.0, 1.0));
+        return true;
+}
 
-	float depth = clamp(shadow_coord.z, 0.0, 1.0);
-	float canonical_depth = DepthToCanonical(depth);
-	vec2 uv = shadow_coord.xy;
+float FilterShadowValue(vec3 coord, float canonical_depth, vec3 offset_pos)
+{
+        if (ShadowVSM.x > 0.5)
+                return EvaluateShadowVSM(coord, canonical_depth);
 
-	if (ShadowVSM.x > 0.5)
-		return EvaluateShadowVSM(uv, canonical_depth);
+        float texel_size = ShadowParams.z;
+        int kernel_radius = clamp(int(ShadowFilter.x + 0.5), 0, 3);
+        if (ShadowFilter.y <= 0.5 || kernel_radius <= 0 || texel_size <= 0.0)
+                return SampleShadowHard(coord, canonical_depth);
 
-	float texel_size = ShadowParams.z;
-	int kernel_radius = clamp(int(ShadowFilter.x + 0.5), 0, 3);
-	if (ShadowFilter.y <= 0.5 || kernel_radius <= 0 || texel_size <= 0.0)
-		return SampleShadowHard(uv, canonical_depth);
+        float distance = length(offset_pos - EyePos);
+        float radius_scale = clamp(1.0 + ShadowFilter.w * distance, 1.0, 6.0);
+        return SampleShadowPCF(coord, canonical_depth, texel_size, kernel_radius, radius_scale);
+}
 
-	float distance = length(offset_pos - EyePos);
-	float radius_scale = clamp(1.0 + ShadowFilter.w * distance, 1.0, 6.0);
-	return SampleShadowPCF(uv, canonical_depth, texel_size, kernel_radius, radius_scale);
+float EvaluateShadow(vec3 world_pos, vec3 normal, vec3 light_dir, float view_depth)
+{
+        gShadowCascadeCount = int(ShadowParams.w + 0.5);
+        gShadowCascadeIndex = 0;
+        gShadowCascadeNext = -1;
+        gShadowCascadeBlend = 0.0;
+        gShadowPrimaryValid = 0.0;
+        gShadowSecondaryValid = 0.0;
+        gShadowCoordPrimary = vec3(0.0);
+        gShadowCoordSecondary = vec3(0.0);
+        gShadowViewDepth = view_depth;
+        gShadowCanonicalPrimary = 0.0;
+        gShadowCanonicalSecondary = 0.0;
+
+        int cascadeCount = gShadowCascadeCount;
+        if (cascadeCount <= 0)
+                return 1.0;
+
+        float ndotl = max(dot(normal, light_dir), 0.0);
+        float receiver_offset = ShadowFilter[2] * (1.0 - ndotl);
+        vec3 offset_pos = world_pos;
+        if (receiver_offset > 0.0)
+                offset_pos += normal * receiver_offset;
+
+        int cascadeIndex = cascadeCount - 1;
+        for (int i = 0; i < cascadeCount; ++i)
+        {
+                if (view_depth <= ShadowCascadeSplits[i])
+                {
+                        cascadeIndex = i;
+                        break;
+                }
+        }
+        if (view_depth > ShadowCascadeSplits[cascadeCount - 1])
+                return 1.0;
+
+        vec3 coord;
+        float canonical_depth;
+        if (!ComputeCascadeCoord(cascadeIndex, offset_pos, ndotl, coord, canonical_depth))
+                return 1.0;
+
+        gShadowCascadeIndex = cascadeIndex;
+        gShadowPrimaryValid = 1.0;
+        gShadowCoordPrimary = coord;
+        gShadowCanonicalPrimary = canonical_depth;
+
+        float shadow = FilterShadowValue(coord, canonical_depth, offset_pos);
+
+        if (ShadowCascadeFade.y > 0.5 && cascadeIndex < cascadeCount - 1)
+        {
+                float cascadeNear = ShadowCascadeStarts[cascadeIndex];
+                float cascadeFar = ShadowCascadeSplits[cascadeIndex];
+                float range = cascadeFar - cascadeNear;
+                float fadeDistance = range * ShadowCascadeFade.x;
+                if (fadeDistance > 0.0)
+                {
+                        float distanceToFar = cascadeFar - view_depth;
+                        float blend = clamp(1.0 - distanceToFar / fadeDistance, 0.0, 1.0);
+                        if (blend > 0.0)
+                        {
+                                vec3 nextCoord;
+                                float nextCanonical;
+                                if (ComputeCascadeCoord(cascadeIndex + 1, offset_pos, ndotl, nextCoord, nextCanonical))
+                                {
+                                        gShadowCascadeNext = cascadeIndex + 1;
+                                        gShadowCascadeBlend = blend;
+                                        gShadowSecondaryValid = 1.0;
+                                        gShadowCoordSecondary = nextCoord;
+                                        gShadowCanonicalSecondary = nextCanonical;
+                                        float shadowNext = FilterShadowValue(nextCoord, nextCanonical, offset_pos);
+                                        shadow = mix(shadow, shadowNext, blend);
+                                }
+                        }
+                }
+        }
+
+        return shadow;
 }
 
 vec3 ComputeSunLight(vec3 world_pos, vec3 normal)
@@ -258,8 +345,8 @@ vec3 ComputeSunLight(vec3 world_pos, vec3 normal)
 	float intensity = ShadowSunDir.w;
 	if (intensity > 1.0)
 		intensity *= (1.0 / 255.0);
-	float visibility = EvaluateShadow(world_pos, normal, light_dir);
-	return ShadowSunColor.rgb * intensity * ndotl * visibility;
+        float visibility = EvaluateShadow(world_pos, normal, light_dir, in_depth);
+        return ShadowSunColor.rgb * intensity * ndotl * visibility;
 }
 
 layout(location=0) flat in uint in_flags;
@@ -447,10 +534,75 @@ void main()
 #endif
 	result.rgb += fullbright;
 	result = clamp(result, 0.0, 1.0);
-	result.rgb = ApplyFog(result.rgb, in_pos - EyePos);
+        result.rgb = ApplyFog(result.rgb, in_pos - EyePos);
 
-	result.a = in_alpha; // FIXME: This will make almost transparent things cut holes though heavy fog
-	out_fragcolor = result;
+        if (ShadowDebug.x > 0.5 && gShadowPrimaryValid > 0.5)
+        {
+                const vec3 cascadeColors[4] = vec3[4]
+                (
+                        vec3(0.95, 0.45, 0.45),
+                        vec3(0.45, 0.95, 0.55),
+                        vec3(0.45, 0.65, 0.95),
+                        vec3(0.95, 0.75, 0.45)
+                );
+                int idx = clamp(gShadowCascadeIndex, 0, 3);
+                vec3 overlay = cascadeColors[idx];
+                if (gShadowSecondaryValid > 0.5)
+                {
+                        int nextIdx = clamp(gShadowCascadeNext, 0, 3);
+                        overlay = mix(overlay, cascadeColors[nextIdx], clamp(gShadowCascadeBlend, 0.0, 1.0));
+                }
+                result.rgb = mix(result.rgb, overlay, 0.35);
+        }
+
+        int debugMapIndex = int(ShadowDebug.y + 0.5) - 1;
+        if (debugMapIndex >= 0)
+        {
+                vec3 coord = vec3(0.0);
+                float canonicalDepth = 0.0;
+                bool valid = false;
+                if (debugMapIndex == gShadowCascadeIndex && gShadowPrimaryValid > 0.5)
+                {
+                        coord = gShadowCoordPrimary;
+                        canonicalDepth = gShadowCanonicalPrimary;
+                        valid = true;
+                }
+                else if (debugMapIndex == gShadowCascadeNext && gShadowSecondaryValid > 0.5)
+                {
+                        coord = gShadowCoordSecondary;
+                        canonicalDepth = gShadowCanonicalSecondary;
+                        valid = true;
+                }
+                else
+                {
+                        vec3 dbgDir = ShadowSunDir.xyz;
+                        float dbgLen = length(dbgDir);
+                        if (dbgLen > 0.0)
+                        {
+                                dbgDir /= dbgLen;
+                                float ndotl_dbg = max(dot(surface_normal, dbgDir), 0.0);
+                                float receiver_offset_dbg = ShadowFilter[2] * (1.0 - ndotl_dbg);
+                                vec3 offset_dbg = in_pos;
+                                if (receiver_offset_dbg > 0.0)
+                                        offset_dbg += surface_normal * receiver_offset_dbg;
+                                if (ComputeCascadeCoord(debugMapIndex, offset_dbg, ndotl_dbg, coord, canonicalDepth))
+                                        valid = true;
+                        }
+                }
+                if (valid)
+                {
+                        float depthSample = texture(ShadowMap, coord).r;
+                        float canonicalSample = DepthToCanonical(depthSample);
+                        result = vec4(vec3(canonicalSample), 1.0);
+                }
+                else
+                {
+                        result = vec4(vec3(0.0), 1.0);
+                }
+        }
+
+        result.a = in_alpha; // FIXME: This will make almost transparent things cut holes though heavy fog
+        out_fragcolor = result;
 #if DITHER == 1
 	vec3 dpos = fwidth(in_pos);
 	float farblend = clamp(max(dpos.x, max(dpos.y, dpos.z)) * 0.5 - 0.125, 0., 1.);

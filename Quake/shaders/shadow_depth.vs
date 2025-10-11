@@ -70,7 +70,9 @@ void main()
         int instance_id = GET_INSTANCE_ID(call);
         Instance instance = instance_data[instance_id];
         vec3 world_pos = Transform(in_pos, instance);
-        gl_Position = ShadowViewProj * vec4(world_pos, 1.0);
+        int cascadeIndex = int(ShadowCascadeFade.w + 0.5);
+        cascadeIndex = clamp(cascadeIndex, 0, 3);
+        gl_Position = ShadowViewProj[cascadeIndex] * vec4(world_pos, 1.0);
         out_flags = call.flags;
         out_uv = in_uv.xy;
 #if BINDLESS
