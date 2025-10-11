@@ -444,7 +444,7 @@ static void R_DrawBrushModels_Real (entity_t **ents, int count, brushpass_t pass
         case BP_SHADOW:
                 texbegin = 0;
                 texend = TEXTYPE_CUTOUT + 1;
-                program = glprogs.shadow_depth;
+                program = R_ShadowUsesVSM () ? glprogs.shadow_depth_vsm : glprogs.shadow_depth;
                 translucent = false;
                 oit = false;
                 break;

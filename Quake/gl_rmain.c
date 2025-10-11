@@ -72,6 +72,12 @@ cvar_t	r_shadows = {"r_shadows", "0", CVAR_ARCHIVE};
 cvar_t	r_shadow_map_size = {"r_shadow_map_size", "2048", CVAR_ARCHIVE};
 cvar_t	r_shadow_bias = {"r_shadow_bias", "0.0005", CVAR_ARCHIVE};
 cvar_t	r_shadow_slope_bias = {"r_shadow_slope_bias", "2.0", CVAR_ARCHIVE};
+cvar_t	r_shadow_soft = {"r_shadow_soft", "1", CVAR_ARCHIVE};
+cvar_t	r_shadow_pcf_size = {"r_shadow_pcf_size", "1", CVAR_ARCHIVE};
+cvar_t	r_shadow_soft_dist_scale = {"r_shadow_soft_dist_scale", "0.001", CVAR_ARCHIVE};
+cvar_t	r_shadow_normal_offset = {"r_shadow_normal_offset", "1.0", CVAR_ARCHIVE};
+cvar_t	r_shadow_vsm = {"r_shadow_vsm", "0", CVAR_ARCHIVE};
+cvar_t	r_shadow_vsm_bleed_reduce = {"r_shadow_vsm_bleed_reduce", "0.2", CVAR_ARCHIVE};
 cvar_t	r_drawviewmodel = {"r_drawviewmodel","1",CVAR_NONE};
 cvar_t	r_speeds = {"r_speeds","0",CVAR_NONE};
 cvar_t	r_pos = {"r_pos","0",CVAR_NONE};
@@ -142,9 +148,11 @@ static const vec3_t shadow_default_direction = {-0.57735027f, -0.57735027f, -0.5
 typedef struct shadow_state_s {
 	GLuint	fbo;
 	GLuint	depth_texture;
+	GLuint	moments_texture;
 	int		size;
 	qboolean	ready;
 	qboolean	enabled;
+	qboolean	use_vsm;
 	vec3_t	direction;
 	vec3_t	color;
 	float	intensity;
@@ -393,8 +401,14 @@ static void R_ShadowDestroyResources (void)
                 GL_DeleteNativeTexture (shadow_state.depth_texture);
                 shadow_state.depth_texture = 0;
         }
+        if (shadow_state.moments_texture)
+        {
+                GL_DeleteNativeTexture (shadow_state.moments_texture);
+                shadow_state.moments_texture = 0;
+        }
         shadow_state.ready = false;
         shadow_state.enabled = false;
+        shadow_state.use_vsm = false;
         shadow_state.size = 0;
 }
 
@@ -416,16 +430,20 @@ void R_ShutdownShadow (void)
 void R_ResizeShadowMapIfNeeded (void)
 {
         int desired;
+        qboolean want_vsm;
 
         desired = R_ShadowClampSize ((int) Q_rint (r_shadow_map_size.value));
         if (desired != (int) r_shadow_map_size.value)
                 Cvar_SetValueQuick (&r_shadow_map_size, (float) desired);
 
-        if (shadow_state.ready && shadow_state.size == desired)
+        want_vsm = (r_shadow_vsm.value != 0.f);
+
+        if (shadow_state.ready && shadow_state.size == desired && shadow_state.use_vsm == want_vsm)
                 return;
 
         R_ShadowDestroyResources ();
         shadow_state.size = desired;
+        shadow_state.use_vsm = want_vsm;
 
         if (!desired)
                 return;
@@ -443,20 +461,58 @@ void R_ResizeShadowMapIfNeeded (void)
         glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
         glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
         glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
-        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
-        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, gl_clipcontrol_able ? GL_GEQUAL : GL_LEQUAL);
+        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
         {
                 const float border[4] = {1.f, 1.f, 1.f, 1.f};
                 glTexParameterfv (GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, border);
         }
         GL_BindNative (GL_TEXTURE0, GL_TEXTURE_2D, 0);
 
+        if (shadow_state.use_vsm)
+        {
+                glGenTextures (1, &shadow_state.moments_texture);
+                if (!shadow_state.moments_texture)
+                {
+                        R_ShadowDestroyResources ();
+                        shadow_state.size = 0;
+                        return;
+                }
+
+                GL_BindNative (GL_TEXTURE0, GL_TEXTURE_2D, shadow_state.moments_texture);
+                GL_ObjectLabelFunc (GL_TEXTURE, shadow_state.moments_texture, -1, "shadow moments");
+                glTexImage2D (GL_TEXTURE_2D, 0, GL_RG32F, desired, desired, 0, GL_RG, GL_FLOAT, NULL);
+                glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+                glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+                glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
+                glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+                {
+                        const float border[4] = {1.f, 1.f, 1.f, 1.f};
+                        glTexParameterfv (GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, border);
+                }
+                GL_BindNative (GL_TEXTURE0, GL_TEXTURE_2D, 0);
+        }
+        else
+        {
+                shadow_state.moments_texture = 0;
+        }
+
         GL_GenFramebuffersFunc (1, &shadow_state.fbo);
         GL_BindFramebufferFunc (GL_FRAMEBUFFER, shadow_state.fbo);
         GL_ObjectLabelFunc (GL_FRAMEBUFFER, shadow_state.fbo, -1, "shadow fbo");
         GL_FramebufferTexture2DFunc (GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadow_state.depth_texture, 0);
-        glDrawBuffer (GL_NONE);
-        glReadBuffer (GL_NONE);
+        if (shadow_state.use_vsm)
+        {
+                GL_FramebufferTexture2DFunc (GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, shadow_state.moments_texture, 0);
+                glDrawBuffer (GL_COLOR_ATTACHMENT0);
+                glReadBuffer (GL_COLOR_ATTACHMENT0);
+        }
+        else
+        {
+                glDrawBuffer (GL_NONE);
+                glReadBuffer (GL_NONE);
+        }
 
         if (GL_CheckFramebufferStatusFunc (GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
         {
@@ -583,11 +639,54 @@ void R_ShadowCvarChanged (cvar_t *var)
                 if (var->value < 0.f)
                         Cvar_SetValueQuick (var, 0.f);
         }
+        else if (var == &r_shadow_soft)
+        {
+                float value = var->value ? 1.f : 0.f;
+                if (value != var->value)
+                        Cvar_SetValueQuick (var, value);
+        }
+        else if (var == &r_shadow_pcf_size)
+        {
+                int size = CLAMP (1, (int) Q_rint (var->value), 3);
+                if ((float) size != var->value)
+                        Cvar_SetValueQuick (var, (float) size);
+        }
+        else if (var == &r_shadow_soft_dist_scale)
+        {
+                if (var->value < 0.f)
+                        Cvar_SetValueQuick (var, 0.f);
+        }
+        else if (var == &r_shadow_normal_offset)
+        {
+                if (var->value < 0.f)
+                        Cvar_SetValueQuick (var, 0.f);
+        }
+        else if (var == &r_shadow_vsm)
+        {
+                float value = var->value ? 1.f : 0.f;
+                if (value != var->value)
+                        Cvar_SetValueQuick (var, value);
+                if (host_initialized)
+                        R_ResizeShadowMapIfNeeded ();
+        }
+        else if (var == &r_shadow_vsm_bleed_reduce)
+        {
+                float value = CLAMP (0.f, var->value, 0.99f);
+                if (value != var->value)
+                        Cvar_SetValueQuick (var, value);
+        }
 }
 
 GLuint R_ShadowTexture (void)
 {
+        if (shadow_state.use_vsm)
+                return shadow_state.moments_texture;
         return shadow_state.depth_texture;
+}
+
+qboolean R_ShadowUsesVSM (void)
+{
+        return shadow_state.use_vsm && shadow_state.ready;
 }
 
 static qboolean R_ShadowComputeMatrices (float out_vp[16])
@@ -749,6 +848,18 @@ void R_BuildShadowMap (void)
         memset (r_framedata.shadowviewproj, 0, sizeof (r_framedata.shadowviewproj));
         memset (r_framedata.shadow_sundir, 0, sizeof (r_framedata.shadow_sundir));
         memset (r_framedata.shadow_suncolor, 0, sizeof (r_framedata.shadow_suncolor));
+        {
+                int kernel = CLAMP (1, (int) Q_rint (r_shadow_pcf_size.value), 3);
+                float soft = r_shadow_soft.value ? 1.f : 0.f;
+                r_framedata.shadow_filter[0] = (float) kernel;
+                r_framedata.shadow_filter[1] = soft;
+                r_framedata.shadow_filter[2] = q_max (0.f, r_shadow_normal_offset.value);
+                r_framedata.shadow_filter[3] = q_max (0.f, r_shadow_soft_dist_scale.value);
+        }
+        r_framedata.shadow_vsm[0] = shadow_state.use_vsm ? 1.f : 0.f;
+        r_framedata.shadow_vsm[1] = CLAMP (0.f, r_shadow_vsm_bleed_reduce.value, 0.99f);
+        r_framedata.shadow_vsm[2] = 1e-5f;
+        r_framedata.shadow_vsm[3] = 0.f;
 
         if (!r_shadows.value || !shadow_state.ready || !cl.worldmodel)
                 return;
@@ -758,8 +869,16 @@ void R_BuildShadowMap (void)
         if (VectorNormalize (sun_dir) == 0.f)
                 return;
 
-        if (!glprogs.shadow_depth)
-                return;
+        if (shadow_state.use_vsm)
+        {
+                if (!glprogs.shadow_depth_vsm)
+                        return;
+        }
+        else
+        {
+                if (!glprogs.shadow_depth)
+                        return;
+        }
         if (!R_ShadowComputeMatrices (light_vp))
                 return;
 
@@ -781,14 +900,23 @@ void R_BuildShadowMap (void)
         GL_BeginGroup ("Shadow map");
         GL_BindFramebufferFunc (GL_FRAMEBUFFER, shadow_state.fbo);
         glViewport (0, 0, shadow_state.size, shadow_state.size);
-        glColorMask (GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-        glDepthMask (GL_TRUE);
-        glClear (GL_DEPTH_BUFFER_BIT);
+        if (shadow_state.use_vsm)
+        {
+                glColorMask (GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+                glDepthMask (GL_TRUE);
+                glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        }
+        else
+        {
+                glColorMask (GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+                glDepthMask (GL_TRUE);
+                glClear (GL_DEPTH_BUFFER_BIT);
+        }
         glEnable (GL_POLYGON_OFFSET_FILL);
         glEnable (GL_POLYGON_OFFSET_LINE);
         glPolygonOffset (r_shadow_slope_bias.value, r_shadow_bias.value);
 
-        GL_UseProgram (glprogs.shadow_depth);
+        GL_UseProgram (shadow_state.use_vsm ? glprogs.shadow_depth_vsm : glprogs.shadow_depth);
         GL_SetState (GLS_BLEND_OPAQUE | GLS_CULL_FRONT | GLS_ATTRIBS(4));
 
         entlist = cl_sorted_visedicts;

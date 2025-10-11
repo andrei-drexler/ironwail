@@ -319,6 +319,18 @@ void R_Init (void)
         Cvar_SetCallback (&r_shadow_bias, R_ShadowCvarChanged);
         Cvar_RegisterVariable (&r_shadow_slope_bias);
         Cvar_SetCallback (&r_shadow_slope_bias, R_ShadowCvarChanged);
+        Cvar_RegisterVariable (&r_shadow_soft);
+        Cvar_SetCallback (&r_shadow_soft, R_ShadowCvarChanged);
+        Cvar_RegisterVariable (&r_shadow_pcf_size);
+        Cvar_SetCallback (&r_shadow_pcf_size, R_ShadowCvarChanged);
+        Cvar_RegisterVariable (&r_shadow_soft_dist_scale);
+        Cvar_SetCallback (&r_shadow_soft_dist_scale, R_ShadowCvarChanged);
+        Cvar_RegisterVariable (&r_shadow_normal_offset);
+        Cvar_SetCallback (&r_shadow_normal_offset, R_ShadowCvarChanged);
+        Cvar_RegisterVariable (&r_shadow_vsm);
+        Cvar_SetCallback (&r_shadow_vsm, R_ShadowCvarChanged);
+        Cvar_RegisterVariable (&r_shadow_vsm_bleed_reduce);
+        Cvar_SetCallback (&r_shadow_vsm_bleed_reduce, R_ShadowCvarChanged);
         Cvar_RegisterVariable (&r_drawviewmodel);
 	Cvar_RegisterVariable (&r_wateralpha);
 	Cvar_SetCallback (&r_wateralpha, R_SetWateralpha_f);

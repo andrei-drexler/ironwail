@@ -5,7 +5,7 @@
 	layout(binding=1) uniform sampler2D FullbrightTex;
 #endif
 layout(binding=2) uniform sampler2D LMTex;
-layout(binding=3) uniform sampler2DShadow ShadowMap;
+layout(binding=3) uniform sampler2D ShadowMap;
 
 #include "shadow_common.glsl"
 
@@ -140,9 +140,74 @@ float tri(float x)
 #define SCREEN_SPACE_NOISE() DITHER_NOISE(floor(gl_FragCoord.xy)+0.5)
 #define SUPPRESS_BANDING() bayer(ivec2(gl_FragCoord.xy))
 
+float DepthToCanonical(float depth)
+{
+#if REVERSED_Z
+        return 1.0 - depth;
+#else
+        return depth;
+#endif
+}
+
+float SampleShadowHard(vec2 uv, float canonical_depth)
+{
+        float sample_depth = texture(ShadowMap, uv).r;
+        float sample_canonical = DepthToCanonical(sample_depth);
+        return canonical_depth <= sample_canonical ? 1.0 : 0.0;
+}
+
+float SampleShadowPCF(vec2 uv, float canonical_depth, float texel_size, int kernel_radius, float radius_scale)
+{
+        const int MAX_RADIUS = 3;
+        if (kernel_radius <= 0 || texel_size <= 0.0)
+                return SampleShadowHard(uv, canonical_depth);
+        float step_size = texel_size * radius_scale;
+        float sum = 0.0;
+        float weight = 0.0;
+        for (int y = -MAX_RADIUS; y <= MAX_RADIUS; ++y)
+        {
+                if (abs(y) > kernel_radius)
+                        continue;
+                for (int x = -MAX_RADIUS; x <= MAX_RADIUS; ++x)
+                {
+                        if (abs(x) > kernel_radius)
+                                continue;
+                        vec2 offset = vec2(float(x), float(y)) * step_size;
+                        sum += SampleShadowHard(uv + offset, canonical_depth);
+                        weight += 1.0;
+                }
+        }
+        return weight > 0.0 ? sum / weight : 1.0;
+}
+
+float EvaluateShadowVSM(vec2 uv, float canonical_depth)
+{
+        vec2 moments = texture(ShadowMap, uv).rg;
+#if REVERSED_Z
+        float Ex = 1.0 - moments.x;
+        float Ex2 = 1.0 - 2.0 * moments.x + moments.y;
+#else
+        float Ex = moments.x;
+        float Ex2 = moments.y;
+#endif
+        float variance = max(Ex2 - Ex * Ex, ShadowVSM.z);
+        float delta = canonical_depth - Ex;
+        float p = variance / (variance + delta * delta);
+        p = clamp((p - ShadowVSM.y) / (1.0 - ShadowVSM.y), 0.0, 1.0);
+        if (canonical_depth <= Ex)
+                return 1.0;
+        return p;
+}
+
 float EvaluateShadow(vec3 world_pos, vec3 normal, vec3 light_dir)
 {
-	vec4 shadow_clip = ShadowViewProj * vec4(world_pos, 1.0);
+	float ndotl = max(dot(normal, light_dir), 0.0);
+	float receiver_offset = ShadowFilter[2] * (1.0 - ndotl);
+	vec3 offset_pos = world_pos;
+	if (receiver_offset > 0.0)
+		offset_pos += normal * receiver_offset;
+
+	vec4 shadow_clip = ShadowViewProj * vec4(offset_pos, 1.0);
 	if (shadow_clip.w <= 0.0)
 		return 1.0;
 	vec3 shadow_coord = shadow_clip.xyz / shadow_clip.w;
@@ -150,7 +215,6 @@ float EvaluateShadow(vec3 world_pos, vec3 normal, vec3 light_dir)
 	shadow_coord.z = shadow_coord.z * 0.5 + 0.5;
 #endif
 	shadow_coord.xy = shadow_coord.xy * 0.5 + 0.5;
-	float ndotl = max(dot(normal, light_dir), 0.0);
 	float bias = ShadowParams.x + ShadowParams.y * ShadowParams.z * (1.0 - ndotl);
 #if REVERSED_Z
 	shadow_coord.z -= bias;
@@ -161,8 +225,22 @@ float EvaluateShadow(vec3 world_pos, vec3 normal, vec3 light_dir)
 		return 1.0;
 	if (shadow_coord.z <= 0.0 || shadow_coord.z >= 1.0)
 		return 1.0;
-	shadow_coord.z = clamp(shadow_coord.z, 0.0, 1.0);
-	return texture(ShadowMap, shadow_coord);
+
+	float depth = clamp(shadow_coord.z, 0.0, 1.0);
+	float canonical_depth = DepthToCanonical(depth);
+	vec2 uv = shadow_coord.xy;
+
+	if (ShadowVSM.x > 0.5)
+		return EvaluateShadowVSM(uv, canonical_depth);
+
+	float texel_size = ShadowParams.z;
+	int kernel_radius = clamp(int(ShadowFilter.x + 0.5), 0, 3);
+	if (ShadowFilter.y <= 0.5 || kernel_radius <= 0 || texel_size <= 0.0)
+		return SampleShadowHard(uv, canonical_depth);
+
+	float distance = length(offset_pos - EyePos);
+	float radius_scale = clamp(1.0 + ShadowFilter.w * distance, 1.0, 6.0);
+	return SampleShadowPCF(uv, canonical_depth, texel_size, kernel_radius, radius_scale);
 }
 
 vec3 ComputeSunLight(vec3 world_pos, vec3 normal)
