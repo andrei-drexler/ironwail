@@ -33,6 +33,7 @@ extern cvar_t gl_farclip;
 extern cvar_t gl_overbright_models;
 extern cvar_t r_overbrightbits;
 extern cvar_t r_waterwarp;
+extern cvar_t r_shadows;
 extern cvar_t r_oldskyleaf;
 extern cvar_t r_drawworld;
 extern cvar_t r_showtris;
