@@ -22,6 +22,8 @@ layout(std140, binding=0) uniform FrameDataUBO
         uint    _Pad3;
         mat4    ShadowViewProj;
         vec4    ShadowParams;
+        vec4    ShadowFilter;
+        vec4    ShadowVSM;
         vec4    ShadowSunDir;
         vec4    ShadowSunColor;
 };

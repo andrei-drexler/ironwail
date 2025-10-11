@@ -436,6 +436,8 @@ typedef struct gpuframedata_s {
 	int		_padding4;
 	float	shadowviewproj[16];
 	float	shadow_params[4];
+	float	shadow_filter[4];
+	float	shadow_vsm[4];
 	float	shadow_sundir[4];
 	float	shadow_suncolor[4];
 } gpuframedata_t;
@@ -546,6 +548,7 @@ typedef struct glprogs_s {
 	GLuint		particles[2][2];	// [OIT][dither]
 	GLuint		debug3d;
 	GLuint		shadow_depth;
+	GLuint		shadow_depth_vsm;
 
 	/* compute */
 	GLuint		clear_indirect;
@@ -607,6 +610,12 @@ void GL_DeleteFrameBuffers (void);
 extern cvar_t	r_shadow_map_size;
 extern cvar_t	r_shadow_bias;
 extern cvar_t	r_shadow_slope_bias;
+extern cvar_t	r_shadow_soft;
+extern cvar_t	r_shadow_pcf_size;
+extern cvar_t	r_shadow_soft_dist_scale;
+extern cvar_t	r_shadow_normal_offset;
+extern cvar_t	r_shadow_vsm;
+extern cvar_t	r_shadow_vsm_bleed_reduce;
 
 void R_InitShadow (void);
 void R_ShutdownShadow (void);
@@ -617,6 +626,7 @@ void R_ShadowFinalizeWorldspawn (void);
 void R_ShadowCvarChanged (cvar_t *var);
 void R_BuildShadowMap (void);
 GLuint R_ShadowTexture (void);
+qboolean R_ShadowUsesVSM (void);
 
 void GLLight_CreateResources (void);
 void GLLight_DeleteResources (void);

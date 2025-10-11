@@ -545,6 +545,7 @@ void GL_CreateShaders (void)
                                                 GL_CreateProgram (GLSL_PATH("alias.vert"), GLSL_PATH("alias.frag"), "alias|OIT %d; MODE %d; ALPHATEST %d; MD5 %d", oit, mode, alphatest, md5);
 
         glprogs.shadow_depth = GL_CreateProgram (GLSL_PATH("shadow_depth.vs"), GLSL_PATH("shadow_depth.fs"), "shadow depth");
+        glprogs.shadow_depth_vsm = GL_CreateProgram (GLSL_PATH("shadow_depth.vs"), GLSL_PATH("shadow_depth.fs"), "shadow depth (VSM)|SHADOW_VSM 1");
         glprogs.blobshadow = GL_CreateProgram (GLSL_PATH("blobshadow.vert"), GLSL_PATH("blobshadow.frag"), "blob shadow");
 
         glprogs.debug3d = GL_CreateProgram (GLSL_PATH("debug3d.vert"), GLSL_PATH("debug3d.frag"), "debug3d");
