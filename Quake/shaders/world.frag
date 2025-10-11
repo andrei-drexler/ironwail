@@ -274,7 +274,7 @@ void main()
                 }
         }
 
-        vec3 total_light = clamp(static_light * Overbright, 0.0, 1.0);
+        vec3 total_light = clamp(static_light, 0.0, 1.0);
 
         if (NumLights > 0u)
         {
@@ -319,12 +319,15 @@ void main()
                 }
         }
 #if DITHER >= 2
-        total_light = floor(total_light * 63. + 0.5) / 63.;
+        vec3 clamped_light = clamp(total_light, 0.0, 1.0);
+        vec3 total_lightmap = clamp(floor(clamped_light * 63. + 0.5) * (Overbright / 63.), 0.0, 1.0);
+#else
+        vec3 total_lightmap = clamp(total_light * Overbright, 0.0, 1.0);
 #endif
 #if MODE != 1
-	result.rgb = mix(result.rgb, result.rgb * total_light, result.a);
+        result.rgb = mix(result.rgb, result.rgb * total_lightmap, result.a);
 #else
-	result.rgb *= total_light;
+        result.rgb *= total_lightmap;
 #endif
 	result.rgb += fullbright;
 	result = clamp(result, 0.0, 1.0);
