@@ -5,24 +5,9 @@
 	layout(binding=1) uniform sampler2D FullbrightTex;
 #endif
 layout(binding=2) uniform sampler2D LMTex;
+layout(binding=3) uniform sampler2DShadow ShadowMap;
 
-layout(std140, binding=0) uniform FrameDataUBO
-{
-	mat4	ViewProj;
-	vec4	Fog;
-	vec4	SkyFog;
-	vec3	WindDir;
-	float	WindPhase;
-	float	ScreenDither;
-	float	TextureDither;
-	float	Overbright;
-	float	_Pad0;
-	vec3	EyePos;
-	float	Time;
-	float	ZLogScale;
-	float	ZLogBias;
-	uint	NumLights;
-};
+#include "shadow_common.glsl"
 
 vec3 ApplyFog(vec3 clr, vec3 p)
 {
@@ -76,7 +61,8 @@ struct Call
 const uint
 	CF_USE_POLYGON_OFFSET = 1u,
 	CF_USE_FULLBRIGHT = 2u,
-	CF_NOLIGHTMAP = 4u
+	CF_NOLIGHTMAP = 4u,
+	CF_ALPHA_TEST = 8u
 ;
 
 layout(std430, binding=1) restrict readonly buffer CallBuffer
@@ -153,6 +139,50 @@ float tri(float x)
 #define DITHER_NOISE(uv) tri(bayer01(ivec2(uv)))
 #define SCREEN_SPACE_NOISE() DITHER_NOISE(floor(gl_FragCoord.xy)+0.5)
 #define SUPPRESS_BANDING() bayer(ivec2(gl_FragCoord.xy))
+
+float EvaluateShadow(vec3 world_pos, vec3 normal, vec3 light_dir)
+{
+	vec4 shadow_clip = ShadowViewProj * vec4(world_pos, 1.0);
+	if (shadow_clip.w <= 0.0)
+		return 1.0;
+	vec3 shadow_coord = shadow_clip.xyz / shadow_clip.w;
+#if !REVERSED_Z
+	shadow_coord.z = shadow_coord.z * 0.5 + 0.5;
+#endif
+	shadow_coord.xy = shadow_coord.xy * 0.5 + 0.5;
+	float ndotl = max(dot(normal, light_dir), 0.0);
+	float bias = ShadowParams.x + ShadowParams.y * ShadowParams.z * (1.0 - ndotl);
+#if REVERSED_Z
+	shadow_coord.z -= bias;
+#else
+	shadow_coord.z += bias;
+#endif
+	if (shadow_coord.x < 0.0 || shadow_coord.x > 1.0 || shadow_coord.y < 0.0 || shadow_coord.y > 1.0)
+		return 1.0;
+	if (shadow_coord.z <= 0.0 || shadow_coord.z >= 1.0)
+		return 1.0;
+	shadow_coord.z = clamp(shadow_coord.z, 0.0, 1.0);
+	return texture(ShadowMap, shadow_coord);
+}
+
+vec3 ComputeSunLight(vec3 world_pos, vec3 normal)
+{
+	if (ShadowParams.w <= 0.5)
+		return vec3(0.0);
+	vec3 light_dir = ShadowSunDir.xyz;
+	float len_dir = length(light_dir);
+	if (len_dir <= 0.0)
+		return vec3(0.0);
+	light_dir /= len_dir;
+	float ndotl = max(dot(normal, light_dir), 0.0);
+	if (ndotl <= 0.0)
+		return vec3(0.0);
+	float intensity = ShadowSunDir.w;
+	if (intensity > 1.0)
+		intensity *= (1.0 / 255.0);
+	float visibility = EvaluateShadow(world_pos, normal, light_dir);
+	return ShadowSunColor.rgb * intensity * ndotl * visibility;
+}
 
 layout(location=0) flat in uint in_flags;
 layout(location=1) flat in float in_alpha;
@@ -274,6 +304,11 @@ void main()
                 }
         }
 
+        vec3 surface_normal = vec3(0.0, 0.0, 1.0);
+        vec3 surface_normal_vec = cross(dFdx(in_pos), dFdy(in_pos));
+        float surface_normal_len = length(surface_normal_vec);
+        if (surface_normal_len > 0.0)
+                surface_normal = surface_normal_vec / surface_normal_len;
         vec3 total_light = clamp(static_light, 0.0, 1.0);
 
         if (NumLights > 0u)
@@ -292,7 +327,7 @@ void main()
 #endif // SHOW_ACTIVE_LIGHT_CLUSTERS
 			vec3 dynamic_light = vec3(0.);
 			vec4 plane;
-			plane.xyz = normalize(cross(dFdx(in_pos), dFdy(in_pos)));
+			plane.xyz = surface_normal;
 			plane.w = dot(in_pos, plane.xyz);
 			for (i = 0u, ofs = 0u; i < 2u; i++, ofs += 32u)
 			{
@@ -318,6 +353,9 @@ void main()
                         total_light += max(min(dynamic_light, 1. - total_light), 0.);
                 }
         }
+
+        vec3 sun_light = ComputeSunLight(in_pos, surface_normal);
+        total_light += max(min(sun_light, 1. - total_light), 0.);
 #if DITHER >= 2
         vec3 clamped_light = clamp(total_light, 0.0, 1.0);
         vec3 total_lightmap = clamp(floor(clamped_light * 63. + 0.5) * (Overbright / 63.), 0.0, Overbright);

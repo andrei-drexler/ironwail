@@ -639,11 +639,12 @@ Called when vid_fsaa changes
 */
 static void VID_FSAA_f (cvar_t *cvar)
 {
-	if (!host_initialized)
-		return;
-	GL_DeleteFrameBuffers ();
-	GL_CreateFrameBuffers ();
-	gl_lodbias.callback (&gl_lodbias);
+        if (!host_initialized)
+                return;
+        GL_DeleteFrameBuffers ();
+        GL_CreateFrameBuffers ();
+        R_ResizeShadowMapIfNeeded ();
+        gl_lodbias.callback (&gl_lodbias);
 }
 
 /*
@@ -1317,10 +1318,11 @@ static void GL_Init (void)
 	}
 	//johnfitz
 
-	GL_CreateShaders ();
-	GL_CreateFrameBuffers ();
-	GLLight_CreateResources ();
-	GLPalette_CreateResources ();
+        GL_CreateShaders ();
+        GL_CreateFrameBuffers ();
+        R_InitShadow ();
+        GLLight_CreateResources ();
+        GLPalette_CreateResources ();
 
 	GL_ClearBufferBindings ();
 	GL_CreateFrameResources ();
@@ -1333,11 +1335,11 @@ GL_BeginRendering -- sets values of glx, gly, glwidth, glheight
 */
 void GL_BeginRendering (int *x, int *y, int *width, int *height)
 {
-	if (vid.resized)
-	{
-		vid.resized = false;
-		vid.recalc_refdef = true;
-		if (vid_saveresize.value)
+        if (vid.resized)
+        {
+                vid.resized = false;
+                vid.recalc_refdef = true;
+                if (vid_saveresize.value)
 		{
 			qboolean was_locked = vid_locked;
 			vid_locked = true; // avoid "vid_width will be applied after a vid_restart" spam
@@ -1345,10 +1347,11 @@ void GL_BeginRendering (int *x, int *y, int *width, int *height)
 			Cvar_SetValueQuick (&vid_height, vid.height);
 			vid_locked = was_locked;
 		}
-		VID_RecalcInterfaceSize ();
-		GL_DeleteFrameBuffers ();
-		GL_CreateFrameBuffers ();
-	}
+                VID_RecalcInterfaceSize ();
+                GL_DeleteFrameBuffers ();
+                GL_CreateFrameBuffers ();
+                R_ResizeShadowMapIfNeeded ();
+        }
 
 	*x = *y = 0;
 	*width = vid.width;
@@ -1389,6 +1392,7 @@ void	VID_Shutdown (void)
 {
 	if (vid_initialized)
 	{
+		R_ShutdownShadow ();
 		VID_FreeMouseCursors();
 		SDL_GL_DeleteContext(gl_context);
 		gl_context = NULL;

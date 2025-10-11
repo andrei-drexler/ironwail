@@ -212,25 +212,160 @@ static GLuint GL_CreateProgramFromShaders (const GLuint *shaders, int numshaders
 GL_CreateProgramFromSources
 ====================
 */
-static char *GL_LoadShaderFile (const char *path)
+static char *GL_LoadShaderFile_Internal (const char *path, int depth)
 {
+        size_t capacity, result_len;
+        char *result;
+        char *source;
+        const char *cursor;
         int i;
+
         for (i = 0; i < shader_cache_count; i++)
         {
                 if (!strcmp (shader_cache[i].path, path))
                         return shader_cache[i].data;
         }
 
+        if (depth >= 32)
+                Sys_Error ("GL_LoadShaderFile: include depth overflow for %s", path);
+
         if (shader_cache_count == countof(shader_cache))
                 Sys_Error ("GL_LoadShaderFile: shader cache overflow");
 
-        shader_cache[shader_cache_count].data = (char *) COM_LoadMallocFile (path, NULL);
-        if (!shader_cache[shader_cache_count].data)
+        source = (char *) COM_LoadMallocFile (path, NULL);
+        if (!source)
                 GL_InitError ("Unable to load shader file %s", path);
 
-        q_strlcpy (shader_cache[shader_cache_count].path, path, sizeof (shader_cache[shader_cache_count].path));
+        capacity = strlen (source) + 1;
+        if (capacity < 64)
+                capacity = 64;
+        result = (char *) malloc (capacity);
+        if (!result)
+                Sys_Error ("GL_LoadShaderFile: out of memory processing %s", path);
+        result[0] = '\0';
+        result_len = 0;
 
-        return shader_cache[shader_cache_count++].data;
+#define APPEND_STR(srcptr, srclen)                                                     \
+        do                                                                             \
+        {                                                                              \
+                size_t _need = (srclen);                                               \
+                while (result_len + _need + 1 > capacity)                              \
+                {                                                                      \
+                        size_t _newcap = capacity * 2;                                 \
+                        char *_newbuf = (char *) realloc (result, _newcap);            \
+                        if (!_newbuf)                                                  \
+                        {                                                              \
+                                free (result);                                         \
+                                free (source);                                         \
+                                Sys_Error ("GL_LoadShaderFile: realloc failed for %s", path); \
+                        }                                                              \
+                        result = _newbuf;                                              \
+                        capacity = _newcap;                                            \
+                }                                                                      \
+                memcpy (result + result_len, (srcptr), _need);                         \
+                result_len += _need;                                                   \
+                result[result_len] = '\0';                                             \
+        } while (0)
+
+        cursor = source;
+        while (*cursor)
+        {
+                const char *line_start = cursor;
+                const char *line_end = strchr (cursor, '\n');
+                size_t line_len = line_end ? (size_t) (line_end - cursor + 1) : strlen (cursor);
+                const char *trim = line_start;
+
+                while (trim < line_start + line_len && (*trim == ' ' || *trim == '\t' || *trim == '\r'))
+                        trim++;
+
+                if ((size_t) (line_start + line_len - trim) >= 8 && !strncmp (trim, "#include", 8))
+                {
+                        const char *ptr = trim + 8;
+                        char delim = '\0';
+
+                        while (ptr < line_start + line_len && (*ptr == ' ' || *ptr == '\t'))
+                                ptr++;
+                        if (ptr < line_start + line_len && (*ptr == '"' || *ptr == '<'))
+                        {
+                                delim = (*ptr == '<') ? '>' : '"';
+                                ptr++;
+                        }
+
+                        if (delim)
+                        {
+                                const char *end = ptr;
+                                while (end < line_start + line_len && *end != delim)
+                                        end++;
+                                if (end < line_start + line_len)
+                                {
+                                        char include_path[MAX_QPATH];
+                                        char full_path[MAX_QPATH];
+                                        char basedir[MAX_QPATH];
+                                        size_t include_len = (size_t) (end - ptr);
+                                        char *slash;
+                                        char *included;
+
+                                        if (include_len >= sizeof (include_path))
+                                        {
+                                                free (result);
+                                                free (source);
+                                                Sys_Error ("GL_LoadShaderFile: include path too long in %s", path);
+                                        }
+
+                                        memcpy (include_path, ptr, include_len);
+                                        include_path[include_len] = '\0';
+
+                                        q_strlcpy (basedir, path, sizeof (basedir));
+                                        slash = strrchr (basedir, '/');
+#if defined(_WIN32)
+                                        if (!slash)
+                                                slash = strrchr (basedir, '\\');
+#endif
+                                        if (slash)
+                                                slash[1] = '\0';
+                                        else
+                                                basedir[0] = '\0';
+
+                                        q_strlcpy (full_path, basedir, sizeof (full_path));
+                                        if (q_strlcat (full_path, include_path, sizeof (full_path)) >= sizeof (full_path))
+                                        {
+                                                free (result);
+                                                free (source);
+                                                Sys_Error ("GL_LoadShaderFile: include path overflow in %s", path);
+                                        }
+
+                                        included = GL_LoadShaderFile_Internal (full_path, depth + 1);
+                                        if (included)
+                                        {
+                                                APPEND_STR (included, strlen (included));
+                                                if (line_end && (result_len == 0 || result[result_len - 1] != '\n'))
+                                                        APPEND_STR ("\n", 1);
+                                        }
+
+                                        cursor = line_end ? line_end + 1 : cursor + line_len;
+                                        continue;
+                                }
+                        }
+                }
+
+                APPEND_STR (line_start, line_len);
+                cursor = line_end ? line_end + 1 : cursor + line_len;
+        }
+
+#undef APPEND_STR
+
+        free (source);
+
+        shader_cache[shader_cache_count].data = result;
+        q_strlcpy (shader_cache[shader_cache_count].path, path, sizeof (shader_cache[shader_cache_count].path));
+        shader_cache_count++;
+
+        return result;
+}
+
+static char *GL_LoadShaderFile (const char *path)
+{
+        return GL_LoadShaderFile_Internal (path, 0);
 }
 
 static GLuint GL_CreateProgramFromFiles (int count, const char **paths, const GLenum *types, const char *name, va_list argptr)
@@ -409,6 +544,7 @@ void GL_CreateShaders (void)
                                         glprogs.alias[oit][mode][alphatest][md5] =
                                                 GL_CreateProgram (GLSL_PATH("alias.vert"), GLSL_PATH("alias.frag"), "alias|OIT %d; MODE %d; ALPHATEST %d; MD5 %d", oit, mode, alphatest, md5);
 
+        glprogs.shadow_depth = GL_CreateProgram (GLSL_PATH("shadow_depth.vs"), GLSL_PATH("shadow_depth.fs"), "shadow depth");
         glprogs.blobshadow = GL_CreateProgram (GLSL_PATH("blobshadow.vert"), GLSL_PATH("blobshadow.frag"), "blob shadow");
 
         glprogs.debug3d = GL_CreateProgram (GLSL_PATH("debug3d.vert"), GLSL_PATH("debug3d.frag"), "debug3d");

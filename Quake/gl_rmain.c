@@ -69,6 +69,9 @@ int		d_lightstylevalue[256];	// 8.8 fraction of base light value
 cvar_t	r_norefresh = {"r_norefresh","0",CVAR_NONE};
 cvar_t	r_drawentities = {"r_drawentities","1",CVAR_NONE};
 cvar_t	r_shadows = {"r_shadows", "0", CVAR_ARCHIVE};
+cvar_t	r_shadow_map_size = {"r_shadow_map_size", "2048", CVAR_ARCHIVE};
+cvar_t	r_shadow_bias = {"r_shadow_bias", "0.0005", CVAR_ARCHIVE};
+cvar_t	r_shadow_slope_bias = {"r_shadow_slope_bias", "2.0", CVAR_ARCHIVE};
 cvar_t	r_drawviewmodel = {"r_drawviewmodel","1",CVAR_NONE};
 cvar_t	r_speeds = {"r_speeds","0",CVAR_NONE};
 cvar_t	r_pos = {"r_pos","0",CVAR_NONE};
@@ -133,6 +136,30 @@ float	map_fallbackalpha;
 qboolean r_fullbright_cheatsafe, r_lightmap_cheatsafe, r_drawworld_cheatsafe; //johnfitz
 
 cvar_t	r_scale = {"r_scale", "1", CVAR_ARCHIVE};
+
+static const vec3_t shadow_default_direction = {-0.57735027f, -0.57735027f, -0.57735027f};
+
+typedef struct shadow_state_s {
+	GLuint	fbo;
+	GLuint	depth_texture;
+	int		size;
+	qboolean	ready;
+	qboolean	enabled;
+	vec3_t	direction;
+	vec3_t	color;
+	float	intensity;
+	float	viewproj[16];
+} shadow_state_t;
+
+static shadow_state_t shadow_state;
+static vec3_t shadow_pending_angles;
+static qboolean shadow_has_angles;
+static vec3_t shadow_pending_color;
+static qboolean shadow_has_color;
+static float shadow_pending_intensity;
+static qboolean shadow_has_intensity;
+static float shadow_view_znear;
+static float shadow_view_zfar;
 
 //==============================================================================
 //
@@ -296,22 +323,490 @@ GL_DeleteFrameBuffers
 */
 void GL_DeleteFrameBuffers (void)
 {
-	GL_DeleteFramebuffersFunc (1, &framebufs.resolved_scene.fbo);
-	GL_DeleteFramebuffersFunc (1, &framebufs.oit.fbo_composite);
-	GL_DeleteFramebuffersFunc (1, &framebufs.oit.fbo_scene);
-	GL_DeleteFramebuffersFunc (1, &framebufs.scene.fbo);
-	GL_DeleteFramebuffersFunc (1, &framebufs.composite.fbo);
-	GL_BindFramebufferFunc (GL_FRAMEBUFFER, 0);
+        GL_DeleteFramebuffersFunc (1, &framebufs.resolved_scene.fbo);
+        GL_DeleteFramebuffersFunc (1, &framebufs.oit.fbo_composite);
+        GL_DeleteFramebuffersFunc (1, &framebufs.oit.fbo_scene);
+        GL_DeleteFramebuffersFunc (1, &framebufs.scene.fbo);
+        GL_DeleteFramebuffersFunc (1, &framebufs.composite.fbo);
+        GL_BindFramebufferFunc (GL_FRAMEBUFFER, 0);
 
-	GL_DeleteNativeTexture (framebufs.resolved_scene.color_tex);
-	GL_DeleteNativeTexture (framebufs.oit.revealage_tex);
-	GL_DeleteNativeTexture (framebufs.oit.accum_tex);
-	GL_DeleteNativeTexture (framebufs.scene.depth_stencil_tex);
-	GL_DeleteNativeTexture (framebufs.scene.color_tex);
-	GL_DeleteNativeTexture (framebufs.composite.depth_stencil_tex);
-	GL_DeleteNativeTexture (framebufs.composite.color_tex);
+        GL_DeleteNativeTexture (framebufs.resolved_scene.color_tex);
+        GL_DeleteNativeTexture (framebufs.oit.revealage_tex);
+        GL_DeleteNativeTexture (framebufs.oit.accum_tex);
+        GL_DeleteNativeTexture (framebufs.scene.depth_stencil_tex);
+        GL_DeleteNativeTexture (framebufs.scene.color_tex);
+        GL_DeleteNativeTexture (framebufs.composite.depth_stencil_tex);
+        GL_DeleteNativeTexture (framebufs.composite.color_tex);
 
-	memset (&framebufs, 0, sizeof (framebufs));
+        memset (&framebufs, 0, sizeof (framebufs));
+}
+
+static void GL_OrthoMatrix (float matrix[16], float left, float right, float bottom, float top, float n, float f)
+{
+        float rl = right - left;
+        float tb = top - bottom;
+        float fn = f - n;
+
+        memset (matrix, 0, 16 * sizeof (float));
+
+        if (rl == 0.f || tb == 0.f || fn == 0.f)
+        {
+                IdentityMatrix (matrix);
+                return;
+        }
+
+        matrix[0*4 + 0] = 2.f / rl;
+        matrix[1*4 + 1] = 2.f / tb;
+        if (gl_clipcontrol_able)
+        {
+                matrix[2*4 + 2] = 1.f / (n - f);
+                matrix[3*4 + 2] = n / (n - f);
+        }
+        else
+        {
+                matrix[2*4 + 2] = -2.f / fn;
+                matrix[3*4 + 2] = -(f + n) / fn;
+        }
+        matrix[3*4 + 0] = -(right + left) / rl;
+        matrix[3*4 + 1] = -(top + bottom) / tb;
+        matrix[3*4 + 3] = 1.f;
+}
+
+static int R_ShadowClampSize (int size)
+{
+        if (size <= 1024)
+                return 1024;
+        if (size <= 2048)
+                return 2048;
+        return 4096;
+}
+
+static void R_ShadowDestroyResources (void)
+{
+        if (shadow_state.fbo)
+        {
+                GL_DeleteFramebuffersFunc (1, &shadow_state.fbo);
+                shadow_state.fbo = 0;
+        }
+        if (shadow_state.depth_texture)
+        {
+                GL_DeleteNativeTexture (shadow_state.depth_texture);
+                shadow_state.depth_texture = 0;
+        }
+        shadow_state.ready = false;
+        shadow_state.enabled = false;
+        shadow_state.size = 0;
+}
+
+void R_InitShadow (void)
+{
+        memset (&shadow_state, 0, sizeof (shadow_state));
+        VectorCopy (shadow_default_direction, shadow_state.direction);
+        shadow_state.color[0] = shadow_state.color[1] = shadow_state.color[2] = 1.f;
+        shadow_state.intensity = 1.f;
+        R_ShadowNewMap ();
+        R_ResizeShadowMapIfNeeded ();
+}
+
+void R_ShutdownShadow (void)
+{
+        R_ShadowDestroyResources ();
+}
+
+void R_ResizeShadowMapIfNeeded (void)
+{
+        int desired;
+
+        desired = R_ShadowClampSize ((int) Q_rint (r_shadow_map_size.value));
+        if (desired != (int) r_shadow_map_size.value)
+                Cvar_SetValueQuick (&r_shadow_map_size, (float) desired);
+
+        if (shadow_state.ready && shadow_state.size == desired)
+                return;
+
+        R_ShadowDestroyResources ();
+        shadow_state.size = desired;
+
+        if (!desired)
+                return;
+
+        glGenTextures (1, &shadow_state.depth_texture);
+        if (!shadow_state.depth_texture)
+                return;
+
+        GL_BindNative (GL_TEXTURE0, GL_TEXTURE_2D, shadow_state.depth_texture);
+        GL_ObjectLabelFunc (GL_TEXTURE, shadow_state.depth_texture, -1, "shadow depth");
+        glTexImage2D (GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, desired, desired, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
+        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, gl_clipcontrol_able ? GL_GEQUAL : GL_LEQUAL);
+        {
+                const float border[4] = {1.f, 1.f, 1.f, 1.f};
+                glTexParameterfv (GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, border);
+        }
+        GL_BindNative (GL_TEXTURE0, GL_TEXTURE_2D, 0);
+
+        GL_GenFramebuffersFunc (1, &shadow_state.fbo);
+        GL_BindFramebufferFunc (GL_FRAMEBUFFER, shadow_state.fbo);
+        GL_ObjectLabelFunc (GL_FRAMEBUFFER, shadow_state.fbo, -1, "shadow fbo");
+        GL_FramebufferTexture2DFunc (GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadow_state.depth_texture, 0);
+        glDrawBuffer (GL_NONE);
+        glReadBuffer (GL_NONE);
+
+        if (GL_CheckFramebufferStatusFunc (GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        {
+                Con_Printf ("Failed to create shadow framebuffer
+");
+                GL_BindFramebufferFunc (GL_FRAMEBUFFER, 0);
+                glDrawBuffer (GL_BACK);
+                glReadBuffer (GL_BACK);
+                R_ShadowDestroyResources ();
+                shadow_state.size = 0;
+                return;
+        }
+
+        GL_BindFramebufferFunc (GL_FRAMEBUFFER, 0);
+        glDrawBuffer (GL_BACK);
+        glReadBuffer (GL_BACK);
+
+        shadow_state.ready = true;
+}
+
+void R_ShadowNewMap (void)
+{
+        shadow_has_angles = false;
+        shadow_has_color = false;
+        shadow_has_intensity = false;
+        VectorCopy (shadow_default_direction, shadow_state.direction);
+        shadow_state.color[0] = shadow_state.color[1] = shadow_state.color[2] = 1.f;
+        shadow_state.intensity = 1.f;
+        VectorClear (shadow_pending_angles);
+        VectorClear (shadow_pending_color);
+        shadow_pending_intensity = 1.f;
+        shadow_state.enabled = false;
+}
+
+void R_ShadowParseWorldspawnKey (const char *key, const char *value)
+{
+        if (!strcmp (key, "sun_mangle") || !strcmp (key, "_sun_mangle"))
+        {
+                float pitch, yaw, roll;
+                if (sscanf (value, "%f %f %f", &pitch, &yaw, &roll) == 3)
+                {
+                        shadow_pending_angles[0] = pitch;
+                        shadow_pending_angles[1] = yaw;
+                        shadow_pending_angles[2] = roll;
+                        shadow_has_angles = true;
+                }
+        }
+        else if (!strcmp (key, "sunlight") || !strcmp (key, "_sunlight"))
+        {
+                shadow_pending_intensity = (float) atof (value);
+                shadow_has_intensity = true;
+        }
+        else if (!strcmp (key, "sunlight_color") || !strcmp (key, "_sunlight_color"))
+        {
+                float r, g, b;
+                if (sscanf (value, "%f %f %f", &r, &g, &b) == 3)
+                {
+                        shadow_pending_color[0] = r;
+                        shadow_pending_color[1] = g;
+                        shadow_pending_color[2] = b;
+                        shadow_has_color = true;
+                }
+        }
+}
+
+void R_ShadowFinalizeWorldspawn (void)
+{
+        vec3_t dir;
+
+        if (shadow_has_angles)
+        {
+                AngleVectors (shadow_pending_angles, dir, NULL, NULL);
+                if (VectorNormalize (dir) == 0.f)
+                        VectorCopy (shadow_default_direction, dir);
+        }
+        else
+        {
+                VectorCopy (shadow_default_direction, dir);
+        }
+        VectorCopy (dir, shadow_state.direction);
+
+        if (shadow_has_color)
+        {
+                vec3_t color;
+                VectorCopy (shadow_pending_color, color);
+                if (color[0] > 1.f || color[1] > 1.f || color[2] > 1.f)
+                {
+                        color[0] *= (1.f / 255.f);
+                        color[1] *= (1.f / 255.f);
+                        color[2] *= (1.f / 255.f);
+                }
+                shadow_state.color[0] = CLAMP (0.f, color[0], 1.f);
+                shadow_state.color[1] = CLAMP (0.f, color[1], 1.f);
+                shadow_state.color[2] = CLAMP (0.f, color[2], 1.f);
+        }
+        else
+        {
+                shadow_state.color[0] = shadow_state.color[1] = shadow_state.color[2] = 1.f;
+        }
+
+        if (shadow_has_intensity)
+                shadow_state.intensity = shadow_pending_intensity;
+        else
+                shadow_state.intensity = 1.f;
+}
+
+void R_ShadowCvarChanged (cvar_t *var)
+{
+        if (var == &r_shadow_map_size)
+        {
+                int desired = R_ShadowClampSize ((int) Q_rint (var->value));
+                if (desired != (int) var->value)
+                        Cvar_SetValueQuick (var, (float) desired);
+                if (host_initialized)
+                        R_ResizeShadowMapIfNeeded ();
+        }
+        else if (var == &r_shadow_bias)
+        {
+                if (var->value < 0.f)
+                        Cvar_SetValueQuick (var, 0.f);
+        }
+        else if (var == &r_shadow_slope_bias)
+        {
+                if (var->value < 0.f)
+                        Cvar_SetValueQuick (var, 0.f);
+        }
+}
+
+GLuint R_ShadowTexture (void)
+{
+        return shadow_state.depth_texture;
+}
+
+static qboolean R_ShadowComputeMatrices (float out_vp[16])
+{
+        vec3_t forward, right, up;
+        vec3_t up_candidate;
+        vec3_t center_world;
+        vec3_t corners[8];
+        vec3_t center_light;
+        vec3_t center_world_snapped;
+        float radius;
+        float min_z, max_z;
+        float near_plane, far_plane;
+        float texel_size;
+        float rot[16];
+        float trans[16];
+        float view[16];
+        float proj[16];
+        int i;
+
+        if (!shadow_state.size)
+                return false;
+
+        VectorCopy (shadow_state.direction, forward);
+        if (VectorNormalize (forward) == 0.f)
+                return false;
+
+        VectorSet (up_candidate, 0.f, 0.f, 1.f);
+        if (fabs (DotProduct (forward, up_candidate)) > 0.95f)
+                VectorSet (up_candidate, 0.f, 1.f, 0.f);
+        CrossProduct (forward, up_candidate, right);
+        if (VectorNormalize (right) == 0.f)
+                return false;
+        CrossProduct (right, forward, up);
+
+        if (shadow_view_znear <= 0.f || shadow_view_zfar <= shadow_view_znear)
+                return false;
+
+        {
+                float near_dist = shadow_view_znear;
+                float far_dist = shadow_view_zfar;
+                float tan_fov_x = tanf (DEG2RAD (r_fovx) * 0.5f);
+                float tan_fov_y = tanf (DEG2RAD (r_fovy) * 0.5f);
+                vec3_t center_near, center_far;
+                vec3_t up_near, right_near, up_far, right_far;
+
+                VectorMA (r_refdef.vieworg, near_dist, vpn, center_near);
+                VectorMA (r_refdef.vieworg, far_dist, vpn, center_far);
+                VectorScale (vup, near_dist * tan_fov_y, up_near);
+                VectorScale (vright, near_dist * tan_fov_x, right_near);
+                VectorScale (vup, far_dist * tan_fov_y, up_far);
+                VectorScale (vright, far_dist * tan_fov_x, right_far);
+
+                VectorAdd (center_near, up_near, corners[0]);
+                VectorSubtract (corners[0], right_near, corners[0]);
+                VectorAdd (center_near, up_near, corners[1]);
+                VectorAdd (corners[1], right_near, corners[1]);
+                VectorSubtract (center_near, up_near, corners[2]);
+                VectorAdd (corners[2], right_near, corners[2]);
+                VectorSubtract (center_near, up_near, corners[3]);
+                VectorSubtract (corners[3], right_near, corners[3]);
+
+                VectorAdd (center_far, up_far, corners[4]);
+                VectorSubtract (corners[4], right_far, corners[4]);
+                VectorAdd (center_far, up_far, corners[5]);
+                VectorAdd (corners[5], right_far, corners[5]);
+                VectorSubtract (center_far, up_far, corners[6]);
+                VectorAdd (corners[6], right_far, corners[6]);
+                VectorSubtract (center_far, up_far, corners[7]);
+                VectorSubtract (corners[7], right_far, corners[7]);
+        }
+
+        VectorClear (center_world);
+        for (i = 0; i < 8; i++)
+                VectorAdd (center_world, corners[i], center_world);
+        VectorScale (center_world, 1.f / 8.f, center_world);
+
+        center_light[0] = DotProduct (center_world, right);
+        center_light[1] = DotProduct (center_world, up);
+        center_light[2] = DotProduct (center_world, forward);
+
+        radius = 0.f;
+        min_z = 1e30f;
+        max_z = -1e30f;
+        for (i = 0; i < 8; i++)
+        {
+                float rx = DotProduct (corners[i], right);
+                float ry = DotProduct (corners[i], up);
+                float rz = DotProduct (corners[i], forward);
+                float dx = rx - center_light[0];
+                float dy = ry - center_light[1];
+                float dist = sqrtf (dx * dx + dy * dy);
+                if (dist > radius)
+                        radius = dist;
+                if (rz < min_z)
+                        min_z = rz;
+                if (rz > max_z)
+                        max_z = rz;
+        }
+
+        if (radius <= 0.f)
+                radius = 1.f;
+
+        texel_size = (radius * 2.f) / (float) shadow_state.size;
+        if (texel_size > 0.f)
+        {
+                center_light[0] = floorf (center_light[0] / texel_size + 0.5f) * texel_size;
+                center_light[1] = floorf (center_light[1] / texel_size + 0.5f) * texel_size;
+        }
+
+        for (i = 0; i < 3; i++)
+        {
+                center_world_snapped[i] = right[i] * center_light[0] + up[i] * center_light[1] + forward[i] * center_light[2];
+        }
+
+        min_z -= center_light[2];
+        max_z -= center_light[2];
+        near_plane = min_z - 128.f;
+        far_plane = max_z + 128.f;
+        if (far_plane <= near_plane + 1.f)
+                far_plane = near_plane + 1.f;
+
+        IdentityMatrix (rot);
+        rot[0] = right[0];
+        rot[1] = right[1];
+        rot[2] = right[2];
+        rot[4] = up[0];
+        rot[5] = up[1];
+        rot[6] = up[2];
+        rot[8] = -forward[0];
+        rot[9] = -forward[1];
+        rot[10] = -forward[2];
+        rot[15] = 1.f;
+
+        TranslationMatrix (trans, -center_world_snapped[0], -center_world_snapped[1], -center_world_snapped[2]);
+        memcpy (view, rot, sizeof (rot));
+        MatrixMultiply (view, trans);
+
+        GL_OrthoMatrix (proj, -radius, radius, -radius, radius, near_plane, far_plane);
+        memcpy (out_vp, proj, sizeof (proj));
+        MatrixMultiply (out_vp, view);
+
+        return true;
+}
+
+void R_BuildShadowMap (void)
+{
+        entity_t **entlist;
+        int *ofs;
+        float light_vp[16];
+        vec3_t sun_dir;
+
+        shadow_state.enabled = false;
+
+        r_framedata.shadow_params[0] = q_max (0.f, r_shadow_bias.value);
+        r_framedata.shadow_params[1] = q_max (0.f, r_shadow_slope_bias.value);
+        r_framedata.shadow_params[2] = shadow_state.size ? 1.f / (float) shadow_state.size : 0.f;
+        r_framedata.shadow_params[3] = 0.f;
+        memset (r_framedata.shadowviewproj, 0, sizeof (r_framedata.shadowviewproj));
+        memset (r_framedata.shadow_sundir, 0, sizeof (r_framedata.shadow_sundir));
+        memset (r_framedata.shadow_suncolor, 0, sizeof (r_framedata.shadow_suncolor));
+
+        if (!r_shadows.value || !shadow_state.ready || !cl.worldmodel)
+                return;
+        if (shadow_state.intensity <= 0.f)
+                return;
+        VectorCopy (shadow_state.direction, sun_dir);
+        if (VectorNormalize (sun_dir) == 0.f)
+                return;
+
+        if (!glprogs.shadow_depth)
+                return;
+        if (!R_ShadowComputeMatrices (light_vp))
+                return;
+
+        memcpy (shadow_state.viewproj, light_vp, sizeof (light_vp));
+        memcpy (r_framedata.shadowviewproj, light_vp, sizeof (light_vp));
+
+        r_framedata.shadow_params[3] = 1.f;
+        r_framedata.shadow_sundir[0] = -sun_dir[0];
+        r_framedata.shadow_sundir[1] = -sun_dir[1];
+        r_framedata.shadow_sundir[2] = -sun_dir[2];
+        r_framedata.shadow_sundir[3] = shadow_state.intensity;
+        r_framedata.shadow_suncolor[0] = shadow_state.color[0];
+        r_framedata.shadow_suncolor[1] = shadow_state.color[1];
+        r_framedata.shadow_suncolor[2] = shadow_state.color[2];
+        r_framedata.shadow_suncolor[3] = 0.f;
+
+        shadow_state.enabled = true;
+
+        GL_BeginGroup ("Shadow map");
+        GL_BindFramebufferFunc (GL_FRAMEBUFFER, shadow_state.fbo);
+        glViewport (0, 0, shadow_state.size, shadow_state.size);
+        glColorMask (GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+        glDepthMask (GL_TRUE);
+        glClear (GL_DEPTH_BUFFER_BIT);
+        glEnable (GL_POLYGON_OFFSET_FILL);
+        glEnable (GL_POLYGON_OFFSET_LINE);
+        glPolygonOffset (r_shadow_slope_bias.value, r_shadow_bias.value);
+
+        GL_UseProgram (glprogs.shadow_depth);
+        GL_SetState (GLS_BLEND_OPAQUE | GLS_CULL_FRONT | GLS_ATTRIBS(4));
+
+        entlist = cl_sorted_visedicts;
+        ofs = cl_modtype_ofs;
+        if (ofs[2 * mod_brush + 1] - ofs[2 * mod_brush] > 0)
+                R_DrawBrushModels_Shadow (entlist + ofs[2 * mod_brush], ofs[2 * mod_brush + 1] - ofs[2 * mod_brush], false);
+        ofs = cl_modtype_ofs + 1;
+        if (ofs[2 * mod_brush + 1] - ofs[2 * mod_brush] > 0)
+                R_DrawBrushModels_Shadow (entlist + ofs[2 * mod_brush], ofs[2 * mod_brush + 1] - ofs[2 * mod_brush], true);
+
+        GL_SetState (GLS_DEFAULT_STATE);
+        glDisable (GL_POLYGON_OFFSET_FILL);
+        glDisable (GL_POLYGON_OFFSET_LINE);
+        glColorMask (GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+        GL_BindFramebufferFunc (GL_FRAMEBUFFER, 0);
+        glDrawBuffer (GL_BACK);
+        glReadBuffer (GL_BACK);
+        GL_EndGroup ();
 }
 
 //==============================================================================
@@ -830,9 +1325,9 @@ R_SetFrustum
 */
 void R_SetFrustum (void)
 {
-	float w, h, d;
-	float znear, zfar;
-	float logznear, logzfar;
+        float w, h, d;
+        float znear, zfar;
+        float logznear, logzfar;
 	float translation[16];
 	float rotation[16];
 
@@ -840,10 +1335,13 @@ void R_SetFrustum (void)
 	w = 1.f / tanf (DEG2RAD (r_fovx) * 0.5f);
 	h = 1.f / tanf (DEG2RAD (r_fovy) * 0.5f);
 	d = 12.f * q_min (w, h);
-	znear = CLAMP (0.5f, d, 4.f);
-	zfar = gl_farclip.value;
+        znear = CLAMP (0.5f, d, 4.f);
+        zfar = gl_farclip.value;
 
-	GL_FrustumMatrix(r_matproj, DEG2RAD(r_fovx), DEG2RAD(r_fovy), znear, zfar);
+        shadow_view_znear = znear;
+        shadow_view_zfar = zfar;
+
+        GL_FrustumMatrix(r_matproj, DEG2RAD(r_fovx), DEG2RAD(r_fovy), znear, zfar);
 
 	// View matrix
 	RotationMatrix(r_matview, DEG2RAD(-r_refdef.viewangles[ROLL]), 0);
@@ -1043,11 +1541,13 @@ void R_SetupView (void)
 
 	R_SetFrustum ();
 
-	R_MarkSurfaces (); //johnfitz -- create texture chains from PVS
+        R_MarkSurfaces (); //johnfitz -- create texture chains from PVS
 
-	R_SortEntities ();
+        R_SortEntities ();
 
-	R_PushDlights ();
+        R_BuildShadowMap ();
+
+        R_PushDlights ();
 
 	//johnfitz -- cheat-protect some draw modes
 	r_fullbright_cheatsafe = r_lightmap_cheatsafe = false;
