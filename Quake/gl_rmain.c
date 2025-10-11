@@ -68,6 +68,7 @@ int		d_lightstylevalue[256];	// 8.8 fraction of base light value
 
 cvar_t	r_norefresh = {"r_norefresh","0",CVAR_NONE};
 cvar_t	r_drawentities = {"r_drawentities","1",CVAR_NONE};
+cvar_t	r_shadows = {"r_shadows", "0", CVAR_ARCHIVE};
 cvar_t	r_drawviewmodel = {"r_drawviewmodel","1",CVAR_NONE};
 cvar_t	r_speeds = {"r_speeds","0",CVAR_NONE};
 cvar_t	r_pos = {"r_pos","0",CVAR_NONE};

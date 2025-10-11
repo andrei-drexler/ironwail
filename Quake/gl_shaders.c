@@ -402,12 +402,14 @@ void GL_CreateShaders (void)
         }
         glprogs.skystencil = GL_CreateProgram (GLSL_PATH("skystencil.vert"), NULL, "sky stencil");
 
-	for (oit = 0; oit < 2; oit++)
-		for (mode = 0; mode < 3; mode++)
-			for (alphatest = 0; alphatest < 2; alphatest++)
-				for (md5 = 0; md5 < 2; md5++)
+        for (oit = 0; oit < 2; oit++)
+                for (mode = 0; mode < 3; mode++)
+                        for (alphatest = 0; alphatest < 2; alphatest++)
+                                for (md5 = 0; md5 < 2; md5++)
                                         glprogs.alias[oit][mode][alphatest][md5] =
                                                 GL_CreateProgram (GLSL_PATH("alias.vert"), GLSL_PATH("alias.frag"), "alias|OIT %d; MODE %d; ALPHATEST %d; MD5 %d", oit, mode, alphatest, md5);
+
+        glprogs.blobshadow = GL_CreateProgram (GLSL_PATH("blobshadow.vert"), GLSL_PATH("blobshadow.frag"), "blob shadow");
 
         glprogs.debug3d = GL_CreateProgram (GLSL_PATH("debug3d.vert"), GLSL_PATH("debug3d.frag"), "debug3d");
 

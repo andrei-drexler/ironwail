@@ -463,6 +463,8 @@ void R_DrawAliasModels (entity_t **ents, int count);
 void R_DrawSpriteModels (entity_t **ents, int count);
 void R_DrawBrushModels_ShowTris (entity_t **ents, int count);
 void R_DrawAliasModels_ShowTris (entity_t **ents, int count);
+void R_BlobShadows_Add (const entity_t *e, const vec3_t mins, const vec3_t maxs, float entalpha, float origin_z);
+void R_BlobShadows_Flush (void);
 void R_DrawSpriteModels_ShowTris (entity_t **ents, int count);
 
 entity_t **R_GetVisEntities (modtype_t type, qboolean translucent, int *outcount);
@@ -533,6 +535,7 @@ typedef struct glprogs_s {
 	GLuint		skyboxside[2];		// [dither]
 	GLuint		alias[2][3][2][2];	// [OIT][mode:standard/dithered/noperspective][alpha test][md5]
 	GLuint		sprites[2];			// [dither]
+	GLuint		blobshadow;
 	GLuint		particles[2][2];	// [OIT][dither]
 	GLuint		debug3d;
 
