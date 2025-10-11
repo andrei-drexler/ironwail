@@ -185,6 +185,7 @@ extern	const char	*gl_version;
 	x(void,			GenFramebuffers, (GLsizei n, GLuint *framebuffers))\
 	x(void,			DeleteFramebuffers, (GLsizei n, const GLuint *framebuffers))\
 	x(void,			FramebufferTexture2D, (GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level))\
+	x(void,			FramebufferTextureLayer, (GLenum target, GLenum attachment, GLuint texture, GLint level, GLint layer))\
 	x(GLenum,		CheckFramebufferStatus, (GLenum target))\
 	x(void,			BlitFramebuffer, (GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter))\
 	x(void,			DrawBuffers, (GLsizei n, const GLenum *bufs))\
@@ -434,12 +435,16 @@ typedef struct gpuframedata_s {
 	int		_padding2;
 	int		_padding3;
 	int		_padding4;
-	float	shadowviewproj[16];
+	float	shadowviewproj[4][16];
 	float	shadow_params[4];
 	float	shadow_filter[4];
 	float	shadow_vsm[4];
 	float	shadow_sundir[4];
 	float	shadow_suncolor[4];
+	float	shadow_cascade_splits[4];
+	float	shadow_cascade_starts[4];
+	float	shadow_cascade_fade[4];
+	float	shadow_debug[4];
 } gpuframedata_t;
 
 extern gpulightbuffer_t r_lightbuffer;
@@ -616,6 +621,13 @@ extern cvar_t	r_shadow_soft_dist_scale;
 extern cvar_t	r_shadow_normal_offset;
 extern cvar_t	r_shadow_vsm;
 extern cvar_t	r_shadow_vsm_bleed_reduce;
+extern cvar_t	r_shadow_csm;
+extern cvar_t	r_shadow_csm_splits;
+extern cvar_t	r_shadow_csm_stable;
+extern cvar_t	r_shadow_csm_fade;
+extern cvar_t	r_shadow_showcsm;
+extern cvar_t	r_shadow_showmap;
+extern cvar_t	r_shadow_quality;
 
 void R_InitShadow (void);
 void R_ShutdownShadow (void);
@@ -626,7 +638,11 @@ void R_ShadowFinalizeWorldspawn (void);
 void R_ShadowCvarChanged (cvar_t *var);
 void R_BuildShadowMap (void);
 GLuint R_ShadowTexture (void);
+GLenum R_ShadowTextureTarget (void);
 qboolean R_ShadowUsesVSM (void);
+qboolean R_ShadowCascadeCull (const vec3_t mins, const vec3_t maxs);
+void R_ShadowRecordDraw (void);
+void R_ShadowRecordCull (void);
 
 void GLLight_CreateResources (void);
 void GLLight_DeleteResources (void);
