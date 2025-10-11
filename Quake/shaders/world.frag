@@ -320,9 +320,9 @@ void main()
         }
 #if DITHER >= 2
         vec3 clamped_light = clamp(total_light, 0.0, 1.0);
-        vec3 total_lightmap = clamp(floor(clamped_light * 63. + 0.5) * (Overbright / 63.), 0.0, 1.0);
+        vec3 total_lightmap = clamp(floor(clamped_light * 63. + 0.5) * (Overbright / 63.), 0.0, Overbright);
 #else
-        vec3 total_lightmap = clamp(total_light * Overbright, 0.0, 1.0);
+        vec3 total_lightmap = clamp(total_light * Overbright, 0.0, Overbright);
 #endif
 #if MODE != 1
         result.rgb = mix(result.rgb, result.rgb * total_lightmap, result.a);
