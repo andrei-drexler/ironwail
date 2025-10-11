@@ -432,6 +432,12 @@ typedef struct gpuframedata_s {
 	float	zlogbias;
 	int		numlights;
 	int		_padding2;
+	int		_padding3;
+	int		_padding4;
+	float	shadowviewproj[16];
+	float	shadow_params[4];
+	float	shadow_sundir[4];
+	float	shadow_suncolor[4];
 } gpuframedata_t;
 
 extern gpulightbuffer_t r_lightbuffer;
@@ -455,6 +461,7 @@ void R_TranslateNewPlayerSkin (int playernum); //johnfitz -- this handles cases 
 void R_UploadFrameData (void);
 
 void R_DrawBrushModels (entity_t **ents, int count);
+void R_DrawBrushModels_Shadow (entity_t **ents, int count, qboolean translucent);
 void R_DrawBrushModels_Water (entity_t **ents, int count, qboolean translucent);
 void R_DrawBrushModels_SkyLayers (entity_t **ents, int count);
 void R_DrawBrushModels_SkyCubemap (entity_t **ents, int count);
@@ -538,6 +545,7 @@ typedef struct glprogs_s {
 	GLuint		blobshadow;
 	GLuint		particles[2][2];	// [OIT][dither]
 	GLuint		debug3d;
+	GLuint		shadow_depth;
 
 	/* compute */
 	GLuint		clear_indirect;
@@ -595,6 +603,20 @@ extern glframebufs_t framebufs;
 
 void GL_CreateFrameBuffers (void);
 void GL_DeleteFrameBuffers (void);
+
+extern cvar_t	r_shadow_map_size;
+extern cvar_t	r_shadow_bias;
+extern cvar_t	r_shadow_slope_bias;
+
+void R_InitShadow (void);
+void R_ShutdownShadow (void);
+void R_ResizeShadowMapIfNeeded (void);
+void R_ShadowNewMap (void);
+void R_ShadowParseWorldspawnKey (const char *key, const char *value);
+void R_ShadowFinalizeWorldspawn (void);
+void R_ShadowCvarChanged (cvar_t *var);
+void R_BuildShadowMap (void);
+GLuint R_ShadowTexture (void);
 
 void GLLight_CreateResources (void);
 void GLLight_DeleteResources (void);

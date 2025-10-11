@@ -4,23 +4,7 @@
 	layout(binding=0) uniform sampler2D Tex;
 #endif
 
-layout(std140, binding=0) uniform FrameDataUBO
-{
-	mat4	ViewProj;
-	vec4	Fog;
-	vec4	SkyFog;
-	vec3	WindDir;
-	float	WindPhase;
-	float	ScreenDither;
-	float	TextureDither;
-	float	Overbright;
-	float	_Pad0;
-	vec3	EyePos;
-	float	Time;
-	float	ZLogScale;
-	float	ZLogBias;
-	uint	NumLights;
-};
+#include "shadow_common.glsl"
 
 vec3 ApplyFog(vec3 clr, vec3 p)
 {

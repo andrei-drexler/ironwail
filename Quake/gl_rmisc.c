@@ -308,12 +308,18 @@ void R_Init (void)
 		cmd->completion = R_ShowbboxesFilter_Completion_f;
 	Cmd_AddCommand ("r_showbboxes_filter_clear", R_ShowbboxesFilterClear_f);
 
-	Cvar_RegisterVariable (&r_norefresh);
-	Cvar_RegisterVariable (&r_lightmap);
-	Cvar_RegisterVariable (&r_fullbright);
+        Cvar_RegisterVariable (&r_norefresh);
+        Cvar_RegisterVariable (&r_lightmap);
+        Cvar_RegisterVariable (&r_fullbright);
         Cvar_RegisterVariable (&r_drawentities);
         Cvar_RegisterVariable (&r_shadows);
-	Cvar_RegisterVariable (&r_drawviewmodel);
+        Cvar_RegisterVariable (&r_shadow_map_size);
+        Cvar_SetCallback (&r_shadow_map_size, R_ShadowCvarChanged);
+        Cvar_RegisterVariable (&r_shadow_bias);
+        Cvar_SetCallback (&r_shadow_bias, R_ShadowCvarChanged);
+        Cvar_RegisterVariable (&r_shadow_slope_bias);
+        Cvar_SetCallback (&r_shadow_slope_bias, R_ShadowCvarChanged);
+        Cvar_RegisterVariable (&r_drawviewmodel);
 	Cvar_RegisterVariable (&r_wateralpha);
 	Cvar_SetCallback (&r_wateralpha, R_SetWateralpha_f);
 	Cvar_RegisterVariable (&r_litwater);
@@ -499,20 +505,24 @@ static void R_ParseWorldspawn (void)
 		data = COM_ParseEx(data, CPE_ALLOWTRUNC);
 		if (!data)
 			return; // error
-		q_strlcpy(value, com_token, sizeof(value));
+                q_strlcpy(value, com_token, sizeof(value));
 
-		if (!strcmp("wateralpha", key))
-			map_wateralpha = atof(value);
+                if (!strcmp("wateralpha", key))
+                        map_wateralpha = atof(value);
 
-		if (!strcmp("lavaalpha", key))
-			map_lavaalpha = atof(value);
+                if (!strcmp("lavaalpha", key))
+                        map_lavaalpha = atof(value);
 
-		if (!strcmp("telealpha", key))
-			map_telealpha = atof(value);
+                if (!strcmp("telealpha", key))
+                        map_telealpha = atof(value);
 
-		if (!strcmp("slimealpha", key))
-				map_slimealpha = atof(value);
-	}
+                if (!strcmp("slimealpha", key))
+                                map_slimealpha = atof(value);
+
+                R_ShadowParseWorldspawnKey (key, value);
+        }
+
+        R_ShadowFinalizeWorldspawn ();
 }
 
 
@@ -534,16 +544,18 @@ void R_NewMap (void)
 	VEC_CLEAR (r_pointfile);
 
 	GL_BuildLightmaps ();
-	GL_BuildBModelVertexBuffer ();
-	GL_BuildBModelMarkBuffers ();
-	//ericw -- no longer load alias models into a VBO here, it's done in Mod_LoadAliasModel
+        GL_BuildBModelVertexBuffer ();
+        GL_BuildBModelMarkBuffers ();
+        //ericw -- no longer load alias models into a VBO here, it's done in Mod_LoadAliasModel
 
-	r_framecount = 0; //johnfitz -- paranoid?
-	r_visframecount = 0; //johnfitz -- paranoid?
+        r_framecount = 0; //johnfitz -- paranoid?
+        r_visframecount = 0; //johnfitz -- paranoid?
 
-	Sky_NewMap (); //johnfitz -- skybox in worldspawn
-	Fog_NewMap (); //johnfitz -- global fog in worldspawn
-	R_ParseWorldspawn (); //ericw -- wateralpha, lavaalpha, telealpha, slimealpha in worldspawn
+        R_ShadowNewMap ();
+
+        Sky_NewMap (); //johnfitz -- skybox in worldspawn
+        Fog_NewMap (); //johnfitz -- global fog in worldspawn
+        R_ParseWorldspawn (); //ericw -- wateralpha, lavaalpha, telealpha, slimealpha in worldspawn
 
 	// Load pointfile if map has no vis data and either developer mode is on or the game was started from a map editing tool
 	if (developer.value || map_checks.value)
