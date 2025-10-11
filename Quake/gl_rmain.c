@@ -199,6 +199,8 @@ static qboolean shadow_has_intensity;
 static float shadow_view_znear;
 static float shadow_view_zfar;
 
+static void ExtractFrustumPlane (float mvp[16], int axis, float ndcval, qboolean flip, mplane_t *out);
+
 //==============================================================================
 //
 // FRAMEBUFFERS
@@ -1702,7 +1704,7 @@ Extracts the normalized frustum plane from the given view-projection matrix
 that corresponds to a value of 'ndcval' on the 'axis' axis in NDC space.
 ===============
 */
-void ExtractFrustumPlane (float mvp[16], int axis, float ndcval, qboolean flip, mplane_t *out)
+static void ExtractFrustumPlane (float mvp[16], int axis, float ndcval, qboolean flip, mplane_t *out)
 {
 	float scale;
 	out->normal[0] =  (mvp[0*4 + axis] - ndcval * mvp[0*4 + 3]);
