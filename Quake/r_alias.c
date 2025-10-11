@@ -359,7 +359,13 @@ void R_BlobShadows_Flush (void)
         GL_BindBuffersRange (GL_SHADER_STORAGE_BUFFER, 1, 1, buffers, offsets, sizes);
 
         GL_UseProgram (glprogs.blobshadow);
-        GL_SetState (GLS_BLEND_ALPHA | GLS_NO_ZWRITE | GLS_CULL_NONE | GLS_ATTRIBS(1));
+
+        unsigned int state = GLS_NO_ZWRITE | GLS_CULL_NONE | GLS_ATTRIBS(1);
+        if (R_GetEffectiveAlphaMode () == ALPHAMODE_OIT)
+                state |= GLS_BLEND_ALPHA_OIT;
+        else
+                state |= GLS_BLEND_ALPHA;
+        GL_SetState (state);
 
         GL_DrawElementsInstancedFunc (GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, iofs, shadowbuf.count);
 

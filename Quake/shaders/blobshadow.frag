@@ -36,7 +36,45 @@ layout(location=0) in vec2 in_uv;
 layout(location=1) in float in_alpha;
 layout(location=2) in vec3 in_pos;
 
-layout(location=0) out vec4 out_fragcolor;
+#define OUT_COLOR out_fragcolor
+#if OIT
+        vec4 OUT_COLOR;
+        layout(location=0) out vec4 out_accum;
+        layout(location=1) out float out_reveal;
+
+        vec3 GammaToLinear(vec3 v)
+        {
+#if 0
+                return v*v;
+#else
+                return v;
+#endif
+        }
+
+        void main_body();
+
+        void main()
+        {
+                main_body();
+                OUT_COLOR = clamp(OUT_COLOR, 0.0, 1.0);
+                vec4 color = vec4(GammaToLinear(OUT_COLOR.rgb), OUT_COLOR.a);
+                float z = 1./gl_FragCoord.w;
+#if 0
+                float weight = clamp(color.a * color.a * 0.03 / (1e-5 + pow(z/2e5, 2.0)), 1e-2, 3e3);
+#else
+                float weight = clamp(color.a * color.a * 0.03 / (1e-5 + pow(z/1e7, 1.0)), 1e-2, 3e3);
+#endif
+                out_accum = vec4(color.rgb, color.a * weight);
+                out_accum.rgb *= out_accum.a;
+                out_reveal = color.a;
+        }
+
+#undef OUT_COLOR
+#define OUT_COLOR out_fragcolor
+#define main main_body
+#else
+        layout(location=0) out vec4 OUT_COLOR;
+#endif // OIT
 
 void main()
 {
@@ -54,8 +92,8 @@ void main()
         fog = clamp(fog, 0.0, 1.0);
 
         vec3 color = mix(Fog.rgb, vec3(0.0), fog);
-        out_fragcolor = vec4(color, alpha);
+        OUT_COLOR = vec4(color, alpha);
 
-        out_fragcolor.rgb += bayer(ivec2(gl_FragCoord.xy)) * ScreenDither;
-        out_fragcolor = clamp(out_fragcolor, 0.0, 1.0);
+        OUT_COLOR.rgb += bayer(ivec2(gl_FragCoord.xy)) * ScreenDither;
+        OUT_COLOR = clamp(OUT_COLOR, 0.0, 1.0);
 }
