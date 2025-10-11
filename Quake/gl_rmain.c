@@ -493,6 +493,9 @@ void R_ShutdownShadow (void)
         R_ShadowDestroyResources ();
 }
 
+static entity_t *cl_sorted_visedicts[MAX_VISEDICTS + 1]; // +1 for worldspawn
+static int cl_modtype_ofs[mod_numtypes*2 + 1]; // x2: opaque/translucent; +1: total in last slot
+
 void R_ResizeShadowMapIfNeeded (void)
 {
         int desired;
@@ -588,8 +591,7 @@ void R_ResizeShadowMapIfNeeded (void)
 
         if (GL_CheckFramebufferStatusFunc (GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
         {
-                Con_Printf ("Failed to create shadow framebuffer
-");
+                Con_Printf ("Failed to create shadow framebuffer\n");
                 GL_BindFramebufferFunc (GL_FRAMEBUFFER, 0);
                 glDrawBuffer (GL_BACK);
                 glReadBuffer (GL_BACK);
@@ -1518,8 +1520,6 @@ void R_SetAlphaMode (alphamode_t mode)
 
 static uint32_t visedict_keys[MAX_VISEDICTS];
 static uint16_t visedict_order[2][MAX_VISEDICTS];
-static entity_t *cl_sorted_visedicts[MAX_VISEDICTS + 1]; // +1 for worldspawn
-static int cl_modtype_ofs[mod_numtypes*2 + 1]; // x2: opaque/translucent; +1: total in last slot
 
 typedef struct framesetup_s
 {
