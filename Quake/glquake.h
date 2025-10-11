@@ -424,7 +424,8 @@ typedef struct gpuframedata_s {
 	float	windphase;
 	float	screendither;
 	float	texturedither;
-	float	_padding1[2];
+	float	overbright;
+	float	_padding1;
 	vec3_t	eyepos;
 	float	time;
 	float	zlogscale;

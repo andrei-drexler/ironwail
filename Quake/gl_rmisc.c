@@ -31,6 +31,7 @@ extern cvar_t r_lerplightstyles;
 extern cvar_t gl_fullbrights;
 extern cvar_t gl_farclip;
 extern cvar_t gl_overbright_models;
+extern cvar_t r_overbrightbits;
 extern cvar_t r_waterwarp;
 extern cvar_t r_oldskyleaf;
 extern cvar_t r_drawworld;
@@ -218,8 +219,8 @@ R_SetWateralpha_f -- ericw
 */
 static void R_SetWateralpha_f (cvar_t *var)
 {
-	if (cls.signon == SIGNONS && cl.worldmodel && !(cl.worldmodel->contentstransparent&SURF_DRAWWATER) && var->value < 1)
-		Con_Warning("Map does not appear to be water-vised\n");
+		if (cls.signon == SIGNONS && cl.worldmodel && !(cl.worldmodel->contentstransparent&SURF_DRAWWATER) && var->value < 1)
+				Con_Warning("Map does not appear to be water-vised\n");
 	map_wateralpha = var->value;
 	map_fallbackalpha = var->value;
 }
@@ -231,8 +232,8 @@ R_SetLavaalpha_f -- ericw
 */
 static void R_SetLavaalpha_f (cvar_t *var)
 {
-	if (cls.signon == SIGNONS && cl.worldmodel && !(cl.worldmodel->contentstransparent&SURF_DRAWLAVA) && var->value && var->value < 1)
-		Con_Warning("Map does not appear to be lava-vised\n");
+		if (cls.signon == SIGNONS && cl.worldmodel && !(cl.worldmodel->contentstransparent&SURF_DRAWLAVA) && var->value && var->value < 1)
+				Con_Warning("Map does not appear to be lava-vised\n");
 	map_lavaalpha = var->value;
 }
 
@@ -243,8 +244,8 @@ R_SetTelealpha_f -- ericw
 */
 static void R_SetTelealpha_f (cvar_t *var)
 {
-	if (cls.signon == SIGNONS && cl.worldmodel && !(cl.worldmodel->contentstransparent&SURF_DRAWTELE) && var->value && var->value < 1)
-		Con_Warning("Map does not appear to be tele-vised\n");
+		if (cls.signon == SIGNONS && cl.worldmodel && !(cl.worldmodel->contentstransparent&SURF_DRAWTELE) && var->value && var->value < 1)
+				Con_Warning("Map does not appear to be tele-vised\n");
 	map_telealpha = var->value;
 }
 
@@ -258,6 +259,18 @@ static void R_SetSlimealpha_f (cvar_t *var)
 	if (cls.signon == SIGNONS && cl.worldmodel && !(cl.worldmodel->contentstransparent&SURF_DRAWSLIME) && var->value && var->value < 1)
 		Con_Warning("Map does not appear to be slime-vised\n");
 	map_slimealpha = var->value;
+}
+
+/*
+====================
+R_OverbrightBits_f
+====================
+*/
+static void R_OverbrightBits_f (cvar_t *var)
+{
+	int value = CLAMP (0, (int)Q_rint (var->value), 3);
+	if (value != (int)var->value)
+		Cvar_SetValueQuick (var, (float)value);
 }
 
 /*
@@ -314,6 +327,8 @@ void R_Init (void)
 	Cvar_RegisterVariable (&r_alphasort);
 	Cvar_RegisterVariable (&r_oit);
 	Cvar_RegisterVariable (&r_dither);
+	Cvar_RegisterVariable (&r_overbrightbits);
+	Cvar_SetCallback (&r_overbrightbits, R_OverbrightBits_f);
 
 	Cvar_RegisterVariable (&gl_finish);
 	Cvar_RegisterVariable (&gl_clear);
@@ -458,7 +473,7 @@ static void R_ParseWorldspawn (void)
 	map_wateralpha = (cl.worldmodel->contentstransparent&SURF_DRAWWATER)?r_wateralpha.value:1;
 	map_lavaalpha = (cl.worldmodel->contentstransparent&SURF_DRAWLAVA)?r_lavaalpha.value:1;
 	map_telealpha = (cl.worldmodel->contentstransparent&SURF_DRAWTELE)?r_telealpha.value:1;
-	map_slimealpha = (cl.worldmodel->contentstransparent&SURF_DRAWSLIME)?r_slimealpha.value:1;
+		map_slimealpha = (cl.worldmodel->contentstransparent&SURF_DRAWSLIME)?r_slimealpha.value:1;
 
 	data = COM_Parse(cl.worldmodel->entities);
 	if (!data)
@@ -494,7 +509,7 @@ static void R_ParseWorldspawn (void)
 			map_telealpha = atof(value);
 
 		if (!strcmp("slimealpha", key))
-			map_slimealpha = atof(value);
+				map_slimealpha = atof(value);
 	}
 }
 

@@ -84,6 +84,8 @@ cvar_t	r_alphasort = {"r_alphasort","1",CVAR_ARCHIVE};
 cvar_t	r_oit = {"r_oit","1",CVAR_ARCHIVE};
 cvar_t	r_dither = {"r_dither", "1.0", CVAR_ARCHIVE};
 
+cvar_t	r_overbrightbits = {"r_overbrightbits", "1", CVAR_ARCHIVE};
+
 cvar_t	gl_finish = {"gl_finish","0",CVAR_NONE};
 cvar_t	gl_clear = {"gl_clear","1",CVAR_NONE};
 cvar_t	gl_polyblend = {"gl_polyblend","1",CVAR_NONE};
@@ -964,6 +966,12 @@ R_SetupView -- johnfitz -- this is the stuff that needs to be done once per fram
 void R_SetupView (void)
 {
 	R_AnimateLight ();
+
+	{
+		int overbright_bits = CLAMP (0, (int)Q_rint (r_overbrightbits.value), 3);
+		r_framedata.overbright = (float)(1 << overbright_bits);
+		r_framedata._padding1 = 0.f;
+	}
 
 	r_framecount++;
 	r_framedata.eyepos[0] = r_refdef.vieworg[0];

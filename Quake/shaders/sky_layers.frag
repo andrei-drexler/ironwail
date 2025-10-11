@@ -14,6 +14,8 @@ layout(std140, binding=0) uniform FrameDataUBO
 	float	WindPhase;
 	float	ScreenDither;
 	float	TextureDither;
+	float	Overbright;
+	float	_Pad0;
 	vec3	EyePos;
 	float	Time;
 	float	ZLogScale;

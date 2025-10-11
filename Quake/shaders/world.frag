@@ -15,6 +15,8 @@ layout(std140, binding=0) uniform FrameDataUBO
 	float	WindPhase;
 	float	ScreenDither;
 	float	TextureDither;
+	float	Overbright;
+	float	_Pad0;
 	vec3	EyePos;
 	float	Time;
 	float	ZLogScale;
@@ -248,35 +250,37 @@ void main()
 	lmuv = (floor(lmuv * lmsize) + 0.5) / lmsize;
 #endif // DITHER
 	vec4 lm0 = textureLod(LMTex, lmuv, 0.);
-	vec3 total_light;
-	if (in_styles.y < 0.) // single style fast path
-		total_light = in_styles.x * lm0.xyz;
-	else
-	{
-		vec4 lm1 = textureLod(LMTex, vec2(lmuv.x + in_lmofs, lmuv.y), 0.);
-		if (in_styles.z < 0.) // 2 styles
-		{
-			total_light =
-				in_styles.x * lm0.xyz +
-				in_styles.y * lm1.xyz;
-		}
-		else // 3 or 4 lightstyles
-		{
-			vec4 lm2 = textureLod(LMTex, vec2(lmuv.x + in_lmofs * 2., lmuv.y), 0.);
-			total_light = vec3
-			(
-				dot(in_styles, lm0),
-				dot(in_styles, lm1),
-				dot(in_styles, lm2)
-			);
-		}
-	}
+        vec3 static_light;
+        if (in_styles.y < 0.) // single style fast path
+                static_light = in_styles.x * lm0.xyz;
+        else
+        {
+                vec4 lm1 = textureLod(LMTex, vec2(lmuv.x + in_lmofs, lmuv.y), 0.);
+                if (in_styles.z < 0.) // 2 styles
+                {
+                        static_light =
+                                in_styles.x * lm0.xyz +
+                                in_styles.y * lm1.xyz;
+                }
+                else // 3 or 4 lightstyles
+                {
+                        vec4 lm2 = textureLod(LMTex, vec2(lmuv.x + in_lmofs * 2., lmuv.y), 0.);
+                        static_light = vec3
+                        (
+                                dot(in_styles, lm0),
+                                dot(in_styles, lm1),
+                                dot(in_styles, lm2)
+                        );
+                }
+        }
 
-	if (NumLights > 0u)
-	{
-		uint i, ofs;
-		ivec3 cluster_coord;
-		cluster_coord.x = int(floor(in_coord.x));
+        vec3 total_light = clamp(static_light * Overbright, 0.0, 1.0);
+
+        if (NumLights > 0u)
+        {
+                uint i, ofs;
+                ivec3 cluster_coord;
+                cluster_coord.x = int(floor(in_coord.x));
 		cluster_coord.y = int(floor(in_coord.y));
 		cluster_coord.z = int(floor(log2(in_depth) * ZLogScale + ZLogBias));
 		uvec2 clusterdata = imageLoad(LightClusters, cluster_coord).xy;
@@ -311,13 +315,11 @@ void main()
 					dynamic_light += clamp((minlight - dist) / 16.0, 0.0, 1.0) * max(0., rad - dist) / 256. * l.color;
 				}
 			}
-			total_light += max(min(dynamic_light, 1. - total_light), 0.);
-		}
-	}
+                        total_light += max(min(dynamic_light, 1. - total_light), 0.);
+                }
+        }
 #if DITHER >= 2
-	total_light = floor(total_light * 63. + 0.5) * (2./63.);
-#else
-	total_light *= 2.0;
+        total_light = floor(total_light * 63. + 0.5) / 63.;
 #endif
 #if MODE != 1
 	result.rgb = mix(result.rgb, result.rgb * total_light, result.a);
