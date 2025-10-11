@@ -27,6 +27,12 @@ qboolean	r_cache_thrash;		// compatability
 
 gpuframedata_t r_framedata;
 
+COMPILE_TIME_ASSERT (shadowviewproj_alignment, (offsetof (gpuframedata_t, shadowviewproj) & 15) == 0);
+COMPILE_TIME_ASSERT (shadow_params_alignment, (offsetof (gpuframedata_t, shadow_params) & 15) == 0);
+COMPILE_TIME_ASSERT (shadow_filter_alignment, (offsetof (gpuframedata_t, shadow_filter) & 15) == 0);
+COMPILE_TIME_ASSERT (shadow_vsm_alignment, (offsetof (gpuframedata_t, shadow_vsm) & 15) == 0);
+COMPILE_TIME_ASSERT (shadow_block_size_alignment, (sizeof (gpuframedata_t) & 15) == 0);
+
 vec3_t		*r_pointfile;
 
 int			r_visframecount;	// bumped when going to a new PVS

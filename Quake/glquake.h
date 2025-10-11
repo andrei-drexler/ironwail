@@ -435,6 +435,7 @@ typedef struct gpuframedata_s {
 	int		_padding2;
 	int		_padding3;
 	int		_padding4;
+	float	_padding_shadow[2];
 	float	shadowviewproj[4][16];
 	float	shadow_params[4];
 	float	shadow_filter[4];
