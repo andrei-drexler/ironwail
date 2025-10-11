@@ -1,0 +1,144 @@
+layout(local_size_x=64) in;
+
+struct DrawElementsIndirectCommand
+{
+	uint	count;
+	uint	instanceCount;
+	uint	firstIndex;
+	uint	baseVertex;
+	uint	baseInstance;
+};
+
+// Note: some old Intel drivers error out on shaders
+// that perform atomic operations on SSBO struct members.
+// As a work-around, we use uints and manual indexing.
+layout(std430, binding=1) buffer DrawIndirectBuffer
+{
+	//DrawElementsIndirectCommand cmds[];
+	uint rawcmds[];
+};
+
+#define CMD_COUNT(base)			rawcmds[base]
+#define CMD_INSTANCE_COUNT(base)	rawcmds[base + 1]
+#define CMD_FIRST_INDEX(base)		rawcmds[base + 2]
+#define CMD_BASE_VERTEX(base)		rawcmds[base + 3]
+#define CMD_BASE_INSTANCE(base)	rawcmds[base + 4]
+#define SIZEOF_CMD					5 /* uints */
+
+layout(std430, binding=2) restrict writeonly buffer IndexBuffer
+{
+	uint indices[];
+};
+
+layout(std430, binding=3) restrict readonly buffer VisBuffer
+{
+	uint vis[];
+};
+
+struct MarkSurface
+{
+	uint packedleafsky; // bit 0=sky; 1..31=leafindex
+	uint surfindex;
+};
+;
+layout(std430, binding=4) restrict readonly buffer MarkSurfaceBuffer
+{
+	MarkSurface marksurfs[];
+};
+
+struct Surface
+{
+	vec4	plane;
+	uint	framecount;
+	uint	texnum;
+	uint	numedges;
+	uint	firstvert;
+	vec3	mins;
+	uint	_pad0;
+	vec3	maxs;
+	uint	_pad1;
+};
+
+// Same issue as above
+layout(std430, binding=5) restrict buffer SurfaceBuffer
+{
+	//Surface surfaces[];
+	uvec4 rawsurfaces[];
+};
+
+#define SURF_PLANE(base)			uintBitsToFloat(rawsurfaces[base])
+#define SURF_FRAMECOUNT(base)		rawsurfaces[base + 1].x
+#define SURF_TEXNUM(base)			rawsurfaces[base + 1].y
+#define SURF_NUMEDGES(base)		rawsurfaces[base + 1].z
+#define SURF_FIRSTVERT(base)		rawsurfaces[base + 1].w
+#define SURF_MINS(base)			uintBitsToFloat(rawsurfaces[base + 2].xyz)
+#define SURF_MAXS(base)			uintBitsToFloat(rawsurfaces[base + 3].xyz)
+#define SIZEOF_SURFACE				4 /* uvec4s */
+
+layout(std140, binding=1) uniform FrameCullUBO
+{
+	vec4	frustum[4];
+	vec3	vieworg;
+	uint	oldskyleaf;
+	uint	framecount;
+};
+
+void main()
+{
+	uint thread_id = gl_GlobalInvocationID.x;
+	if (thread_id >= marksurfs.length())
+		return;
+	MarkSurface mark = marksurfs[thread_id];
+
+	// sky culling: when r_oldskyleaf is 0, surfaces inside a sky leaf are skipped
+	if ((mark.packedleafsky & 1u) > oldskyleaf)
+		return;
+
+	// vis culling
+	uint leaf = mark.packedleafsky >> 1u;
+	uint visible = vis[leaf >> 5u] & (1u << (leaf & 31u));
+	if (visible == 0u)
+		return;
+
+	uint surfbase = mark.surfindex * uint(SIZEOF_SURFACE);
+
+	// backface culling
+	vec4 surfplane = SURF_PLANE(surfbase);
+	if (dot(surfplane.xyz, vieworg) < surfplane.w)
+		return;
+
+	// frustum culling
+	vec3 mins = SURF_MINS(surfbase);
+	vec3 maxs = SURF_MAXS(surfbase);
+	for (uint i = 0u; i < 4u; i++)
+	{
+		vec4 plane = frustum[i];
+		vec3 v;
+		v.x = plane.x < 0.0 ? mins.x : maxs.x;
+		v.y = plane.y < 0.0 ? mins.y : maxs.y;
+		v.z = plane.z < 0.0 ? mins.z : maxs.z;
+		if (dot(plane.xyz, v) < plane.w)
+			return;
+	}
+
+	// surfaces can appear in multiple leaves
+	// check if this is the first time this surface has passed culling this frame
+	if (atomicExchange(SURF_FRAMECOUNT(surfbase), framecount) == framecount)
+		return;
+
+	// surface is visible, append its triangles to the index buffer
+	// and update the draw command corresponding to its texture number
+	uint texnum = SURF_TEXNUM(surfbase);
+	uint numedges = SURF_NUMEDGES(surfbase);
+	uint firstvert = SURF_FIRSTVERT(surfbase);
+	uint cmdbase = texnum * uint(SIZEOF_CMD);
+	// some bsps out there have faces with < 2 edges, which would cause underflow below
+	numedges = max(numedges, 2u);
+	uint ofs = CMD_FIRST_INDEX(cmdbase) + atomicAdd(CMD_COUNT(cmdbase), 3u * (numedges - 2u));
+	for (uint i = 2u; i < numedges; i++)
+	{
+		indices[ofs++] = firstvert;
+		indices[ofs++] = firstvert + i - 1u;
+		indices[ofs++] = firstvert + i;
+	}
+}

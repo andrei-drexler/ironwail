@@ -1,0 +1,100 @@
+layout(local_size_x=128) in;
+
+layout(location=0) uniform int Offset;
+
+layout(std430, binding=0) restrict readonly buffer PaletteBuffer
+{
+	uint Palette[256];
+};
+
+uvec3 UnpackRGB8(uint c)
+{
+	return uvec3(c, c >> 8, c >> 16) & 255u;
+}
+
+
+layout(r8ui, binding=0) uniform writeonly uimage3D PaletteLUT;
+
+vec3 sRGBToLinearRGB(vec3 v)
+{
+	return mix(v / 12.92, pow((v + 0.055) / 1.055, vec3(2.4)), greaterThan(v, vec3(0.04045)));
+}
+
+// A perceptual color space for image processing - Bjorn Ottosson
+// https://bottosson.github.io/posts/oklab/ 
+vec3 LinearRGBToOKLab(vec3 c)
+{
+	float l = 0.4122214708 * c.r + 0.5363325363 * c.g + 0.0514459929 * c.b;
+	float m = 0.2119034982 * c.r + 0.6806995451 * c.g + 0.1073969566 * c.b;
+	float s = 0.0883024619 * c.r + 0.2817188376 * c.g + 0.6299787005 * c.b;
+
+	float l_ = pow(l, 1./3.);
+	float m_ = pow(m, 1./3.);
+	float s_ = pow(s, 1./3.);
+
+	return vec3(
+		0.2104542553*l_ + 0.7936177850*m_ - 0.0040720468*s_,
+		1.9779984951*l_ - 2.4285922050*m_ + 0.4505937099*s_,
+		0.0259040371*l_ + 0.7827717662*m_ - 0.8086757660*s_
+	);
+}
+
+vec3 NormalizeColor(uvec3 clr8)
+{
+	vec3 clr = vec3(clr8) * (1./255.);
+#if MODE >= 1
+	clr = sRGBToLinearRGB(clr);
+	#if MODE >= 2
+		clr = LinearRGBToOKLab(clr);
+	#endif
+#endif
+	return clr;
+}
+
+float ColorDistanceSquared(vec3 c0, vec3 c1)
+{
+	vec3 delta = c1 - c0;
+#if MODE == 1
+	// Colour metric - Thiadmer Riemersma
+	// https://www.compuphase.com/cmetric.htm 
+	float rmean = (c0.r + c1.r) * 0.5;
+	return dot(delta * delta, vec3(2. + rmean, 4., 3. - rmean));
+#elif MODE == 2
+	delta.x *= 1.25; // lightness
+	delta.z *= 1.5;  // blue-yellow
+#endif
+	return dot(delta, delta);
+}
+
+shared vec3 palcolors[256];
+
+void main()
+{
+	uint groupsize = gl_WorkGroupSize.x * gl_WorkGroupSize.y * gl_WorkGroupSize.z;
+	uint numpasses = (256 + (groupsize - 1u)) / groupsize;
+	uint i, ofs;
+	for (i = 0u, ofs = 0u; i < numpasses; i++, ofs += groupsize)
+	{
+		uint idx = gl_LocalInvocationIndex + ofs;
+		if (idx < 256u)
+			palcolors[idx] = NormalizeColor(UnpackRGB8(Palette[idx]));
+	}
+	memoryBarrierShared();
+	barrier();
+
+	uvec3 gid = gl_GlobalInvocationID + UnpackRGB8(uint(Offset));
+	vec3 target = NormalizeColor((gid << 1) + (gid >> 6));
+	uint bestidx = 0;
+	float bestdist = 1e+32;
+	for (i = 0u; i < 256u; i++)
+	{
+		vec3 candidate = palcolors[i];
+		float dist = ColorDistanceSquared(target, candidate);
+		if (dist < bestdist)
+		{
+			bestidx = i;
+			bestdist = dist;
+		}
+	}
+	imageStore(PaletteLUT, ivec3(gid), uvec4(bestidx, 0, 0, 0));
+}

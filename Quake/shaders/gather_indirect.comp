@@ -1,0 +1,48 @@
+layout(local_size_x=64) in;
+
+struct DrawElementsIndirectCommand
+{
+	uint	count;
+	uint	instanceCount;
+	uint	firstIndex;
+	uint	baseVertex;
+	uint	baseInstance;
+};
+
+layout(std430, binding=5) restrict readonly buffer DrawIndirectSrcBuffer
+{
+	DrawElementsIndirectCommand src_cmds[];
+};
+
+layout(std430, binding=6) restrict writeonly buffer DrawIndirectDstBuffer
+{
+	DrawElementsIndirectCommand dst_cmds[];
+};
+
+struct DrawRemap
+{
+	uint src_call;
+	uint instance_data;
+};
+
+layout(std430, binding=7) restrict readonly buffer DrawRemapBuffer
+{
+	DrawRemap remap_data[];
+};
+
+#define MAX_INSTANCES 1024u
+
+void main()
+{
+	uint thread_id = gl_GlobalInvocationID.x;
+	uint num_calls = remap_data.length();
+	if (thread_id >= num_calls)
+		return;
+	DrawRemap remap = remap_data[thread_id];
+	DrawElementsIndirectCommand cmd = src_cmds[remap.src_call];
+	cmd.baseInstance = remap.instance_data / MAX_INSTANCES;
+	cmd.instanceCount = (remap.instance_data % MAX_INSTANCES) + 1u;
+	if (cmd.count == 0u)
+		cmd.instanceCount = 0u;
+	dst_cmds[thread_id] = cmd;
+}
