@@ -29,6 +29,7 @@ layout(std140, binding=0) uniform FrameDataUBO
         vec4    ShadowCascadeSplits;
         vec4    ShadowCascadeStarts;
         vec4    ShadowCascadeFade;
+        vec4    ShadowCascadeTexelSize;
         vec4    ShadowDebug;
 };
 

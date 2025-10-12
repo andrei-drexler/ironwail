@@ -1089,6 +1089,7 @@ void R_BuildShadowMap (void)
 	memset (r_framedata.shadow_cascade_splits, 0, sizeof (r_framedata.shadow_cascade_splits));
 	memset (r_framedata.shadow_cascade_starts, 0, sizeof (r_framedata.shadow_cascade_starts));
 	memset (r_framedata.shadow_cascade_fade, 0, sizeof (r_framedata.shadow_cascade_fade));
+	memset (r_framedata.shadow_cascade_texel_size, 0, sizeof (r_framedata.shadow_cascade_texel_size));
 	memset (r_framedata.shadow_debug, 0, sizeof (r_framedata.shadow_debug));
 	{
 		int kernel = CLAMP (1, (int) Q_rint (r_shadow_pcf_size.value), 3);
@@ -1136,6 +1137,7 @@ void R_BuildShadowMap (void)
 		memcpy (r_framedata.shadowviewproj[cascade], shadow_state.cascades[cascade].viewproj, sizeof (shadow_state.cascades[cascade].viewproj));
 		r_framedata.shadow_cascade_splits[cascade] = shadow_state.split_distances[cascade + 1];
 		r_framedata.shadow_cascade_starts[cascade] = shadow_state.split_distances[cascade];
+		r_framedata.shadow_cascade_texel_size[cascade] = shadow_state.cascades[cascade].texel_size;
 	}
 	far_dist = shadow_state.split_distances[cascade_count];
 	for (; cascade < MAX_SHADOW_CASCADES; ++cascade)
@@ -1143,6 +1145,7 @@ void R_BuildShadowMap (void)
 		memset (r_framedata.shadowviewproj[cascade], 0, sizeof (r_framedata.shadowviewproj[cascade]));
 		r_framedata.shadow_cascade_splits[cascade] = far_dist;
 		r_framedata.shadow_cascade_starts[cascade] = far_dist;
+		r_framedata.shadow_cascade_texel_size[cascade] = (cascade_count > 0) ? shadow_state.cascades[cascade_count - 1].texel_size : 0.f;
 	}
 
 	r_framedata.shadow_params[3] = (float) cascade_count;
