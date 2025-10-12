@@ -20,6 +20,7 @@ Ironwail now ships with a lightweight Quake III shader parser. This document exp
    ```
 
    * Searches PAKs and loose directories in priority order (mods override base content).
+   * Loads every `scripts/*.shader` it encounters, even when multiple paths share the same filename, so base content stays available for later overrides.
    * Prints a summary of how many files succeeded versus failed and the total shader count discovered.
 
 2. **List the currently loaded shaders**

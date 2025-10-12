@@ -49,7 +49,7 @@ static void Q3Shader_FreeStage (q3shader_stage_t *stage);
 static void Q3Shader_FreeShader (q3shader_t *shader);
 static void Q3Shader_Insert (q3shader_t *shader);
 static uint32_t Q3Shader_SurfaceParmFlag (const char *name);
-static qboolean Q3Shader_AddUniquePath (char ***vec, const char *path);
+static qboolean Q3Shader_AddPath (char ***vec, const char *path);
 static const char *Q3Shader_ParseShaderBlock (const char *data, const char *filename, q3shader_t *shader);
 static const char *Q3Shader_ParseStageBlock (const char *data, const char *filename, const q3shader_t *shader, q3shader_stage_t *stage);
 static const char *Q3Shader_ParseDirectiveArgs (const char *data, const char *filename, const char *shadername, q3shader_directive_t *directive);
@@ -211,7 +211,7 @@ int Q3Shader_LoadAll (int *files_loaded, int *files_failed)
                                 if (q_strcasecmp (COM_FileGetExtension (name), "shader"))
                                         continue;
 
-                                Q3Shader_AddUniquePath (&paths, name);
+                                Q3Shader_AddPath (&paths, name);
                         }
                 }
                 else if (search->filename[0])
@@ -232,7 +232,7 @@ int Q3Shader_LoadAll (int *files_loaded, int *files_failed)
                                 if (q_snprintf (relpath, sizeof (relpath), "scripts/%s", find->name) >= (int) sizeof (relpath))
                                         continue;
 
-                                Q3Shader_AddUniquePath (&paths, relpath);
+                                Q3Shader_AddPath (&paths, relpath);
                         }
                 }
         }
@@ -482,19 +482,12 @@ static void Q3Shader_AddDirective (q3shader_directive_t **list, q3shader_directi
         directive->args = NULL;
 }
 
-static qboolean Q3Shader_AddUniquePath (char ***vec, const char *path)
+static qboolean Q3Shader_AddPath (char ***vec, const char *path)
 {
-        size_t i;
         char *copy;
 
         if (!vec || !path || !path[0])
                 return false;
-
-        for (i = 0; i < VEC_SIZE (*vec); ++i)
-        {
-                if (!q_strcasecmp ((*vec)[i], path))
-                        return false;
-        }
 
         copy = Q3Shader_CopyString (path);
         if (!copy)
