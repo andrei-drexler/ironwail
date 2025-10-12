@@ -620,7 +620,6 @@ extern cvar_t	r_shadow_bias;
 extern cvar_t	r_shadow_slope_bias;
 extern cvar_t	r_shadow_soft;
 extern cvar_t	r_shadow_pcf_size;
-extern cvar_t	r_shadow_soft_dist_scale;
 extern cvar_t	r_shadow_normal_offset;
 extern cvar_t	r_shadow_vsm;
 extern cvar_t	r_shadow_vsm_bleed_reduce;
