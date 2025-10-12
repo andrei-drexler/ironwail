@@ -939,6 +939,15 @@ static qboolean R_ShadowBuildCascade (int cascade_index, float split_near, float
         {
                 center_light[0] = floorf (center_light[0] / texel_size + 0.5f) * texel_size;
                 center_light[1] = floorf (center_light[1] / texel_size + 0.5f) * texel_size;
+
+                /*
+                ** Snap the cascade extent to texel-sized increments as well when
+                ** running in stable mode. Without quantizing the radius the
+                ** orthographic projection would slightly expand/contract each
+                ** frame which manifests as shimmering or misaligned cascades.
+                */
+                radius = ceilf (radius / texel_size) * texel_size;
+                texel_size = (radius * 2.f) / (float) shadow_state.size;
         }
 
         for (i = 0; i < 3; i++)
