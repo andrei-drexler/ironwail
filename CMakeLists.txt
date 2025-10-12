@@ -30,7 +30,7 @@ if (WIN32)
 	find_package(BundledCODECS)
 endif()
 
-file(GLOB IWAIL_SRC CONFIGURE_DEPENDS "Quake/*.c" "Quake/*.h")
+file(GLOB IWAIL_SRC CONFIGURE_DEPENDS "Quake/*.c" "Quake/*.h" "Quake/*.cpp" "Quake/*.hpp")
 
 list(REMOVE_ITEM IWAIL_SRC ${CMAKE_CURRENT_SOURCE_DIR}/Quake/lodepng.h)
 list(REMOVE_ITEM IWAIL_SRC ${CMAKE_CURRENT_SOURCE_DIR}/Quake/lodepng.c)
@@ -61,6 +61,7 @@ elseif (PC_MAD_FOUND)
 endif()
 
 add_executable(ironwail ${IWAIL_SRC})
+target_compile_features(ironwail PRIVATE c_std_11 cxx_std_17)
 if (UNIX)
 	target_link_libraries(ironwail PRIVATE m)
 	set(ENABLE_USERDIRS TRUE CACHE STRING "Enable user directories")

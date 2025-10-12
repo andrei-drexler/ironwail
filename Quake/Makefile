@@ -35,6 +35,7 @@ VORBISLIB=vorbis
 # ---------------------------
 
 check_gcc = $(shell if echo | $(CC) $(1) -Werror -S -o /dev/null -xc - > /dev/null 2>&1; then echo "$(1)"; else echo "$(2)"; fi;)
+check_cxx = $(shell if echo | $(CXX) $(1) -Werror -S -o /dev/null -xc++ - > /dev/null 2>&1; then echo "$(1)"; else echo "$(2)"; fi;)
 
 # ---------------------------
 
@@ -46,8 +47,9 @@ DEBUG ?= 0
 # build variables
 # ---------------------------
 
+CXX ?= g++
 CC ?= gcc
-LINKER = $(CC)
+LINKER = $(CXX)
 
 STRIP ?= strip
 PKG_CONFIG ?= pkg-config
@@ -60,6 +62,7 @@ CFLAGS += -D_FILE_OFFSET_BITS=64
 CFLAGS += $(call check_gcc,-std=gnu11,)
 CFLAGS += $(call check_gcc,-Werror=format,)
 CFLAGS += $(CPUFLAGS)
+CXXFLAGS = $(filter-out -std=gnu11,$(CFLAGS)) $(call check_cxx,-std=gnu++17,)
 ifneq ($(DEBUG),0)
 DFLAGS += -DDEBUG
 CFLAGS += -g
@@ -253,6 +256,7 @@ OBJS = strlcat.o \
 	console.o \
 	keys.o \
 	menu.o \
+	sidebar.o \
 	sbar.o \
 	view.o \
         wad.o \
@@ -297,6 +301,13 @@ all: $(DEFAULT_TARGET)
 %.o:	%.c %.d $(MAKEFILE)
 	@echo "Compiling $<" && \
 	$(CC) $(DFLAGS) -c $(CFLAGS) $(SDL_CFLAGS) -o $@ $<
+
+%.d:	%.cpp $(MAKEFILE)
+	@echo "Generating dependencies for $<" && \
+	$(CXX) $(DFLAGS) -c $(CXXFLAGS) $(SDL_CFLAGS) -MM $< -MF $@ -MT $@
+%.o:	%.cpp %.d $(MAKEFILE)
+	@echo "Compiling $<" && \
+	$(CXX) $(DFLAGS) -c $(CXXFLAGS) $(SDL_CFLAGS) -o $@ $<
 
 ironwail:	$(OBJS) $(MAKEFILE)
 	@echo "Linking $@" && \
