@@ -445,6 +445,7 @@ typedef struct gpuframedata_s {
 	float	shadow_cascade_splits[4];
 	float	shadow_cascade_starts[4];
 	float	shadow_cascade_fade[4];
+	float	shadow_cascade_texel_size[4];
 	float	shadow_debug[4];
 } gpuframedata_t;
 

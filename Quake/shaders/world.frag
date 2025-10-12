@@ -287,10 +287,6 @@ float EvaluateShadow(vec3 world_pos, vec3 normal, vec3 light_dir, float view_dep
                 return 1.0;
 
         float ndotl = max(dot(normal, light_dir), 0.0);
-        float receiver_offset = ShadowFilter[2] * (1.0 - ndotl);
-        vec3 offset_pos = world_pos;
-        if (receiver_offset > 0.0)
-                offset_pos += normal * receiver_offset;
 
         int cascadeIndex = cascadeCount - 1;
         for (int i = 0; i < cascadeCount; ++i)
@@ -303,6 +299,11 @@ float EvaluateShadow(vec3 world_pos, vec3 normal, vec3 light_dir, float view_dep
         }
         if (view_depth > ShadowCascadeSplits[cascadeCount - 1])
                 return 1.0;
+
+        float receiver_offset = ShadowFilter[2] * ShadowCascadeTexelSize[cascadeIndex] * (1.0 - ndotl);
+        vec3 offset_pos = world_pos;
+        if (receiver_offset > 0.0)
+                offset_pos += normal * receiver_offset;
 
         vec3 coord;
         float canonical_depth;
@@ -328,16 +329,21 @@ float EvaluateShadow(vec3 world_pos, vec3 normal, vec3 light_dir, float view_dep
                         float blend = clamp(1.0 - distanceToFar / fadeDistance, 0.0, 1.0);
                         if (blend > 0.0)
                         {
+                                float nextOffset = ShadowFilter[2] * ShadowCascadeTexelSize[cascadeIndex + 1] * (1.0 - ndotl);
+                                vec3 nextOffsetPos = world_pos;
+                                if (nextOffset > 0.0)
+                                        nextOffsetPos += normal * nextOffset;
+
                                 vec3 nextCoord;
                                 float nextCanonical;
-                                if (ComputeCascadeCoord(cascadeIndex + 1, offset_pos, ndotl, nextCoord, nextCanonical))
+                                if (ComputeCascadeCoord(cascadeIndex + 1, nextOffsetPos, ndotl, nextCoord, nextCanonical))
                                 {
                                         gShadowCascadeNext = cascadeIndex + 1;
                                         gShadowCascadeBlend = blend;
                                         gShadowSecondaryValid = 1.0;
                                         gShadowCoordSecondary = nextCoord;
                                         gShadowCanonicalSecondary = nextCanonical;
-                                        float shadowNext = FilterShadowValue(nextCoord, nextCanonical, offset_pos);
+                                        float shadowNext = FilterShadowValue(nextCoord, nextCanonical, nextOffsetPos);
                                         shadow = mix(shadow, shadowNext, blend);
                                 }
                         }
