@@ -1157,10 +1157,15 @@ void R_BuildShadowMap (void)
 	r_framedata.shadow_debug[1] = r_shadow_showmap.value;
 	r_framedata.shadow_debug[2] = (float) shadow_state.size;
 	r_framedata.shadow_debug[3] = (float) cascade_count;
-	r_framedata.shadow_sundir[0] = -sun_dir[0];
-	r_framedata.shadow_sundir[1] = -sun_dir[1];
-	r_framedata.shadow_sundir[2] = -sun_dir[2];
-	r_framedata.shadow_sundir[3] = shadow_state.intensity;
+	{
+		float sun_intensity = shadow_state.intensity;
+		if (sun_intensity > 1.f)
+			sun_intensity *= (1.f / 255.f);
+		r_framedata.shadow_sundir[0] = -sun_dir[0];
+		r_framedata.shadow_sundir[1] = -sun_dir[1];
+		r_framedata.shadow_sundir[2] = -sun_dir[2];
+		r_framedata.shadow_sundir[3] = sun_intensity;
+	}
 	r_framedata.shadow_suncolor[0] = shadow_state.color[0];
 	r_framedata.shadow_suncolor[1] = shadow_state.color[1];
 	r_framedata.shadow_suncolor[2] = shadow_state.color[2];
@@ -1178,7 +1183,16 @@ void R_BuildShadowMap (void)
 	glColorMask (GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 	glEnable (GL_POLYGON_OFFSET_FILL);
 	glEnable (GL_POLYGON_OFFSET_LINE);
-	glPolygonOffset (r_shadow_slope_bias.value, r_shadow_bias.value);
+	{
+		float slope_bias = r_shadow_slope_bias.value;
+		float const_bias = r_shadow_bias.value;
+		if (gl_clipcontrol_able)
+		{
+			slope_bias = -slope_bias;
+			const_bias = -const_bias;
+		}
+		glPolygonOffset (slope_bias, const_bias);
+	}
 
 	GL_UseProgram (shadow_state.use_vsm ? glprogs.shadow_depth_vsm : glprogs.shadow_depth);
 

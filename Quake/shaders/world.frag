@@ -355,19 +355,15 @@ float EvaluateShadow(vec3 world_pos, vec3 normal, vec3 light_dir, float view_dep
 
 vec3 ComputeSunLight(vec3 world_pos, vec3 normal)
 {
-	if (ShadowParams.w <= 0.5)
-		return vec3(0.0);
-	vec3 light_dir = ShadowSunDir.xyz;
-	float len_dir = length(light_dir);
-	if (len_dir <= 0.0)
-		return vec3(0.0);
-	light_dir /= len_dir;
-	float ndotl = max(dot(normal, light_dir), 0.0);
-	if (ndotl <= 0.0)
-		return vec3(0.0);
-	float intensity = ShadowSunDir.w;
-	if (intensity > 1.0)
-		intensity *= (1.0 / 255.0);
+        if (ShadowParams.w <= 0.5)
+                return vec3(0.0);
+        vec3 light_dir = ShadowSunDir.xyz;
+        float intensity = ShadowSunDir.w;
+        if (intensity <= 0.0)
+                return vec3(0.0);
+        float ndotl = max(dot(normal, light_dir), 0.0);
+        if (ndotl <= 0.0)
+                return vec3(0.0);
         float visibility = EvaluateShadow(world_pos, normal, light_dir, in_depth);
         return ShadowSunColor.rgb * intensity * ndotl * visibility;
 }
