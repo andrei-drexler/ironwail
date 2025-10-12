@@ -80,7 +80,6 @@ cvar_t	r_shadow_bias = {"r_shadow_bias", "0.0005", CVAR_ARCHIVE};
 cvar_t	r_shadow_slope_bias = {"r_shadow_slope_bias", "2.0", CVAR_ARCHIVE};
 cvar_t	r_shadow_soft = {"r_shadow_soft", "1", CVAR_ARCHIVE};
 cvar_t	r_shadow_pcf_size = {"r_shadow_pcf_size", "1", CVAR_ARCHIVE};
-cvar_t	r_shadow_soft_dist_scale = {"r_shadow_soft_dist_scale", "0.001", CVAR_ARCHIVE};
 cvar_t	r_shadow_normal_offset = {"r_shadow_normal_offset", "1.0", CVAR_ARCHIVE};
 cvar_t	r_shadow_vsm = {"r_shadow_vsm", "0", CVAR_ARCHIVE};
 cvar_t	r_shadow_vsm_bleed_reduce = {"r_shadow_vsm_bleed_reduce", "0.2", CVAR_ARCHIVE};
@@ -735,11 +734,6 @@ void R_ShadowCvarChanged (cvar_t *var)
                 if ((float) size != var->value)
                         Cvar_SetValueQuick (var, (float) size);
         }
-        else if (var == &r_shadow_soft_dist_scale)
-        {
-                if (var->value < 0.f)
-                        Cvar_SetValueQuick (var, 0.f);
-        }
         else if (var == &r_shadow_normal_offset)
         {
                 if (var->value < 0.f)
@@ -1106,7 +1100,7 @@ void R_BuildShadowMap (void)
 		r_framedata.shadow_filter[0] = (float) kernel;
 		r_framedata.shadow_filter[1] = soft;
 		r_framedata.shadow_filter[2] = q_max (0.f, r_shadow_normal_offset.value);
-		r_framedata.shadow_filter[3] = q_max (0.f, r_shadow_soft_dist_scale.value);
+		r_framedata.shadow_filter[3] = 0.f;
 	}
 	r_framedata.shadow_vsm[0] = shadow_state.use_vsm ? 1.f : 0.f;
 	r_framedata.shadow_vsm[1] = CLAMP (0.f, r_shadow_vsm_bleed_reduce.value, 0.99f);

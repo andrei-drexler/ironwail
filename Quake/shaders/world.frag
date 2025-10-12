@@ -185,28 +185,27 @@ float SampleShadowHard(vec3 coord, float canonical_depth)
         return canonical_depth <= sample_canonical ? 1.0 : 0.0;
 }
 
-float SampleShadowPCF(vec3 coord, float canonical_depth, float texel_size, int kernel_radius, float radius_scale)
+float SampleShadowPCF(vec3 coord, float canonical_depth, float texel_size, int kernel_radius)
 {
-        const int MAX_RADIUS = 3;
         if (kernel_radius <= 0 || texel_size <= 0.0)
                 return SampleShadowHard(coord, canonical_depth);
-        float step_size = texel_size * radius_scale;
+
+        const vec2 kernel[9] = vec2[9]
+        (
+                vec2(-1.0, -1.0), vec2(0.0, -1.0), vec2(1.0, -1.0),
+                vec2(-1.0,  0.0), vec2(0.0,  0.0), vec2(1.0,  0.0),
+                vec2(-1.0,  1.0), vec2(0.0,  1.0), vec2(1.0,  1.0)
+        );
+
+        float radius = texel_size * float(kernel_radius);
         float sum = 0.0;
-        float weight = 0.0;
-        for (int y = -MAX_RADIUS; y <= MAX_RADIUS; ++y)
+        for (int i = 0; i < 9; ++i)
         {
-                if (abs(y) > kernel_radius)
-                        continue;
-                for (int x = -MAX_RADIUS; x <= MAX_RADIUS; ++x)
-                {
-                        if (abs(x) > kernel_radius)
-                                continue;
-                        vec2 offset = vec2(float(x), float(y)) * step_size;
-                        sum += SampleShadowHard(vec3(coord.xy + offset, coord.z), canonical_depth);
-                        weight += 1.0;
-                }
+                vec3 sample_coord = vec3(coord.xy + kernel[i] * radius, coord.z);
+                sum += SampleShadowHard(sample_coord, canonical_depth);
         }
-        return weight > 0.0 ? sum / weight : 1.0;
+
+        return sum / 9.0;
 }
 
 float EvaluateShadowVSM(vec3 coord, float canonical_depth)
@@ -263,9 +262,7 @@ float FilterShadowValue(vec3 coord, float canonical_depth, vec3 offset_pos)
         if (ShadowFilter.y <= 0.5 || kernel_radius <= 0 || texel_size <= 0.0)
                 return SampleShadowHard(coord, canonical_depth);
 
-        float distance = length(offset_pos - EyePos);
-        float radius_scale = clamp(1.0 + ShadowFilter.w * distance, 1.0, 6.0);
-        return SampleShadowPCF(coord, canonical_depth, texel_size, kernel_radius, radius_scale);
+        return SampleShadowPCF(coord, canonical_depth, texel_size, kernel_radius);
 }
 
 float EvaluateShadow(vec3 world_pos, vec3 normal, vec3 light_dir, float view_depth)

@@ -27,8 +27,7 @@ change.
 | --- | --- |
 | `r_shadow_map_size` | Side length (in texels) of each cascade. Values are clamped to 1024, 2048, or 4096. |
 | `r_shadow_bias` / `r_shadow_slope_bias` | Constant and slope polygon offset used while rasterizing the depth maps. |
-| `r_shadow_soft` / `r_shadow_pcf_size` | Enables PCF filtering and selects the kernel radius (1–3). |
-| `r_shadow_soft_dist_scale` | Optional distance scaling applied to PCF radius to soften distant cascades. |
+| `r_shadow_soft` / `r_shadow_pcf_size` | Enables simple PCF filtering and scales the sample radius (1–3). |
 | `r_shadow_normal_offset` | Receiver-plane depth offset used to reduce peter-panning. |
 | `r_shadow_vsm` / `r_shadow_vsm_bleed_reduce` | Enables variance shadow maps and controls light-bleeding reduction. |
 | `r_shadow_csm` | Enables cascaded shadow maps (1) or single-layer shadows (0). |

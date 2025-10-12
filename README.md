@@ -27,9 +27,8 @@ On most maps performance is indeed not much of a concern on a modern system. In 
 
 Soft shadow quality can be adjusted at runtime using the following console variables:
 
-- `r_shadow_soft` toggles percentage-closer filtering. Set to `0` for hard edges, or `1` to enable the PCF kernel.
-- `r_shadow_pcf_size` selects the PCF radius in texels (1 = 3×3, 2 = 5×5, 3 = 7×7). Larger kernels soften edges at the cost of GPU time.
-- `r_shadow_soft_dist_scale` scales the filter radius with distance to the camera. Keep this low (e.g. `0.001`) for stability, or set to `0` to disable distance-based widening.
+- `r_shadow_soft` toggles a simple 3×3 percentage-closer filter. Set to `0` for hard edges, or `1` to smooth the result.
+- `r_shadow_pcf_size` scales the filter radius in texels (range `1`–`3`). Larger values blur the edge more at the cost of extra overblur.
 - `r_shadow_normal_offset` applies a receiver offset along the surface normal based on `N·L`. Increase it slightly if shadow acne appears, but lower it if peter-panning becomes visible.
 - `r_shadow_bias` and `r_shadow_slope_bias` remain available for fine-tuning depth bias values.
 - `r_shadow_map_size` can be changed on the fly to recreate the shadow atlas at a different resolution. Consider dropping to `1024` on weaker GPUs.
