@@ -246,7 +246,7 @@ bool ComputeCascadeCoord(int cascadeIndex, vec3 offset_pos, float ndotl, out vec
 #endif
         if (projected.x < 0.0 || projected.x > 1.0 || projected.y < 0.0 || projected.y > 1.0)
                 return false;
-        if (projected.z <= 0.0 || projected.z >= 1.0)
+        if (projected.z < 0.0 || projected.z > 1.0)
                 return false;
         out_coord = vec3(projected.xy, float(cascadeIndex));
         out_canonical = DepthToCanonical(clamp(projected.z, 0.0, 1.0));
