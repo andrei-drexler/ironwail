@@ -261,10 +261,11 @@ OBJS = strlcat.o \
 	menu.o \
 	sbar.o \
 	view.o \
-	wad.o \
-	cmd.o \
-	common.o \
-	steam.o \
+        wad.o \
+        cmd.o \
+        common.o \
+        q3shader.o \
+        steam.o \
 	json.o \
 	miniz.o \
 	crc.o \
