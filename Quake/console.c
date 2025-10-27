@@ -503,6 +503,18 @@ static void Con_ApplyMouseSelection (void)
 		con_selection.end = tmp;
 	}
 
+	// If the starting point is beyond the newline, move to the beginning of the next line
+	line = Con_GetLine (con_selection.begin.line);
+	len = (int) Con_StrLen (con_selection.begin.line);
+	if (con_selection.begin.col > len)
+	{
+		con_selection.begin.line++;
+		con_selection.begin.col = 0;
+		// Fix up the end point if necessary
+		if (Con_OfsCompare (&con_selection.begin, &con_selection.end) > 0)
+			con_selection.end = con_selection.begin;
+	}
+
 	// Selecting character by character? Nothing left to do
 	if (con_mouseclicks <= 1)
 		return;

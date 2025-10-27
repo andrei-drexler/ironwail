@@ -542,41 +542,94 @@ qboolean Sys_Explore (const char *path)
 	LPITEMIDLIST	file, folder;
 	HRESULT			hr;
 	SFGAOF			sfgaof;
-	int				i, slash;
+	int				src, dst, slash;
 	qboolean		result = false;
 
 	if (Sys_FileType (path) == FS_ENT_NONE)
-		return false;
-
-	UTF8ToWideString (path, wpath, countof (wpath));
-	for (i = 0, slash = -1; wpath[i]; i++)
 	{
-		if (wpath[i] == L'/')
-			wpath[i] = L'\\';
-		if (wpath[i] == L'\\')
-			slash = i;
+		Sys_Printf ("Sys_Explore: '%s' not found.\n", path);
+		return false;
 	}
 
+	UTF8ToWideString (path, wpath, countof (wpath));
+
+	// Canonicalize path (replace forward slashes with backslashes, handle "." and "..")
+	for (src = dst = 0, slash = -1; wpath[src]; src++)
+	{
+		if (wpath[src] == L'/')
+			wpath[src] = L'\\';
+
+		if (wpath[src] == L'\\')
+		{
+			if (slash != -1)
+			{
+				// Handle "\..\" by going up a level
+				if (src == slash + 3 && wpath[slash + 1] == L'.' && wpath[slash + 2] == L'.')
+				{
+					// We've already written "\..", and dst is now pointing one character past that.
+					// Rewind dst by 4 (the character before the '\') and look for the previous '\'.
+					for (dst -= 4; dst >= 0; dst--)
+						if (wpath[dst] == L'\\')
+							break;
+					if (dst < 0)
+					{
+						Sys_Printf ("Sys_Explore: malformed path '%s'.\n", path);
+						return false;
+					}
+				}
+				// Ignore "\.\"
+				else if (src == slash + 2 && wpath[slash + 1] == L'.')
+				{
+					dst -= 2;
+				}
+			}
+			slash = src;
+		}
+
+		wpath[dst++] = wpath[src];
+	}
+	wpath[dst] = L'\0';
+
+	// If the cleaned up path is of a different length, we need to find the new index of the last slash character.
+	if (src != dst)
+		for (src = 0, slash = -1; wpath[src]; src++)
+			if (wpath[src] == L'\\')
+				slash = src;
+
 	if (slash == -1)
+	{
+		Sys_Printf ("Sys_Explore: no slash in '%s'.\n", path);
 		return false;
+	}
 
 	hr = Sys_InitCOM ();
 	if (FAILED (hr))
+	{
+		Sys_Printf ("Sys_Explore: failed to initialize COM (0x%08lx).\n", hr);
 		return false;
+	}
 
 	wpath[slash] = L'\0';
 	hr = SHParseDisplayName (wpath, NULL, &folder, 0, &sfgaof);
 	if (FAILED (hr))
+	{
+		Sys_Printf ("Sys_Explore: SHParseDisplayName failed (0x%08lx) for '%ls'.\n", hr, wpath);
 		goto cleanup_com;
+	}
 
 	wpath[slash] = L'\\';
 	hr = SHParseDisplayName (wpath, NULL, &file, 0, &sfgaof);
 	if (FAILED (hr))
+	{
+		Sys_Printf ("Sys_Explore: SHParseDisplayName failed (0x%08lx) for '%ls'.\n", hr, wpath);
 		goto cleanup_folder;
+	}
 
 	hr = SHOpenFolderAndSelectItems (folder, 1, (LPCITEMIDLIST *) &file, 0);
 	if (SUCCEEDED (hr))
 		result = true;
+	else
+		Sys_Printf ("Sys_Explore: SHOpenFolderAndSelectItems failed (0x%08lx) for '%ls'.\n", hr, wpath);
 
 	CoTaskMemFree (file);
 cleanup_folder:

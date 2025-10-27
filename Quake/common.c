@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 #include "q_ctype.h"
+#include "bgmusic.h"
 #include "steam.h"
 #include <time.h>
 #include <errno.h>
@@ -1958,6 +1959,9 @@ static int COM_FindFile (const char *filename, int *handle, FILE **file,
 
 		if (strcmp(ext, "pcx") != 0 &&
 			strcmp(ext, "tga") != 0 &&
+			strcmp(ext, "png") != 0 &&
+			strcmp(ext, "jpg") != 0 &&
+			strcmp(ext, "lmp") != 0 &&
 			strcmp(ext, "lit") != 0 &&
 			strcmp(ext, "vis") != 0 &&
 			strcmp(ext, "ent") != 0)
@@ -2559,6 +2563,7 @@ void COM_SwitchGame (const char *paths)
 		TexMgr_NewGame ();
 		Draw_NewGame ();
 		R_NewGame ();
+		BGM_Stop ();
 	}
 	ExtraMaps_Init ();
 	Host_Resetdemos ();
@@ -3036,12 +3041,10 @@ static void COM_InitBaseDir (void)
 	if (egs)
 		goto try_egs;
 
+	// try current working directory, then its ancestors (in case the executable is in its own subdirectory)
 	if (COM_SetBaseDir (host_parms->basedir))
 		return;
-
-	// executable might be in its own subdirectory, try going up one level
-	q_snprintf (path, sizeof (path), "%s/..", host_parms->basedir);
-	if (COM_SetBaseDir (path))
+	if (COM_SetBaseDirRec (host_parms->basedir))
 		return;
 
 	// on Linux, game data might actually be in the user dir

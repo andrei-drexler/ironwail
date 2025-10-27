@@ -206,6 +206,9 @@ void M_ConfigureNetSubsystem(void);
 void M_SetSkillMenuMap (const char *name);
 void M_Options_SelectMods (void);
 void M_Options_Init (enum m_state_e state);
+void M_ChooseQuitMessage (void);
+void M_DrawQuitMessage (void);
+qboolean M_ForcedQuitMessage (float *alpha);
 
 #define PREVIEW_FADEIN_TIME				0.125
 #define PREVIEW_FADEOUT_TIME			0.125
@@ -3487,6 +3490,10 @@ static void M_Options_Preview (int id)
 			case OPT_FOVDISTORT:
 				break;
 
+			case OPT_CONFIRMQUIT:
+				M_ChooseQuitMessage ();
+				break;
+
 			case OPT_CENTERPRINTBG:
 				if (cl.intermission)
 				{
@@ -3639,8 +3646,6 @@ void M_AdjustSliders (int dir)
 
 	M_ThrottledSound ("misc/menu3.wav");
 	M_List_ClearSearch (&optionsmenu.list);
-
-	M_Options_Preview (M_Options_GetSelected ());
 
 	switch (M_Options_GetSelected ())
 	{
@@ -3980,6 +3985,8 @@ void M_AdjustSliders (int dir)
 	default:
 		break;
 	}
+
+	M_Options_Preview (M_Options_GetSelected ());
 }
 
 typedef struct
@@ -4776,6 +4783,13 @@ void M_Options_Draw (void)
 	}
 
 	GL_PopCanvasColor ();
+
+	if (M_ForcedQuitMessage (&alpha))
+	{
+		GL_PushCanvasColor (1.f, 1.f, 1.f, alpha);
+		M_DrawQuitMessage ();
+		GL_PopCanvasColor ();
+	}
 }
 
 void M_Options_Key (int k)
@@ -5403,6 +5417,11 @@ const char*const quitMessage [] =
   "\xD9\x65s   \xCE\x6F",
 };
 
+void M_ChooseQuitMessage (void)
+{
+	msgNumber = (cl_confirmquit.value >= 2.f) ? (int)(realtime*(5.0*1.61803399))&7 : 8;
+}
+
 void M_Menu_Quit_f (void)
 {
 	if (m_state == m_quit)
@@ -5413,7 +5432,7 @@ void M_Menu_Quit_f (void)
 	m_quit_prevstate = m_state;
 	m_state = m_quit;
 	m_entersound = true;
-	msgNumber = (cl_confirmquit.value >= 2.f) ? (int)(realtime*(5.0*1.61803399))&7 : 8;
+	M_ChooseQuitMessage ();
 }
 
 
@@ -5488,19 +5507,21 @@ textmode_t M_Quit_TextEntry (void)
 	return TEXTMODE_NOPOPUP;
 }
 
+qboolean M_ForcedQuitMessage (float *alpha)
+{
+	qboolean forced = (key_dest == key_menu && M_GetBaseState (m_state) == m_options) ? optionsmenu.preview.id == OPT_CONFIRMQUIT : false;
+	if (alpha)
+		*alpha = forced ? M_Options_PreviewAlpha () : 0.f;
+	return forced;
+}
 
-void M_Quit_Draw (void) //johnfitz -- modified for new quit message
+void M_DrawQuitMessage (void)
 {
 	const char*const *msg = quitMessage + msgNumber*4;
 	int i, boxlen = 0;
 
-	if (wasInMenus)
-	{
-		m_state = m_quit_prevstate;
-		m_recursiveDraw = true;
-		M_Draw ();
-		m_state = m_quit;
-	}
+	if (!cl_confirmquit.value)
+		return;
 
 	//okay, this is kind of fucked up.  M_DrawTextBox will always act as if
 	//width is even. Also, the width and lines values are for the interior of the box,
@@ -5516,6 +5537,20 @@ void M_Quit_Draw (void) //johnfitz -- modified for new quit message
 	//now do the text
 	for (i = 0; i < 4; i++)
 		M_Print (160 - 8*((strlen(msg[i])+1)>>1), 88 + i*8, msg[i]);
+}
+
+
+void M_Quit_Draw (void) //johnfitz -- modified for new quit message
+{
+	if (wasInMenus)
+	{
+		m_state = m_quit_prevstate;
+		m_recursiveDraw = true;
+		M_Draw ();
+		m_state = m_quit;
+	}
+
+	M_DrawQuitMessage ();
 }
 
 //=============================================================================
