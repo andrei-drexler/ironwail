@@ -1937,6 +1937,7 @@ It can be set to a decimal number or a ratio delimited with a colon.
 void R_PixelAspect_f (cvar_t *cvar)
 {
 	vid.recalc_refdef = true;
+	VID_RecalcPixelAspect ();
 }
 
 /*

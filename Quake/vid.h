@@ -101,6 +101,7 @@ void		VID_SetWindowTitle (const char *title);
 void		VID_SetMouseCursor (mousecursor_t cursor);
 void		VID_RecalcConsoleSize (void);
 void		VID_RecalcInterfaceSize (void);
+void		VID_RecalcPixelAspect (void);
 
 #endif	/* __VID_DEFS_H */
 
