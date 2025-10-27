@@ -157,7 +157,7 @@ cvar_t		vid_contrast = {"contrast", "1", CVAR_ARCHIVE}; //QuakeSpasm, MarkV
 void TexMgr_Anisotropy_f (cvar_t *var);
 void TexMgr_CompressTextures_f (cvar_t *var);
 void SCR_PixelAspect_f (cvar_t *cvar);
-void R_PixelAdjust_f (cvar_t *cvar);
+void R_PixelAspect_f (cvar_t *cvar);
 
 void VID_RecalcInterfaceSize (void);
 
@@ -171,7 +171,7 @@ extern cvar_t r_dynamic;
 extern cvar_t host_maxfps;
 extern cvar_t scr_showfps;
 extern cvar_t scr_pixelaspect;
-extern cvar_t r_pixeladjust;
+extern cvar_t r_pixelaspect;
 
 //==========================================================================
 //
@@ -1626,8 +1626,8 @@ void	VID_Init (void)
 	Cvar_RegisterVariable (&scr_pixelaspect);
 	Cvar_SetCallback (&scr_pixelaspect, SCR_PixelAspect_f);
 
-	Cvar_RegisterVariable (&r_pixeladjust);
-	Cvar_SetCallback (&r_pixeladjust, R_PixelAdjust_f);
+	Cvar_RegisterVariable (&r_pixelaspect);
+	Cvar_SetCallback (&r_pixelaspect, R_PixelAspect_f);
 
 	Cmd_AddCommand ("vid_unlock", VID_Unlock); //johnfitz
 	Cmd_AddCommand ("vid_restart", VID_Restart); //johnfitz

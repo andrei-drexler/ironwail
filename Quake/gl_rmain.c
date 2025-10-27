@@ -52,8 +52,6 @@ vec3_t	r_origin;
 float r_fovx, r_fovy; //johnfitz -- rendering fov may be different becuase of r_waterwarp and r_stereo
 qboolean water_warp;
 
-float r_pixelaspect = 1.f;
-
 extern byte *SV_FatPVS (vec3_t org, qmodel_t *worldmodel);
 extern qboolean SV_EdictInPVS (edict_t *test, byte *pvs);
 extern qboolean SV_BoxInPVS (vec3_t mins, vec3_t maxs, byte *pvs, mnode_t *node);
@@ -114,7 +112,7 @@ cvar_t	r_lerpmove = {"r_lerpmove", "1", CVAR_ARCHIVE};
 cvar_t	r_nolerp_list = {"r_nolerp_list", "progs/flame.mdl,progs/flame2.mdl,progs/braztall.mdl,progs/brazshrt.mdl,progs/longtrch.mdl,progs/flame_pyre.mdl,progs/v_saw.mdl,progs/v_xfist.mdl,progs/h2stuff/newfire.mdl", CVAR_NONE};
 cvar_t	r_noshadow_list = {"r_noshadow_list", "progs/flame2.mdl,progs/flame.mdl,progs/bolt1.mdl,progs/bolt2.mdl,progs/bolt3.mdl,progs/laser.mdl", CVAR_NONE};
 
-cvar_t r_pixeladjust = {"r_pixeladjust", "0", CVAR_ARCHIVE}; // 0=no adjustment; 1=adjust for 4:3
+cvar_t r_pixelaspect = {"r_pixelaspect", "1", CVAR_ARCHIVE}; // pixel aspect ratio
 
 extern cvar_t	r_vfog;
 extern cvar_t	vid_fsaa;
@@ -773,8 +771,20 @@ GL_FrustumMatrix
 */
 static void GL_FrustumMatrix(float matrix[16], float fovx, float fovy, float n, float f)
 {
+	vid.pixelaspect = 1.f;
+	if (r_pixelaspect.string && *r_pixelaspect.string)
+	{
+		float num, denom;
+		if (sscanf (r_pixelaspect.string, "%f:%f", &num, &denom) == 2)
+		{
+			if (num && denom)
+				vid.pixelaspect = CLAMP (0.5f, num / denom, 2.f);
+		}
+		else if (r_pixelaspect.value)
+			vid.pixelaspect = CLAMP (0.5f, r_pixelaspect.value, 2.f);
+	}
 	const float w = 1.0f / tanf(fovx * 0.5f);
-	const float h = r_pixelaspect / tanf(fovy * 0.5f);
+	const float h = vid.pixelaspect / tanf(fovy * 0.5f);
 
 	memset(matrix, 0, 16 * sizeof(float));
 
@@ -1929,21 +1939,15 @@ void R_RenderScene (void)
 
 /*
 ================
-R_PixelAdjust_f
+R_PixelAspect_f
 
-The r_pixeladjust cvar allows rendering the 3D view with non-square pixel-aspect ratios.
-When enabled pixels will be stretched to always fit a display aspect ratio of 4:3.
-This is typically needed when using non-4:3 aspect ratios like 320x200 on CRT screens.
+The r_pixelaspect cvar allows rendering the 3D view with non-square pixel-aspect ratios.
+It can be set to a decimal number or a ratio delimited with a colon.
+
 ================
 */
-void R_PixelAdjust_f (cvar_t *cvar)
+void R_PixelAspect_f (cvar_t *cvar)
 {
-	r_pixelaspect = 1.f;
-	if (cvar->value)
-	{
-		float par = ((float)vid.height/(float)vid.width)/(3.f/4.f);
-		r_pixelaspect = CLAMP (0.5f, par, 2.f);
-	}
 	R_SetFrustum();
 }
 

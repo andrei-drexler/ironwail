@@ -46,9 +46,10 @@ typedef struct vrect_s
 
 typedef struct
 {
-	pixel_t		*colormap;	// 256 * VID_GRADES size
-	int			fullbright;	// index of first fullbright color
-	int			rowbytes;	// may be > width if displayed in a window
+	pixel_t		*colormap;		// 256 * VID_GRADES size
+	int			fullbright;		// index of first fullbright color
+	int			rowbytes;		// may be > width if displayed in a window
+	float		pixelaspect;	// 3D pixel aspect ratio (1 = square)
 	int			width;
 	int			height;
 	qboolean	resized;
