@@ -771,20 +771,8 @@ GL_FrustumMatrix
 */
 static void GL_FrustumMatrix(float matrix[16], float fovx, float fovy, float n, float f)
 {
-	vid.pixelaspect = 1.f;
-	if (r_pixelaspect.string && *r_pixelaspect.string)
-	{
-		float num, denom;
-		if (sscanf (r_pixelaspect.string, "%f:%f", &num, &denom) == 2)
-		{
-			if (num && denom)
-				vid.pixelaspect = CLAMP (0.5f, num / denom, 2.f);
-		}
-		else if (r_pixelaspect.value)
-			vid.pixelaspect = CLAMP (0.5f, r_pixelaspect.value, 2.f);
-	}
 	const float w = 1.0f / tanf(fovx * 0.5f);
-	const float h = vid.pixelaspect / tanf(fovy * 0.5f);
+	const float h = 1.0f / tanf(fovy * 0.5f);
 
 	memset(matrix, 0, 16 * sizeof(float));
 
@@ -1948,7 +1936,7 @@ It can be set to a decimal number or a ratio delimited with a colon.
 */
 void R_PixelAspect_f (cvar_t *cvar)
 {
-	R_SetFrustum();
+	vid.recalc_refdef = true;
 }
 
 /*
