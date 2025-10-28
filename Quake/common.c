@@ -1962,6 +1962,21 @@ static int COM_FindFile (const char *filename, int *handle, FILE **file,
 			strcmp(ext, "png") != 0 &&
 			strcmp(ext, "jpg") != 0 &&
 			strcmp(ext, "lmp") != 0 &&
+			// music formats
+			strcmp (ext, "ogg") != 0 &&
+			strcmp (ext, "opus") != 0 &&
+			strcmp (ext, "flac") != 0 &&
+			strcmp (ext, "wav") != 0 &&
+			strcmp (ext, "it") != 0 &&
+			strcmp (ext, "s3m") != 0 &&
+			strcmp (ext, "xm") != 0 &&
+			strcmp (ext, "mod") != 0 &&
+			strcmp (ext, "umx") != 0 &&
+			// alternate model formats
+			strcmp(ext, "md5mesh") != 0 &&
+			strcmp (ext, "md3") != 0 &&
+			strcmp (ext, "skin") != 0 &&
+			// optional map files
 			strcmp(ext, "lit") != 0 &&
 			strcmp(ext, "vis") != 0 &&
 			strcmp(ext, "ent") != 0)

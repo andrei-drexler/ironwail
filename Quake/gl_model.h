@@ -281,6 +281,7 @@ typedef struct meshxyz_s
 typedef struct meshst_s
 {
 	float st[2];
+	unsigned short vertexID;
 } meshst_t;
 //--
 
@@ -337,6 +338,7 @@ typedef struct {
 	{
 		PV_QUAKE1,		//trivertx_t
 		PV_IQM,			//iqmvert_t
+		PV_MD3
 	} poseverttype;	//spike
 	struct gltexture_s	*gltextures[MAX_SKINS][4]; //johnfitz
 	struct gltexture_s	*fbtextures[MAX_SKINS][4]; //johnfitz
@@ -362,7 +364,11 @@ typedef struct
 	char name[32];
 	bonepose_t inverse;
 } boneinfo_t;
-
+typedef struct
+{
+	float	xyz[4]; // only uses 3 but must be padded to 16 bytes
+	float	normal[4]; // ditto
+} md3pose_t; // Total size is now 32 bytes
 #define	MAXALIASVERTS		0x7fff //16-bit index buffer + onseam duplication
 #define	MAXALIASVERTS_QS	2000 //johnfitz -- was 1024
 #define	MAXALIASFRAMES		1024 //spike -- was 256
@@ -510,6 +516,18 @@ typedef struct qmodel_s
 	cache_user_t	cache;		// only access through Mod_Extradata
 
 } qmodel_t;
+
+//
+// MD3 structs
+//
+#define MD3_IDENT			('I' + ('D' << 8) + ('P' << 16) + ('3' << 24))
+#define MD3_VERSION			15
+#define MD3_XYZ_SCALE		(1.0/64.0)
+	typedef struct { int ident, version; char name[MAX_QPATH]; int flags; int numFrames, numTags, numSurfaces, numSkins; int ofsFrames, ofsTags, ofsSurfaces, ofsEnd; } md3Header_t;
+	typedef struct { int ident; char name[MAX_QPATH]; int flags; int numFrames, numShaders, numVerts, numTriangles; int ofsTriangles, ofsShaders, ofsSt, ofsXyzNormal, ofsEnd; } md3Surface_t;
+	typedef struct { int indexes[3]; } md3Triangle_t;
+	typedef struct { float st[2]; } md3TexCoord_t;
+	typedef struct { short xyz[3]; unsigned char normal[2]; } md3Vertex_t;
 
 //============================================================================
 

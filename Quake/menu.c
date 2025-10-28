@@ -63,7 +63,7 @@ extern cvar_t r_softemu_mdl_warp;
 extern cvar_t r_waterwarp;
 extern cvar_t r_oit;
 extern cvar_t r_alphasort;
-extern cvar_t r_md5;
+extern cvar_t r_enhancedmodels;
 extern cvar_t r_lerpmodels;
 extern cvar_t r_lerpmove;
 extern cvar_t snd_waterfx;
@@ -3165,7 +3165,7 @@ void M_Menu_Gamepad_f (void)
 	begin_menu (GRAPHICS_OPTIONS, m_graphics, TITLE("Graphics"))		\
 		item (OPT_SOFTEMU,				"8-bit Mode")					\
 		item (OPT_SOFTEMU_MDL,			"Model Warping")				\
-		item (OPT_MD5,					"Models")						\
+		item (OPT_ENHANCEDMODELS,		"Models")						\
 		item (OPT_ANIMLERP,				"Animations")					\
 		item (OPT_TEXFILTER,			"Textures")						\
 		item (OPT_ANISO,				"Anisotropic")					\
@@ -3861,8 +3861,8 @@ void M_AdjustSliders (int dir)
 	case OPT_TEXFILTER:
 		Cbuf_AddText ("cycle gl_texturemode GL_NEAREST_MIPMAP_LINEAR GL_LINEAR_MIPMAP_LINEAR\n");
 		break;
-	case OPT_MD5:
-		Cbuf_AddText ("toggle r_md5\n");
+	case OPT_ENHANCEDMODELS:
+		Cbuf_AddText ("toggle r_enhancedmodels\n");
 		break;
 	case OPT_ANIMLERP:
 		Cvar_SetValueQuick (&r_lerpmodels, !r_lerpmove.value);
@@ -4481,8 +4481,8 @@ static void M_Options_DrawItem (int y, int item)
 	case OPT_TEXFILTER:
 		M_Print (x, y, VID_Menu_GetTexFilterDesc ());
 		break;
-	case OPT_MD5:
-		M_Print (x, y, r_md5.value ? "Remastered" : "Classic");
+	case OPT_ENHANCEDMODELS:
+		M_Print (x, y, r_enhancedmodels.value ? "Enhanced" : "Classic");
 		break;
 	case OPT_ANIMLERP:
 		M_Print (x, y, r_lerpmodels.value ? "Smooth" : "Classic");
