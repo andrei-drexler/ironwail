@@ -157,8 +157,10 @@ cvar_t		vid_contrast = {"contrast", "1", CVAR_ARCHIVE}; //QuakeSpasm, MarkV
 void TexMgr_Anisotropy_f (cvar_t *var);
 void TexMgr_CompressTextures_f (cvar_t *var);
 void SCR_PixelAspect_f (cvar_t *cvar);
+void R_PixelAspect_f (cvar_t *cvar);
 
 void VID_RecalcInterfaceSize (void);
+void VID_RecalcPixelAspect (void);
 
 extern cvar_t gl_texture_anisotropy;
 extern cvar_t gl_texturemode;
@@ -170,6 +172,7 @@ extern cvar_t r_dynamic;
 extern cvar_t host_maxfps;
 extern cvar_t scr_showfps;
 extern cvar_t scr_pixelaspect;
+extern cvar_t r_pixelaspect;
 
 //==========================================================================
 //
@@ -561,6 +564,7 @@ static qboolean VID_SetMode (int width, int height, int refreshrate, qboolean fu
 	vid.numpages = 2;
 
 	VID_RecalcInterfaceSize ();
+	VID_RecalcPixelAspect ();
 
 // read the obtained z-buffer depth
 	if (SDL_GL_GetAttribute(SDL_GL_DEPTH_SIZE, &depthbits) == -1)
@@ -701,6 +705,22 @@ void VID_RecalcInterfaceSize (void)
 		VID_RecalcConsoleSize ();
 }
 
+void VID_RecalcPixelAspect (void)
+{
+	vid.pixelaspect = 1.f;
+	if (r_pixelaspect.string && *r_pixelaspect.string)
+	{
+		float num, denom;
+		if (sscanf (r_pixelaspect.string, "%f:%f", &num, &denom) == 2)
+		{
+			if (num && denom)
+				vid.pixelaspect = CLAMP (0.5f, num / denom, 2.f);
+		}
+		else if (r_pixelaspect.value)
+			vid.pixelaspect = CLAMP (0.5f, r_pixelaspect.value, 2.f);
+	}
+}
+
 /*
 ===================
 VID_Restart -- johnfitz -- change video modes on the fly
@@ -738,6 +758,7 @@ static void VID_Restart (void)
 
 	//conwidth and conheight need to be recalculated
 	VID_RecalcInterfaceSize ();
+	VID_RecalcPixelAspect ();
 
 	GL_CreateFrameBuffers ();
 //
@@ -1346,6 +1367,7 @@ void GL_BeginRendering (int *x, int *y, int *width, int *height)
 			vid_locked = was_locked;
 		}
 		VID_RecalcInterfaceSize ();
+		VID_RecalcPixelAspect ();
 		GL_DeleteFrameBuffers ();
 		GL_CreateFrameBuffers ();
 	}
@@ -1623,6 +1645,9 @@ void	VID_Init (void)
 
 	Cvar_RegisterVariable (&scr_pixelaspect);
 	Cvar_SetCallback (&scr_pixelaspect, SCR_PixelAspect_f);
+
+	Cvar_RegisterVariable (&r_pixelaspect);
+	Cvar_SetCallback (&r_pixelaspect, R_PixelAspect_f);
 
 	Cmd_AddCommand ("vid_unlock", VID_Unlock); //johnfitz
 	Cmd_AddCommand ("vid_restart", VID_Restart); //johnfitz

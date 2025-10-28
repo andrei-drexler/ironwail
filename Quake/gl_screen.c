@@ -123,6 +123,8 @@ extern	cvar_t	crosshair;
 extern	cvar_t	con_notifyfade;
 extern	cvar_t	con_notifyfadetime;
 
+extern cvar_t r_pixelaspect;
+
 extern	edict_t	**bbox_linked;
 extern	cvar_t	r_showfields;
 extern	cvar_t	r_showfields_align;
@@ -512,8 +514,8 @@ static void SCR_CalcRefdef (void)
 	zoom = cl.zoom;
 	zoom *= zoom * (3.f - 2.f * zoom); // smoothstep
 	r_refdef.basefov = LERP (scr_fov.value, scr_zoomfov.value, zoom);
-	r_refdef.fov_x = AdaptFovx (r_refdef.basefov, vid.width, vid.height);
-	r_refdef.fov_y = CalcFovy (r_refdef.fov_x, r_refdef.vrect.width, r_refdef.vrect.height);
+	r_refdef.fov_x = AdaptFovx (r_refdef.basefov, vid.width * vid.pixelaspect, vid.height);
+	r_refdef.fov_y = CalcFovy (r_refdef.fov_x, r_refdef.vrect.width * vid.pixelaspect, r_refdef.vrect.height);
 
 	scr_vrect = r_refdef.vrect;
 }
