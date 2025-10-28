@@ -530,7 +530,9 @@ typedef struct glprogs_s {
 	GLuint		skylayers[2];		// [dither]
 	GLuint		skycubemap[2][2];	// [anim][dither]
 	GLuint		skyboxside[2];		// [dither]
-	GLuint		alias[2][3][2][2];	// [OIT][mode:standard/dithered/noperspective][alpha test][md5]
+	GLuint		alias[2][3][2][3];	// [OIT][mode:standard/dithered/noperspective][alpha test][poseverttype]
+	GLint		alias_numverts_loc;
+	GLint		alias_numposes_loc;
 	GLuint		sprites[2];			// [dither]
 	GLuint		particles[2][2];	// [OIT][dither]
 	GLuint		debug3d;

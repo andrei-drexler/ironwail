@@ -329,7 +329,7 @@ GL_CreateShaders
 */
 void GL_CreateShaders (void)
 {
-	int palettize, dither, mode, alphatest, warp, oit, md5;
+	int palettize, dither, mode, alphatest, warp, oit;
 
 	glprogs.gui = GL_CreateProgram (gui_vertex_shader, gui_fragment_shader, "gui");
 	glprogs.viewblend = GL_CreateProgram (viewblend_vertex_shader, viewblend_fragment_shader, "viewblend");
@@ -361,12 +361,15 @@ void GL_CreateShaders (void)
 	}
 	glprogs.skystencil = GL_CreateProgram (skystencil_vertex_shader, NULL, "sky stencil");
 
+	int poseverttype;
 	for (oit = 0; oit < 2; oit++)
 		for (mode = 0; mode < 3; mode++)
 			for (alphatest = 0; alphatest < 2; alphatest++)
-				for (md5 = 0; md5 < 2; md5++)
-					glprogs.alias[oit][mode][alphatest][md5] =
-						GL_CreateProgram (alias_vertex_shader, alias_fragment_shader, "alias|OIT %d; MODE %d; ALPHATEST %d; MD5 %d", oit, mode, alphatest, md5);
+				for (poseverttype = 0; poseverttype < 3; poseverttype++) 
+					glprogs.alias[oit][mode][alphatest][poseverttype] =
+					GL_CreateProgram (alias_vertex_shader, alias_fragment_shader, "alias|OIT %d; MODE %d; ALPHATEST %d; POSEVERTTYPE %d", oit, mode, alphatest, poseverttype);
+	glprogs.alias_numverts_loc = GL_GetUniformLocationFunc (glprogs.alias[0][0][0][2], "u_numVerts");
+	glprogs.alias_numposes_loc = GL_GetUniformLocationFunc (glprogs.alias[0][0][0][2], "u_numPoses");
 
 	glprogs.debug3d = GL_CreateProgram (debug3d_vertex_shader, debug3d_fragment_shader, "debug3d");
 

@@ -1894,8 +1894,6 @@ void R_RenderScene (void)
 
 	Fog_EnableGFog (); //johnfitz
 
-	R_DrawViewModel (); //johnfitz -- moved here from R_RenderView
-
 	S_ExtraUpdate (); // don't let sound get messed up if going slow
 
 	R_DrawEntitiesOnList (false); //johnfitz -- false means this is the pass for nonalpha entities
@@ -1915,6 +1913,8 @@ void R_RenderScene (void)
 	R_DrawParticles (true);
 
 	R_EndTranslucency ();
+
+	R_DrawViewModel (); //johnfitz -- moved here from R_RenderView -- il8r -- moved for oit reasons
 
 	R_ShowTris (); //johnfitz
 

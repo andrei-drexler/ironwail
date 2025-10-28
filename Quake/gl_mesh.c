@@ -159,6 +159,9 @@ void GLMesh_LoadVertexBuffer (qmodel_t *m, aliashdr_t *mainhdr)
 			totalvbosize += (hdr->numposes * hdr->numverts_vbo * sizeof (iqmvert_t));
 			animsize += hdr->numboneposes * hdr->numbones * sizeof (bonepose_t);
 			break;
+		case PV_MD3:
+			totalvbosize += (hdr->numposes * hdr->numverts_vbo * sizeof (md3pose_t));
+			break;
 		default:
 			Sys_Error ("Bad vert type %i for %s", hdr->poseverttype, m->name);
 			break;
@@ -178,7 +181,7 @@ void GLMesh_LoadVertexBuffer (qmodel_t *m, aliashdr_t *mainhdr)
 	totalvbosize = (totalvbosize + ssbo_align) & ~ssbo_align;	//align it.
 
 	stofs = totalvbosize;
-	if (mainhdr->poseverttype == PV_QUAKE1)
+	if (mainhdr->poseverttype == PV_QUAKE1 || mainhdr->poseverttype == PV_MD3)
 		totalvbosize += (numverts * sizeof (meshst_t));
 	totalvbosize = (totalvbosize + ssbo_align) & ~ssbo_align;	//align it.
 
@@ -248,6 +251,10 @@ void GLMesh_LoadVertexBuffer (qmodel_t *m, aliashdr_t *mainhdr)
 				}
 			}
 			break;
+		case PV_MD3:
+			memcpy (vbodata + vertofs, (byte*)hdr + hdr->vertexes, hdr->numposes * hdr->numverts_vbo * sizeof (md3pose_t));
+			vertofs += hdr->numposes * hdr->numverts_vbo * sizeof (md3pose_t);
+			break;
 		case PV_IQM:
 			for (f = 0; f < hdr->numposes; f++) // ericw -- what RMQEngine called nummeshframes is called numposes in QuakeSpasm
 			{
@@ -268,8 +275,9 @@ void GLMesh_LoadVertexBuffer (qmodel_t *m, aliashdr_t *mainhdr)
 			break;
 		}
 
+	
 		// fill in the ST coords at the end of the buffer
-		if (hdr->poseverttype == PV_QUAKE1)
+		if (hdr->poseverttype == PV_QUAKE1 || hdr->poseverttype == PV_MD3)
 		{
 			meshst_t *st;
 			float hscale, vscale;
@@ -282,10 +290,10 @@ void GLMesh_LoadVertexBuffer (qmodel_t *m, aliashdr_t *mainhdr)
 			hdr->vbostofs = stofs; 
 			st = (meshst_t *) (vbodata + stofs);
 			stofs += hdr->numverts_vbo*sizeof(*st);
-			for (f = 0; f < hdr->numverts_vbo; f++)
-			{
-				st[f].st[0] = hscale * ((float) desc[f].st[0] + 0.5f);
-				st[f].st[1] = vscale * ((float) desc[f].st[1] + 0.5f);
+			for (f = 0; f < hdr->numverts_vbo; f++) {
+				st[f].st[0] = hscale * ((float)desc[f].st[0] + 0.5f);
+				st[f].st[1] = vscale * ((float)desc[f].st[1] + 0.5f);
+				st[f].vertexID = f;
 			}
 		}
 
