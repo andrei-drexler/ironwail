@@ -37,7 +37,6 @@ jobs:
         & $msbuild Windows\VisualStudio\ironwail.sln $options
         if (-not $?) { throw "Build failed" }
     - name: Prepare archive
-      if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
       run: |
             $compiledir = "Windows\VisualStudio\${env:BUILD_DIR}"
             $zipdir = "artifact\${env:BUILD_ARTIFACT}"
@@ -50,8 +49,7 @@ jobs:
             copy Quakespasm-Music.txt $zipdir
             copy LICENSE.txt $zipdir
     - name: Upload archive
-      if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ env.BUILD_ARTIFACT }}
+        name: ${{ (github.event_name == 'pull_request' || github.ref_name != 'master') && 'CAUTION-WIP-' || '' }}${{ env.BUILD_ARTIFACT }}
         path: artifact/*
