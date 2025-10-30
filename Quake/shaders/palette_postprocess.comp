@@ -1,0 +1,35 @@
+layout(local_size_x=64) in;
+
+layout(location=0) uniform vec2 GammmaContrast;
+layout(location=1) uniform vec4 BlendColor;
+
+layout(std430, binding=0) restrict readonly buffer PaletteBuffer
+{
+	uint Palette[256];
+};
+
+uvec3 UnpackRGB8(uint c)
+{
+	return uvec3(c, c >> 8, c >> 16) & 255u;
+}
+
+
+layout(std430, binding=1) restrict writeonly buffer DstPaletteBuffer
+{
+	uint DstPalette[256];
+};
+
+void main()
+{
+	float gamma = GammmaContrast.x;
+	float contrast = GammmaContrast.y;
+	uint idx = gl_GlobalInvocationID.x;
+	if (idx >= 256u)
+		return;
+	vec3 color = vec3(UnpackRGB8(Palette[idx])) * (1./255.);
+	color = mix(color, BlendColor.rgb, BlendColor.a);
+	color *= contrast;
+	color = pow(color, vec3(gamma));
+	uvec3 dst = uvec3(clamp(color, 0., 1.) * 255. + .5);
+	DstPalette[idx] = dst.r | (dst.g << 8) | (dst.b << 16) | 0xff000000u;
+}

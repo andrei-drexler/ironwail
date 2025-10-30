@@ -280,6 +280,8 @@ static void R_FlushBModelCalls (void)
 	num_bmodel_calls = 0;
 }
 
+#define CALLFLAG_ALPHA_TEST      (1u << 3)
+
 /*
 =============
 R_AddBModelCall
@@ -311,8 +313,10 @@ static void R_AddBModelCall (int index, int first_instance, int num_instances, t
 	if (!gl_zfix.value || map_checks.value)
 		zfix = 0;
 
-	flags = zfix | ((fb != NULL) << 1) | ((r_fullbright_cheatsafe != false) << 2);
-	alpha = t ? GL_WaterAlphaForTextureType (t->type) : 1.f;
+        flags = zfix | ((fb != NULL) << 1) | ((r_fullbright_cheatsafe != false) << 2);
+        if (t && t->type == TEXTYPE_CUTOUT)
+                flags |= CALLFLAG_ALPHA_TEST;
+        alpha = t ? GL_WaterAlphaForTextureType (t->type) : 1.f;
 
 	if (gl_bindless_able)
 	{
@@ -374,12 +378,13 @@ static GLuint R_ChooseBModelProgram (qboolean oit, qboolean alphatest)
 }
 
 typedef enum {
-	BP_SOLID,
-	BP_ALPHATEST,
-	BP_SKYLAYERS,
-	BP_SKYCUBEMAP,
-	BP_SKYSTENCIL,
-	BP_SHOWTRIS,
+        BP_SOLID,
+        BP_ALPHATEST,
+        BP_SKYLAYERS,
+        BP_SKYCUBEMAP,
+        BP_SKYSTENCIL,
+        BP_SHADOW,
+        BP_SHOWTRIS,
 } brushpass_t;
 
 /*
@@ -389,102 +394,180 @@ R_DrawBrushModels_Real
 */
 static void R_DrawBrushModels_Real (entity_t **ents, int count, brushpass_t pass, qboolean translucent)
 {
-	int i, j;
-	int totalinst, baseinst;
-	unsigned state;
-	GLuint program;
-	GLuint buf;
-	GLbyte *ofs;
-	textype_t texbegin, texend;
-	qboolean oit;
+        int i, j;
+        int totalinst, baseinst;
+        unsigned state;
+        GLuint program;
+        GLuint buf;
+        GLbyte *ofs;
+        textype_t texbegin, texend;
+        qboolean oit;
+        qboolean shadow_visible_local[MAX_BMODEL_INSTANCES];
+        qboolean *shadow_visible = NULL;
 
-	if (!count)
-		return;
+        if (!count)
+                return;
 
-	if (count > countof(bmodel_instances))
+        if (count > countof(bmodel_instances))
 	{
 		Con_DWarning ("bmodel instance overflow: %d > %d\n", count, (int)countof(bmodel_instances));
 		count = countof(bmodel_instances);
 	}
 
 	oit = translucent && R_GetEffectiveAlphaMode () == ALPHAMODE_OIT;
-	switch (pass)
-	{
-	default:
-	case BP_SOLID:
-		texbegin = 0;
-		texend = TEXTYPE_CUTOUT;
-		program = R_ChooseBModelProgram (oit, false);
-		break;
-	case BP_ALPHATEST:
-		texbegin = TEXTYPE_CUTOUT;
-		texend = TEXTYPE_CUTOUT + 1;
-		program = R_ChooseBModelProgram (oit, true);
-		break;
-	case BP_SKYLAYERS:
-		texbegin = TEXTYPE_SKY;
-		texend = TEXTYPE_SKY + 1;
-		program = glprogs.skylayers[softemu == SOFTEMU_COARSE];
-		break;
-	case BP_SKYCUBEMAP:
-		texbegin = TEXTYPE_SKY;
-		texend = TEXTYPE_SKY + 1;
-		program = glprogs.skycubemap[Sky_IsAnimated ()][softemu == SOFTEMU_COARSE];
-		break;
-	case BP_SKYSTENCIL:
-		texbegin = TEXTYPE_SKY;
-		texend = TEXTYPE_SKY + 1;
-		program = glprogs.skystencil;
-		break;
-	case BP_SHOWTRIS:
-		texbegin = 0;
-		texend = TEXTYPE_COUNT;
-		program = glprogs.world[0][0][0];
-		break;
-	}
+        switch (pass)
+        {
+        default:
+        case BP_SOLID:
+                texbegin = 0;
+                texend = TEXTYPE_CUTOUT;
+                program = R_ChooseBModelProgram (oit, false);
+                break;
+        case BP_ALPHATEST:
+                texbegin = TEXTYPE_CUTOUT;
+                texend = TEXTYPE_CUTOUT + 1;
+                program = R_ChooseBModelProgram (oit, true);
+                break;
+        case BP_SKYLAYERS:
+                texbegin = TEXTYPE_SKY;
+                texend = TEXTYPE_SKY + 1;
+                program = glprogs.skylayers[softemu == SOFTEMU_COARSE];
+                break;
+        case BP_SKYCUBEMAP:
+                texbegin = TEXTYPE_SKY;
+                texend = TEXTYPE_SKY + 1;
+                program = glprogs.skycubemap[Sky_IsAnimated ()][softemu == SOFTEMU_COARSE];
+                break;
+        case BP_SKYSTENCIL:
+                texbegin = TEXTYPE_SKY;
+                texend = TEXTYPE_SKY + 1;
+                program = glprogs.skystencil;
+                break;
+        case BP_SHADOW:
+                texbegin = 0;
+                texend = TEXTYPE_CUTOUT + 1;
+                program = R_ShadowUsesVSM () ? glprogs.shadow_depth_vsm : glprogs.shadow_depth;
+                translucent = false;
+                oit = false;
+                break;
+        case BP_SHOWTRIS:
+                texbegin = 0;
+                texend = TEXTYPE_COUNT;
+                program = glprogs.world[0][0][0];
+                break;
+        }
 
-	// fill instance data
-	for (i = 0, totalinst = 0; i < count; i++)
-		if (ents[i]->model->texofs[texend] - ents[i]->model->texofs[texbegin] > 0)
-			R_InitBModelInstance (&bmodel_instances[totalinst++], ents[i]);
+        // fill instance data
+        if (pass == BP_SHADOW)
+        {
+                memset (shadow_visible_local, 0, sizeof (shadow_visible_local));
+                shadow_visible = shadow_visible_local;
+        }
+        for (i = 0, totalinst = 0; i < count; i++)
+        {
+                entity_t *ent = ents[i];
+                if (pass == BP_SHADOW)
+                {
+                        if (ent->model->flags & MOD_NOSHADOW)
+                        {
+                                if (shadow_visible)
+                                        shadow_visible[i] = false;
+                                continue;
+                        }
+                        if (ent != &cl_entities[0])
+                        {
+                                vec3_t mins, maxs;
+                                R_GetEntityBounds (ent, mins, maxs);
+                                if (R_CullBox (mins, maxs) || R_ShadowCascadeCull (mins, maxs))
+                                {
+                                        R_ShadowRecordCull ();
+                                        if (shadow_visible)
+                                                shadow_visible[i] = false;
+                                        continue;
+                                }
+                        }
+                }
+                if (ent->model->texofs[texend] - ent->model->texofs[texbegin] > 0)
+                {
+                        R_InitBModelInstance (&bmodel_instances[totalinst++], ent);
+                        if (shadow_visible)
+                                shadow_visible[i] = true;
+                        if (pass == BP_SHADOW)
+                                R_ShadowRecordDraw ();
+                }
+                else if (shadow_visible)
+                {
+                        shadow_visible[i] = false;
+                }
+        }
 
-	if (!totalinst)
-		return;
+        if (!totalinst)
+                return;
 
 	// setup state
-	state = GLS_CULL_BACK | GLS_ATTRIBS(4);
-	if (!translucent)
-		state |= GLS_BLEND_OPAQUE;
-	else
-		state |= GLS_BLEND_ALPHA_OIT | GLS_NO_ZWRITE;
+        if (pass == BP_SHADOW)
+        {
+                state = GLS_BLEND_OPAQUE | GLS_CULL_FRONT | GLS_ATTRIBS(4);
+        }
+        else
+        {
+                state = GLS_CULL_BACK | GLS_ATTRIBS(4);
+                if (!translucent)
+                        state |= GLS_BLEND_OPAQUE;
+                else
+                        state |= GLS_BLEND_ALPHA_OIT | GLS_NO_ZWRITE;
+        }
 	
-	R_ResetBModelCalls (program);
-	GL_SetState (state);
-	if (pass <= BP_ALPHATEST)
-		GL_Bind (GL_TEXTURE2, r_fullbright_cheatsafe ? greytexture : lightmap_texture);
-	else if (pass == BP_SKYCUBEMAP)
-		GL_Bind (GL_TEXTURE2, skybox->cubemap);
+        R_ResetBModelCalls (program);
+        GL_SetState (state);
+        if (pass <= BP_ALPHATEST)
+        {
+                GLenum shadow_target = R_ShadowTextureTarget ();
+                if (r_framedata.shadow_params[3] > 0.f)
+                        GL_BindNative (GL_TEXTURE3, shadow_target, R_ShadowTexture ());
+                else
+                        GL_BindNative (GL_TEXTURE3, shadow_target, 0);
+                GL_Bind (GL_TEXTURE2, r_fullbright_cheatsafe ? greytexture : lightmap_texture);
+        }
+        else if (pass == BP_SKYCUBEMAP)
+                GL_Bind (GL_TEXTURE2, skybox->cubemap);
 
-	GL_Upload (GL_SHADER_STORAGE_BUFFER, bmodel_instances, sizeof(bmodel_instances[0]) * count, &buf, &ofs);
-	GL_BindBufferRange (GL_SHADER_STORAGE_BUFFER, 2, buf, (GLintptr)ofs, sizeof(bmodel_instances[0]) * count);
+        GL_Upload (GL_SHADER_STORAGE_BUFFER, bmodel_instances, sizeof(bmodel_instances[0]) * totalinst, &buf, &ofs);
+        GL_BindBufferRange (GL_SHADER_STORAGE_BUFFER, 2, buf, (GLintptr)ofs, sizeof(bmodel_instances[0]) * totalinst);
 
-	// generate drawcalls
-	for (i = 0, baseinst = 0; i < count; /**/)
-	{
-		int numinst;
-		entity_t *e = ents[i++];
-		qmodel_t *model = e->model;
-		qboolean isworld = (e == &cl_entities[0]);
-		qboolean isstatic = PTR_IN_RANGE (e, cl_static_entities, cl_static_entities + MAX_STATIC_ENTITIES);
-		qboolean zfix = !isworld && !isstatic;
-		int frame = isworld ? 0 : e->frame;
-		int numtex = model->texofs[texend] - model->texofs[texbegin];
+        // generate drawcalls
+        for (i = 0, baseinst = 0; i < count; /**/)
+        {
+                int numinst;
+                entity_t *e = ents[i++];
+                qmodel_t *model = e->model;
+                qboolean isworld = (e == &cl_entities[0]);
+                qboolean isstatic = PTR_IN_RANGE (e, cl_static_entities, cl_static_entities + MAX_STATIC_ENTITIES);
+                qboolean zfix = !isworld && !isstatic;
+                int frame = isworld ? 0 : e->frame;
+                int numtex = model->texofs[texend] - model->texofs[texbegin];
 
-		if (!numtex)
-			continue;
+                if (pass == BP_SHADOW)
+                {
+                        int idx = i - 1;
+                        if (model->flags & MOD_NOSHADOW)
+                                continue;
+                        if (shadow_visible && !shadow_visible[idx])
+                                continue;
+                }
 
-		for (numinst = 1; i < count && ents[i]->model == model && numinst < MAX_BMODEL_INSTANCES; i++)
-			numinst += (ents[i]->model->texofs[texend] - ents[i]->model->texofs[texbegin]) > 0;
+                if (!numtex)
+                        continue;
+
+                if (pass == BP_SHADOW)
+                {
+                        numinst = 1;
+                }
+                else
+                {
+                        for (numinst = 1; i < count && ents[i]->model == model && numinst < MAX_BMODEL_INSTANCES; i++)
+                                numinst += (ents[i]->model->texofs[texend] - ents[i]->model->texofs[texbegin]) > 0;
+                }
 
 		for (j = model->texofs[texbegin]; j < model->texofs[texend]; j++)
 		{
@@ -659,9 +742,9 @@ R_DrawBrushModels
 */
 void R_DrawBrushModels (entity_t **ents, int count)
 {
-	qboolean translucent;
-	if (!count)
-		return;
+        qboolean translucent;
+        if (!count)
+                return;
 	translucent = (ents[0] != &cl_entities[0]) && !ENTALPHA_OPAQUE (ents[0]->alpha);
 	if (!translucent || R_GetEffectiveAlphaMode () == ALPHAMODE_OIT)
 	{
@@ -693,6 +776,18 @@ void R_DrawBrushModels (entity_t **ents, int count)
 			i = j;
 		}
 	}
+}
+
+/*
+=============
+R_DrawBrushModels_Shadow
+=============
+*/
+void R_DrawBrushModels_Shadow (entity_t **ents, int count, qboolean translucent)
+{
+        if (!count)
+                return;
+        R_DrawBrushModels_Real (ents, count, BP_SHADOW, false);
 }
 
 /*

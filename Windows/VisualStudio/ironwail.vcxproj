@@ -27,24 +27,24 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
     <CharacterSet>NotSet</CharacterSet>
     <WholeProgramOptimization>true</WholeProgramOptimization>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
     <CharacterSet>NotSet</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
     <CharacterSet>NotSet</CharacterSet>
     <WholeProgramOptimization>true</WholeProgramOptimization>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
     <CharacterSet>NotSet</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
@@ -253,6 +253,7 @@ copy "$(SolutionDir)..\zlib\$(PlatformShortName)\*.dll" "$(TargetDir)"</Command>
     <ClCompile Include="..\..\Quake\gl_warp.c" />
     <ClCompile Include="..\..\Quake\host.c" />
     <ClCompile Include="..\..\Quake\host_cmd.c" />
+    <ClCompile Include="..\..\Quake\q3shader.c" />
     <ClCompile Include="..\..\Quake\image.c" />
     <ClCompile Include="..\..\Quake\in_sdl.c" />
     <ClCompile Include="..\..\Quake\json.c" />
@@ -260,6 +261,9 @@ copy "$(SolutionDir)..\zlib\$(PlatformShortName)\*.dll" "$(TargetDir)"</Command>
     <ClCompile Include="..\..\Quake\main_sdl.c" />
     <ClCompile Include="..\..\Quake\mathlib.c" />
     <ClCompile Include="..\..\Quake\menu.c" />
+    <ClCompile Include="..\..\Quake\sidebar.cpp">
+      <CompileAs>CompileAsCpp</CompileAs>
+    </ClCompile>
     <ClCompile Include="..\..\Quake\miniz.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
@@ -388,6 +392,7 @@ copy "$(SolutionDir)..\zlib\$(PlatformShortName)\*.dll" "$(TargetDir)"</Command>
     <ClInclude Include="..\..\Quake\progdefs.h" />
     <ClInclude Include="..\..\Quake\progs.h" />
     <ClInclude Include="..\..\Quake\protocol.h" />
+    <ClInclude Include="..\..\Quake\q3shader.h" />
     <ClInclude Include="..\..\Quake\pr_comp.h" />
     <ClInclude Include="..\..\Quake\qs_bmp.h" />
     <ClInclude Include="..\..\Quake\quakedef.h" />
@@ -397,6 +402,7 @@ copy "$(SolutionDir)..\zlib\$(PlatformShortName)\*.dll" "$(TargetDir)"</Command>
     <ClInclude Include="..\..\Quake\resource.h" />
     <ClInclude Include="..\..\Quake\sbar.h" />
     <ClInclude Include="..\..\Quake\screen.h" />
+    <ClInclude Include="..\..\Quake\sidebar.h" />
     <ClInclude Include="..\..\Quake\server.h" />
     <ClInclude Include="..\..\Quake\snd_codec.h" />
     <ClInclude Include="..\..\Quake\snd_codeci.h" />

@@ -358,11 +358,12 @@ Host_InitLocal
 void Host_InitLocal (void)
 {
 	Cmd_AddCommand ("version", Host_Version_f);
-	Cmd_AddCommand ("writeconfig", Host_WriteConfig_f);
+        Cmd_AddCommand ("writeconfig", Host_WriteConfig_f);
 
-	Host_InitCommands ();
+        Host_InitCommands ();
+        Q3Shader_Init ();
 
-	Cvar_RegisterVariable (&host_framerate);
+        Cvar_RegisterVariable (&host_framerate);
 	Cvar_RegisterVariable (&host_speeds);
 	Cvar_RegisterVariable (&host_maxfps); //johnfitz
 	Cvar_SetCallback (&host_maxfps, Max_Fps_f);
@@ -1507,11 +1508,11 @@ void Host_Shutdown(void)
 	Host_WriteConfiguration ();
 
 // stop downloads before shutting down networking
-	Modlist_ShutDown ();
+        Modlist_ShutDown ();
 
-	NET_Shutdown ();
+        NET_Shutdown ();
 
-	if (cls.state != ca_dedicated)
+        if (cls.state != ca_dedicated)
 	{
 		if (con_initialized)
 			History_Shutdown ();
@@ -1521,10 +1522,11 @@ void Host_Shutdown(void)
 		S_Shutdown ();
 		IN_Shutdown ();
 		VID_Shutdown();
-	}
+        }
 
-	LOG_Close ();
+        LOG_Close ();
 
-	LOC_Shutdown ();
+        LOC_Shutdown ();
+        Q3Shader_Shutdown ();
 }
 

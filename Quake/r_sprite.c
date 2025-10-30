@@ -248,6 +248,38 @@ static void R_DrawSpriteModel_Real (entity_t *e, qboolean showtris)
 		return;
 	}
 
+	if (!showtris)
+	{
+		float entalpha;
+
+		if (r_lightmap_cheatsafe)
+			entalpha = 1.f;
+		else
+			entalpha = ENTALPHA_DECODE (e->alpha);
+
+		if (entalpha > 0.f)
+		{
+			vec3_t mins, maxs;
+			float left = frame->left * scale;
+			float right = frame->right * scale;
+			float up = frame->up * scale;
+			float down = frame->down * scale;
+			float horiz = q_max (fabsf (left), fabsf (right));
+			float vert = q_max (fabsf (up), fabsf (down));
+			float radius = q_max (horiz, vert);
+			mins[0] = e->origin[0] - radius;
+			maxs[0] = e->origin[0] + radius;
+			mins[1] = e->origin[1] - radius;
+			maxs[1] = e->origin[1] + radius;
+			float minz = q_min (down, up);
+			float maxz = q_max (down, up);
+			mins[2] = e->origin[2] + minz;
+			maxs[2] = e->origin[2] + maxz;
+			R_BlobShadows_Add (e, mins, maxs, entalpha, e->origin[2]);
+		}
+	}
+
+
 	if (numbatchquads)
 		if (numbatchquads == countof(batchverts) / 4 || batchmodel != e->model || batchtexture != frame->gltexture)
 			R_FlushSpriteInstances ();
@@ -290,6 +322,7 @@ void R_DrawSpriteModels (entity_t **ents, int count)
 	for (i = 0; i < count; i++)
 		R_DrawSpriteModel_Real (ents[i], false);
 	R_FlushSpriteInstances ();
+	R_BlobShadows_Flush ();
 }
 
 /*
@@ -303,4 +336,5 @@ void R_DrawSpriteModels_ShowTris (entity_t **ents, int count)
 	for (i = 0; i < count; i++)
 		R_DrawSpriteModel_Real (ents[i], true);
 	R_FlushSpriteInstances ();
+	R_BlobShadows_Flush ();
 }

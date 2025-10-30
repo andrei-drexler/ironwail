@@ -42,6 +42,7 @@ extern cvar_t cl_rollangle;
 extern cvar_t cl_maxpitch;
 extern cvar_t cl_minpitch;
 extern cvar_t gl_cshiftpercent;
+extern cvar_t r_shadows;
 extern cvar_t sv_autoload;
 extern cvar_t r_particles;
 extern cvar_t gl_texturemode;
@@ -3178,6 +3179,7 @@ void M_Menu_Gamepad_f (void)
 		item (OPT_PARTICLES,			"Particles")					\
 		item (OPT_WATERWARP,			"Underwater FX")				\
 		item (OPT_DLIGHTS,				"Dynamic Lights")				\
+                item (OPT_SHADOWS,                              "Blob Shadows")                                 \
 	end_menu ()															\
 	begin_menu (INTERFACE_OPTIONS, m_interface, TITLE("Interface"))		\
 		item (OPT_UISCALE,				"Scale")						\
@@ -3877,9 +3879,12 @@ void M_AdjustSliders (int dir)
 	case OPT_ALPHAMODE:
 		VID_Menu_ChooseNextAlphaMode (dir);
 		break;
-	case OPT_DLIGHTS:
-		Cbuf_AddText ("toggle r_dynamic\n");
-		break;
+        case OPT_DLIGHTS:
+                Cbuf_AddText ("toggle r_dynamic\n");
+                break;
+        case OPT_SHADOWS:
+                Cbuf_AddText ("toggle r_shadows\n");
+                break;
 	case OPT_SOFTEMU:
 		Cvar_SetValueQuick (&r_softemu, (int)(q_max (r_softemu.value, 0.f) + 4 + dir) % 4);
 		break;
@@ -4496,9 +4501,12 @@ static void M_Options_DrawItem (int y, int item)
 	case OPT_ALPHAMODE:
 		M_Print (x, y, VID_Menu_GetAlphaModeDesc ());
 		break;
-	case OPT_DLIGHTS:
-		M_DrawCheckbox (x, y, r_dynamic.value);
-		break;
+        case OPT_DLIGHTS:
+                M_DrawCheckbox (x, y, r_dynamic.value);
+                break;
+        case OPT_SHADOWS:
+                M_DrawCheckbox (x, y, r_shadows.value);
+                break;
 	case OPT_SOFTEMU:
 		M_Print (x, y, VID_Menu_GetSoftEmuDesc ());
 		break;
