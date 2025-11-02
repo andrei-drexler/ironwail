@@ -156,6 +156,28 @@ static const keyname_t keynames[] =
 	//{"JOY_START", K_START},
 	//{"JOY_BACK", K_BACK},
 
+	// Gamepad buttons with the "alt modifier" pressed
+	{"LTHUMB_ALT", K_LTHUMB_ALT},
+	{"RTHUMB_ALT", K_RTHUMB_ALT},
+	{"LSHOULDER_ALT", K_LSHOULDER_ALT},
+	{"RSHOULDER_ALT", K_RSHOULDER_ALT},
+	{"DPAD_UP_ALT", K_DPAD_UP_ALT},
+	{"DPAD_DOWN_ALT", K_DPAD_DOWN_ALT},
+	{"DPAD_LEFT_ALT", K_DPAD_LEFT_ALT},
+	{"DPAD_RIGHT_ALT", K_DPAD_RIGHT_ALT},
+	{"ABUTTON_ALT", K_ABUTTON_ALT},
+	{"BBUTTON_ALT", K_BBUTTON_ALT},
+	{"XBUTTON_ALT", K_XBUTTON_ALT},
+	{"YBUTTON_ALT", K_YBUTTON_ALT},
+	{"LTRIGGER_ALT", K_LTRIGGER_ALT},
+	{"RTRIGGER_ALT", K_RTRIGGER_ALT},
+	{"MISC1_ALT", K_MISC1_ALT},
+	{"PADDLE1_ALT", K_PADDLE1_ALT},
+	{"PADDLE2_ALT", K_PADDLE2_ALT},
+	{"PADDLE3_ALT", K_PADDLE3_ALT},
+	{"PADDLE4_ALT", K_PADDLE4_ALT},
+	{"TOUCHPAD_ALT", K_TOUCHPAD_ALT},
+
 	{NULL,		0}
 };
 
@@ -1156,6 +1178,19 @@ void Key_EventWithKeycode (int key, qboolean down, int keycode)
 	{
 		VID_Toggle();
 		return;
+	}
+
+// evil hack for the gamepad alt modifier button, which turns K_x_BTN into K_x_BTN_ALT
+	if (joy_altmodifier_pressed && key >= K_LTHUMB && key < K_LTHUMB_ALT)
+	{
+		// make sure key is not the altmodifier itself (which we won't turn into *_ALT)
+		if (keybindings[key] == NULL || strcmp(keybindings[key], "+altmodifier") != 0)
+		{
+			int altkey = key + (K_LTHUMB_ALT - K_LTHUMB);
+			// allow fallback to binding with non-alt key
+			if (keybindings[altkey] != NULL || keybindings[key] == NULL)
+				key = altkey;
+		}
 	}
 
 // handle autorepeats and stray key up events

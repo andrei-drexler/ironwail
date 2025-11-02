@@ -52,6 +52,10 @@ static cvar_t in_debugkeys = {"in_debugkeys", "0", CVAR_NONE};
 #include <IOKit/hidsystem/event_status_driver.h>
 #endif
 
+// the gamepad alt modifier button is pressed
+// => K_x_BTN turns into K_x_BTN_ALT
+qboolean joy_altmodifier_pressed = false;
+
 // SDL2 Game Controller cvars
 cvar_t	joy_deadzone_look = { "joy_deadzone_look", "0.175", CVAR_ARCHIVE };
 cvar_t	joy_deadzone_move = { "joy_deadzone_move", "0.175", CVAR_ARCHIVE };
@@ -582,6 +586,16 @@ void IN_GyroActionUp (void)
 	gyro_button_pressed = false;
 }
 
+static void IN_JoyAltModifierDown (void)
+{
+	joy_altmodifier_pressed = true;
+}
+
+static void IN_JoyAltModifierUp (void)
+{
+	joy_altmodifier_pressed = false;
+}
+
 /*
 ================
 Joy_Device_f
@@ -704,6 +718,8 @@ void IN_Init (void)
 
 	Cmd_AddCommand ("+gyroaction", IN_GyroActionDown);
 	Cmd_AddCommand ("-gyroaction", IN_GyroActionUp);
+	Cmd_AddCommand ("+altmodifier", IN_JoyAltModifierDown);
+	Cmd_AddCommand ("-altmodifier", IN_JoyAltModifierUp);
 
 	IN_Activate();
 	IN_StartupJoystick();

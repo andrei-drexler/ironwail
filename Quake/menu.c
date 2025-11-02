@@ -4962,6 +4962,7 @@ static const menukeybind_t menubinds[] =
 	{"zoom_in",			"Toggle zoom",			KDM_ANY},
 	{"+zoom",			"Quick zoom",			KDM_ANY},
 	{"+gyroaction",		"Gyro switch",			KDM_GAMEPAD},
+	{"+altmodifier",	"Alt modifier",			KDM_GAMEPAD},
 	{"",				"",						KDM_ANY},
 	{"+attack",			"Attack",				KDM_ANY},
 	{"impulse 10",		"Next weapon",			KDM_ANY},
