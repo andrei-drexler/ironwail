@@ -175,7 +175,199 @@ void IN_UseUp (void) {KeyUp(&in_use);}
 void IN_JumpDown (void) {KeyDown(&in_jump);}
 void IN_JumpUp (void) {KeyUp(&in_jump);}
 
-void IN_Impulse (void) {in_impulse=Q_atoi(Cmd_Argv(1));}
+// Function to calculate log2 of an unsigned integer using bit shifts
+static int log2_bitshifts (int n)
+{
+	int count = 0;
+	if (n <= 0) return 0;
+
+	while (n > 1)
+	{
+		n >>= 1; // Right shift by 1, equivalent to dividing by 2
+		count++;
+	}
+	return count;
+}
+
+static int get_impulse (const int weapon)
+{
+	if (rogue)
+	{
+		if (weapon == RIT_AXE)
+			return 1;
+		if (weapon >= RIT_LAVA_NAILGUN && weapon <= RIT_PLASMA_GUN)
+			return log2_bitshifts (weapon) - 8;
+	}
+
+	switch (weapon)
+	{
+		case 0:
+		case IT_AXE:
+			return 1;
+		case HIT_MJOLNIR:
+			return 226;
+		case HIT_PROXIMITY_GUN:
+			return 6;
+		case HIT_LASER_CANNON:
+			return 225;
+	}
+	return log2_bitshifts (weapon) + 2;
+}
+
+static int get_weapon_item (const int impulse)
+{
+	switch (impulse)
+	{
+		case 1:
+			if (rogue)
+				return RIT_AXE;
+			return IT_AXE;
+		case 225:
+			return HIT_LASER_CANNON;
+		case 226:
+			return HIT_MJOLNIR;
+	}
+	return 1 << (impulse - 2);
+}
+
+// Verify if the given weapon shares impulse with another, selectable one
+static qboolean shared_impulse (const int weapon)
+{
+	extern int rogue_ammo[RA_MAX_COUNT];
+	extern qboolean rogue_shown;
+
+	if (hipnotic && weapon == IT_GRENADE_LAUNCHER
+		&& cl.items & HIT_PROXIMITY_GUN && cl.stats[STAT_ROCKETS] > 0)
+	{
+		return true;
+	}
+	if (rogue)	//	special ammo verification
+	{
+		switch (weapon)
+		{
+			case IT_NAILGUN:
+				return cl.items & RIT_LAVA_NAILGUN && (rogue_ammo[RA_LAVA_NAILS] > 0 || !rogue_shown);
+			case IT_SUPER_NAILGUN:
+				return cl.items & RIT_LAVA_SUPER_NAILGUN && (rogue_ammo[RA_LAVA_NAILS] > 1 || !rogue_shown);
+			case IT_GRENADE_LAUNCHER:
+				return cl.items & RIT_MULTI_GRENADE && (rogue_ammo[RA_MULTI_ROCKETS] > 0 || !rogue_shown);
+			case IT_ROCKET_LAUNCHER:
+				return cl.items & RIT_MULTI_ROCKET && (rogue_ammo[RA_MULTI_ROCKETS] > 0 || !rogue_shown);
+			case IT_LIGHTNING:
+				return cl.items & RIT_PLASMA_GUN && (rogue_ammo[RA_PLASMA_AMMO] > 0 || !rogue_shown);
+		}
+	}
+	return false;
+}
+
+// This doesn't support "grouped" weapons
+static qboolean has_ammo (const int weapon)
+{
+	switch (weapon)
+	{
+		case IT_AXE:
+		case RIT_AXE:
+			return true;
+		case IT_SHOTGUN:
+			return cl.stats[STAT_SHELLS] > 0;
+		case IT_SUPER_SHOTGUN:
+			return cl.stats[STAT_SHELLS] > 1;
+		case IT_NAILGUN:
+			return cl.stats[STAT_NAILS] > 0;
+		case IT_SUPER_NAILGUN:
+			return cl.stats[STAT_NAILS] > 1;
+		case IT_GRENADE_LAUNCHER:
+		case IT_ROCKET_LAUNCHER:
+			return cl.stats[STAT_ROCKETS] > 0;
+		case IT_LIGHTNING:
+		case HIT_LASER_CANNON:
+			return cl.stats[STAT_CELLS] > 0;
+		case HIT_MJOLNIR:
+			return cl.stats[STAT_CELLS] > 14;
+	}
+	return false;
+}
+
+void IN_Impulse (void)
+{
+	const int argc = Cmd_Argc();
+	int i, impulse, weapon, start, noammo_fallback, noweap_fallback;
+
+	if (argc <= 2)
+	{
+		in_impulse = Q_atoi(Cmd_Argv(1));
+		return;
+	}
+
+	// Currently selected weapon's "impulse" value
+	impulse = get_impulse (cl.stats[STAT_ACTIVEWEAPON]);
+
+	// Find where we want to start the search for the next eligible weapon
+	for (i = 1; i < argc; i++)
+	{
+		if (impulse == Q_atoi(Cmd_Argv(i)))
+			break;
+	}
+
+	// Current weapon was found in params, and is part of a "group"?
+	if (i < argc && shared_impulse(cl.stats[STAT_ACTIVEWEAPON]))
+	{
+		in_impulse = impulse;	// ...then use the same impulse
+		return;
+	}
+
+	i++;
+	if (i >= argc)
+	{
+		i = 1;
+	}
+	start = i;
+
+	// Find the first eligible weapon in the list we can switch to
+	noammo_fallback = noweap_fallback = 0;
+	do
+	{
+		impulse = Q_atoi(Cmd_Argv(i));
+		weapon = get_weapon_item (impulse);
+
+		if (!(cl.items & weapon))
+		{
+			if (shared_impulse(weapon))
+			{
+				in_impulse = impulse;
+				return;
+			}
+
+			if (!noweap_fallback)
+				noweap_fallback = impulse;
+		}
+		else if (!has_ammo(weapon))
+		{
+			if (!noammo_fallback)
+				noammo_fallback = impulse;
+		}
+		else
+		{
+			in_impulse = impulse;
+			return;
+		}
+
+		i++;
+		if (i >= argc)
+		{
+			i = 1;
+		}
+	} while (i != start);
+
+	// If no weapon was found, the fallbacks will be used for
+	// printing the appropriate error message to the console
+	if (noammo_fallback)
+	{
+		in_impulse = noammo_fallback;
+		return;
+	}
+	in_impulse = noweap_fallback;
+}
 
 /*
 ===============

@@ -104,6 +104,10 @@ qboolean warn_about_nehahra_protocol; //johnfitz
 
 extern vec3_t	v_punchangles[2]; //johnfitz
 
+// Client counters for rogue weapons' ammo, to verify if they're usable
+int rogue_ammo[RA_MAX_COUNT];
+qboolean rogue_shown = false;
+
 //=============================================================================
 
 /*
@@ -883,6 +887,15 @@ void CL_ParseClientdata (void)
 		cl.viewent.lerpflags |= LERP_RESETANIM; //don't lerp animation across model changes
 	}
 	//johnfitz
+
+	// updating rogue ammo counters
+	if (rogue && cl.stats[STAT_ACTIVEWEAPON] >= RIT_LAVA_NAILGUN)
+	{
+		rogue_ammo[RA_LAVA_NAILS] = cl.stats[STAT_NAILS];
+		rogue_ammo[RA_MULTI_ROCKETS] = cl.stats[STAT_ROCKETS];
+		rogue_ammo[RA_PLASMA_AMMO] = cl.stats[STAT_CELLS];
+		rogue_shown = true;
+	}
 }
 
 /*
@@ -1072,6 +1085,7 @@ void CL_ParseServerMessage (void)
 	int			i;
 	const char		*str; //johnfitz
 	int			lastcmd; //johnfitz
+	qboolean	rogue_check = false;
 
 //
 // if recording demos, copy the message out
@@ -1154,7 +1168,26 @@ void CL_ParseServerMessage (void)
 			Host_EndGame ("Server disconnected\n");
 
 		case svc_print:
-			Con_Printf ("%s", MSG_ReadString ());
+			str = MSG_ReadString ();
+			Con_Printf ("%s", str);
+
+			if (rogue)	// hacky place to verify rogue ammo picked up
+			{
+				if (rogue_check)
+				{
+					rogue_check = false;
+					if (!strcmp ("lava nails", str))
+						rogue_ammo[RA_LAVA_NAILS] = 2;
+					else if (!strcmp ("multi rockets", str))
+						rogue_ammo[RA_MULTI_ROCKETS] = 1;
+					else if (!strcmp ("plasma balls", str))
+						rogue_ammo[RA_PLASMA_AMMO] = 1;
+				}
+				else if (!strcmp ("You got the ", str))
+				{
+					rogue_check = true;	// verify next svc_print cmd
+				}
+			}
 			break;
 
 		case svc_centerprint:
