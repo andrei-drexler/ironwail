@@ -25,6 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "bgmusic.h"
 #include "steam.h"
+#include "ipc.h"
 #include <setjmp.h>
 
 /*
@@ -1228,6 +1229,10 @@ void _Host_Frame (double time)
 //check the stdin for commands (dedicated servers)
 	Host_GetConsoleCommands ();
 
+// PluQ: Process input commands from IPC frontend
+	if (IPC_IsEnabled())
+		IPC_ProcessInputCommands();
+
 // process console commands
 	Cbuf_Execute ();
 
@@ -1275,6 +1280,10 @@ void _Host_Frame (double time)
 // fetch results from server
 	if (cls.state == ca_connected)
 		CL_ReadFromServer ();
+
+// PluQ: Broadcast world state via IPC after server/client update
+	if (IPC_IsEnabled())
+		IPC_BroadcastWorldState();
 
 // update video
 	if (host_speeds.value)
@@ -1443,6 +1452,8 @@ void Host_Init (void)
 
 	LOC_Init (); // for 2021 rerelease support.
 
+	IPC_Init (); // PluQ: Initialize IPC subsystem
+
 	Hunk_AllocName (0, "-HOST_HUNKLEVEL-");
 	host_hunklevel = Hunk_LowMark ();
 
@@ -1524,6 +1535,8 @@ void Host_Shutdown(void)
 	}
 
 	LOG_Close ();
+
+	IPC_Shutdown (); // PluQ: Shutdown IPC subsystem
 
 	LOC_Shutdown ();
 }
