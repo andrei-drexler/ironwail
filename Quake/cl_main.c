@@ -803,9 +803,12 @@ void CL_AccumulateCmd (void)
 		//accumulate movement from other devices
 		IN_Move (&cl.pendingcmd);
 
-		//PluQ: Apply IPC input from frontend
-		IPC_Move (&cl.pendingcmd);
-		IPC_ApplyViewAngles ();
+		//PluQ: Backend mode - apply IPC input from frontend
+		if (IPC_IsBackend())
+		{
+			IPC_Move (&cl.pendingcmd);
+			IPC_ApplyViewAngles ();
+		}
 	}
 }
 
@@ -831,11 +834,17 @@ void CL_SendCmd (void)
 		cmd.sidemove	+= cl.pendingcmd.sidemove;
 		cmd.upmove		+= cl.pendingcmd.upmove;
 
-	// send the unreliable message
-		CL_SendMove (&cmd);
+	// PluQ: If in frontend mode, send input to backend via IPC
+		if (IPC_IsFrontend())
+			IPC_SendInput(&cmd);
+		else
+			CL_SendMove (&cmd);  // Otherwise send to server normally
 	}
 	else
-		CL_SendMove (NULL);
+	{
+		if (!IPC_IsFrontend())
+			CL_SendMove (NULL);
+	}
 	memset(&cl.pendingcmd, 0, sizeof(cl.pendingcmd));
 
 	if (cls.demoplayback)

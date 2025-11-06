@@ -1265,8 +1265,13 @@ void _Host_Frame (double time)
 		}
 		else
 			accumtime -= host_netinterval;
-		CL_SendCmd ();
-		if (sv.active)
+
+		// PluQ: In frontend mode, don't send commands to server
+		if (!IPC_IsFrontend())
+			CL_SendCmd ();
+
+		// PluQ: Only run server in backend mode (not in frontend-only mode)
+		if (sv.active && !IPC_IsFrontend())
 		{
 			PR_SwitchQCVM(&sv.qcvm);
 			Host_ServerFrame ();
@@ -1279,10 +1284,21 @@ void _Host_Frame (double time)
 
 // fetch results from server
 	if (cls.state == ca_connected)
-		CL_ReadFromServer ();
+	{
+		// PluQ: If in frontend mode, receive state from backend instead of reading from server
+		if (IPC_IsFrontend())
+		{
+			if (IPC_ReceiveWorldState())
+				IPC_ApplyReceivedState();
+		}
+		else
+		{
+			CL_ReadFromServer ();
+		}
+	}
 
-// PluQ: Broadcast world state via IPC after server/client update
-	if (IPC_IsEnabled())
+// PluQ: Backend broadcasts world state via IPC after server/client update
+	if (IPC_IsBackend())
 		IPC_BroadcastWorldState();
 
 // update video

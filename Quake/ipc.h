@@ -30,6 +30,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // Maximum number of entities to support in IPC
 #define IPC_MAX_ENTITIES 8192
 
+// PluQ operation modes
+typedef enum
+{
+	IPC_MODE_DISABLED,   // IPC not active
+	IPC_MODE_BACKEND,    // Act as backend (broadcast state, receive input)
+	IPC_MODE_FRONTEND,   // Act as frontend (receive state, send input)
+	IPC_MODE_BOTH        // Act as both (for testing/comparison)
+} ipc_mode_t;
+
 // Input command structure
 typedef struct
 {
@@ -113,20 +122,29 @@ typedef struct
 } ipc_stats_t;
 
 // IPC initialization and shutdown
-qboolean IPC_Initialize(void);
+qboolean IPC_Initialize(ipc_mode_t mode);
 void IPC_Shutdown(void);
 
-// Check if IPC is enabled and active
+// Mode management
+ipc_mode_t IPC_GetMode(void);
+void IPC_SetMode(ipc_mode_t mode);
 qboolean IPC_IsEnabled(void);
+qboolean IPC_IsBackend(void);
+qboolean IPC_IsFrontend(void);
 
-// State broadcasting
+// Backend functions (state broadcasting)
 void IPC_BroadcastWorldState(void);
 
-// Input handling
+// Frontend functions (state reception)
+qboolean IPC_ReceiveWorldState(void);
+void IPC_ApplyReceivedState(void);
+
+// Input handling (backend receives, frontend sends)
 qboolean IPC_HasPendingInput(void);
 void IPC_ProcessInputCommands(void);
-void IPC_Move(usercmd_t *cmd);  // Add IPC input to movement command
-void IPC_ApplyViewAngles(void);  // Apply IPC view angles
+void IPC_SendInput(usercmd_t *cmd);  // Frontend: send input to backend
+void IPC_Move(usercmd_t *cmd);  // Backend: add IPC input to movement command
+void IPC_ApplyViewAngles(void);  // Backend: apply IPC view angles
 
 // Performance monitoring
 void IPC_GetStats(ipc_stats_t *stats);
