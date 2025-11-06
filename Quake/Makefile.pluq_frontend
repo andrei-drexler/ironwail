@@ -1,8 +1,9 @@
-# GNU Makefile for Ironwail unix targets.
+# GNU Makefile for Ironwail PluQ Frontend (Slim Client)
+# PluQ Frontend receives world state via PluQ and handles rendering/input only
 # You need the SDL library fully installed.
-# "make DEBUG=1" to build a debug client.
-# "make SDL_CONFIG=/path/to/sdl-config" for unusual SDL installations.
-# "make DO_USERDIRS=1" to enable user directories support
+# "make -f Makefile.pluq_frontend DEBUG=1" to build a debug frontend.
+# "make -f Makefile.pluq_frontend SDL_CONFIG=/path/to/sdl-config" for unusual SDL installations.
+# "make -f Makefile.pluq_frontend DO_USERDIRS=1" to enable user directories support
 
 # Enable/Disable user directories support
 DO_USERDIRS=1
@@ -10,8 +11,8 @@ DO_USERDIRS=1
 ### Enable/Disable SDL2
 USE_SDL2=1
 
-### Enable/Disable Curl
-USE_CURL=1
+### Disable Curl for frontend (not needed)
+USE_CURL=0
 
 ### Enable/Disable codecs for streaming music support
 USE_CODEC_WAVE=1
@@ -94,12 +95,7 @@ SDL_CFLAGS = $(shell $(SDL_CONFIG) --cflags)
 SDL_LIBS   = $(shell $(SDL_CONFIG) --libs)
 
 NET_LIBS   =
-ifeq ($(HOST_OS),sunos)
-NET_LIBS   =-lsocket -lnsl -lresolv
-endif
-ifeq ($(HOST_OS),haiku)
-NET_LIBS   =-lnetwork
-endif
+# PluQ Frontend doesn't use networking
 
 ifeq ($(USE_CURL),1)
 NET_LIBS   += -lcurl
@@ -184,7 +180,7 @@ endif
 LIBS = $(COMMON_LIBS) $(NET_LIBS) $(CODECLIBS)
 
 # name of this makefile, so we can use it as a dependency
-MAKEFILE := $(lastword $(MAKEFILE_LIST))
+MAKEFILE := Makefile.pluq_frontend
 
 # ---------------------------
 # objects
@@ -207,9 +203,11 @@ SYSOBJ_SND = snd_sdl.o
 SYSOBJ_CDA = cd_null.o
 SYSOBJ_INPUT = in_sdl.o
 SYSOBJ_GL_VID= gl_vidsdl.o
-SYSOBJ_NET = net_bsd.o net_udp.o
+# PluQ Frontend: No networking objects (net_bsd.o, net_udp.o)
+SYSOBJ_NET =
 SYSOBJ_SYS = pl_linux.o sys_sdl_unix.o
-SYSOBJ_MAIN= main_sdl.o
+# PluQ Frontend: Use frontend-specific main
+SYSOBJ_MAIN= main_pluq_frontend.o
 
 GLOBJS = \
 	gl_refrag.o \
@@ -233,6 +231,7 @@ GLOBJS = \
 	r_brush.o \
 	gl_model.o
 
+# PluQ Frontend-specific objects (minimal set)
 OBJS = strlcat.o \
 	strlcpy.o \
 	$(GLOBJS) \
@@ -241,9 +240,6 @@ OBJS = strlcat.o \
 	$(SYSOBJ_SND) \
 	$(SYSOBJ_CDA) \
 	$(SYSOBJ_NET) \
-	net_dgrm.o \
-	net_loop.o \
-	net_main.o \
 	chase.o \
 	cl_demo.o \
 	cl_input.o \
@@ -265,19 +261,19 @@ OBJS = strlcat.o \
 	crc.o \
 	cvar.o \
 	cfgfile.o \
-	host.o \
+	host_pluq_frontend.o \
 	host_cmd.o \
 	mathlib.o \
-	pr_cmds.o \
-	pr_edict.o \
-	pr_exec.o \
-	sv_main.o \
-	sv_move.o \
-	sv_phys.o \
-	sv_user.o \
-	world.o \
 	zone.o \
+	stubs_pluq_frontend.o \
 	$(SYSOBJ_SYS) $(SYSOBJ_MAIN)
+
+# PluQ Frontend: Exclude these from backend:
+# - net_dgrm.o, net_loop.o, net_main.o (networking)
+# - pr_cmds.o, pr_edict.o, pr_exec.o (QuakeC VM)
+# - sv_main.o, sv_move.o, sv_phys.o, sv_user.o (server)
+# - world.o (world physics)
+# - host.o (use host_pluq_frontend.o instead)
 
 OBJDEPS := $(OBJS:%.o=%.d)
 OBJS += $(SYSOBJ_RES)
@@ -288,7 +284,7 @@ OBJS += $(SYSOBJ_RES)
 
 .PHONY:	clean debug release
 
-DEFAULT_TARGET = ironwail
+DEFAULT_TARGET = ironwail-pluq-frontend
 all: $(DEFAULT_TARGET)
 
 %.d:	%.c $(MAKEFILE)
@@ -298,29 +294,17 @@ all: $(DEFAULT_TARGET)
 	@echo "Compiling $<" && \
 	$(CC) $(DFLAGS) -c $(CFLAGS) $(SDL_CFLAGS) -o $@ $<
 
-ironwail:	$(OBJS) $(MAKEFILE)
+ironwail-pluq-frontend:	$(OBJS) $(MAKEFILE)
 	@echo "Linking $@" && \
 	$(LINKER) $(OBJS) $(LDFLAGS) $(LIBS) $(SDL_LIBS) -o $@
 	$(call do_strip,$@)
 
-release:	ironwail
+release:	ironwail-pluq-frontend
 debug:
-	$(error Use "make DEBUG=1")
+	$(error Use "make -f Makefile.pluq_frontend DEBUG=1")
 
 clean: $(MAKEFILE)
 	$(RM) *.o *.d $(DEFAULT_TARGET)
-
-ifeq ($(HOST_OS),haiku)
-IW_APP_DIR=$(shell finddir B_APPS_DIRECTORY)/ironwail/
-install:	ironwail
-	mkdir -p $(IW_APP_DIR)
-	cp ironwail $(IW_APP_DIR)
-	cp ironwail.pak $(IW_APP_DIR)
-else
-install:	ironwail
-	cp ironwail /usr/local/games/quake
-	cp ironwail.pak /usr/local/games/quake
-endif
 
 #---------------------------------------------------------------
 # include dependencies (if not running 'clean' target)

@@ -23,7 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 #include "bgmusic.h"
-#include "ipc.h"
+#include "pluq.h"
 
 // we need to declare some mouse variables here, because the menu system
 // references them even when on a unix system.
@@ -804,10 +804,10 @@ void CL_AccumulateCmd (void)
 		IN_Move (&cl.pendingcmd);
 
 		//PluQ: Backend mode - apply IPC input from frontend
-		if (IPC_IsBackend())
+		if (PluQ_IsBackend())
 		{
-			IPC_Move (&cl.pendingcmd);
-			IPC_ApplyViewAngles ();
+			PluQ_Move (&cl.pendingcmd);
+			PluQ_ApplyViewAngles ();
 		}
 	}
 }
@@ -835,14 +835,14 @@ void CL_SendCmd (void)
 		cmd.upmove		+= cl.pendingcmd.upmove;
 
 	// PluQ: If in frontend mode, send input to backend via IPC
-		if (IPC_IsFrontend())
-			IPC_SendInput(&cmd);
+		if (PluQ_IsFrontend())
+			PluQ_SendInput(&cmd);
 		else
 			CL_SendMove (&cmd);  // Otherwise send to server normally
 	}
 	else
 	{
-		if (!IPC_IsFrontend())
+		if (!PluQ_IsFrontend())
 			CL_SendMove (NULL);
 	}
 	memset(&cl.pendingcmd, 0, sizeof(cl.pendingcmd));

@@ -21,7 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // ipc.c -- Inter-Process Communication implementation
 
 #include "quakedef.h"
-#include "ipc.h"
+#include "pluq.h"
 
 #ifndef _WIN32
 #include <sys/mman.h>
@@ -37,13 +37,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 static cvar_t pluq_headless = {"pluq_headless", "0", CVAR_NONE};
 
 // Global state
-static qboolean ipc_initialized = false;
-static ipc_mode_t ipc_mode = IPC_MODE_DISABLED;
-static ipc_shared_memory_t *shared_mem = NULL;
-static ipc_stats_t perf_stats = {0};
+static qboolean pluq_initialized = false;
+static pluq_mode_t pluq_mode = PluQ_MODE_DISABLED;
+static pluq_shared_memory_t *shared_mem = NULL;
+static pluq_stats_t perf_stats = {0};
 
 // Current input from frontend (for backend mode)
-static ipc_input_cmd_t current_input = {0};
+static pluq_input_cmd_t current_input = {0};
 static qboolean has_current_input = false;
 
 // Last received frame (for frontend mode)
@@ -51,32 +51,32 @@ static uint32_t last_received_frame = 0;
 
 #ifndef _WIN32
 static int shm_fd = -1;
-static const char *shm_name = "/quake_ipc_ironwail";
+static const char *shm_name = "/quake_pluq_ironwail";
 #else
 static HANDLE hMapFile = NULL;
-static const char *shm_name = "Local\\quake_ipc_ironwail";
+static const char *shm_name = "Local\\quake_pluq_ironwail";
 #endif
 
 // Forward declarations
-static qboolean IPC_InitializeSharedMemory(void);
-static void IPC_CleanupSharedMemory(void);
+static qboolean PluQ_InitializeSharedMemory(void);
+static void PluQ_CleanupSharedMemory(void);
 
 /*
 ==================
-IPC_Initialize
+PluQ_Initialize
 
 Initialize IPC system with specified mode
 ==================
 */
-qboolean IPC_Initialize(ipc_mode_t mode)
+qboolean PluQ_Initialize(pluq_mode_t mode)
 {
-	if (ipc_initialized && ipc_mode != IPC_MODE_DISABLED)
+	if (pluq_initialized && pluq_mode != PluQ_MODE_DISABLED)
 	{
-		Con_Printf("IPC already initialized in mode %d\n", ipc_mode);
+		Con_Printf("IPC already initialized in mode %d\n", pluq_mode);
 		return true;
 	}
 
-	if (mode == IPC_MODE_DISABLED)
+	if (mode == PluQ_MODE_DISABLED)
 	{
 		Con_Printf("Cannot initialize IPC in disabled mode\n");
 		return false;
@@ -85,34 +85,34 @@ qboolean IPC_Initialize(ipc_mode_t mode)
 	Con_Printf("Initializing PluQ IPC system in mode: ");
 	switch (mode)
 	{
-		case IPC_MODE_BACKEND:   Con_Printf("BACKEND\n"); break;
-		case IPC_MODE_FRONTEND:  Con_Printf("FRONTEND\n"); break;
-		case IPC_MODE_BOTH:      Con_Printf("BOTH\n"); break;
+		case PluQ_MODE_BACKEND:   Con_Printf("BACKEND\n"); break;
+		case PluQ_MODE_FRONTEND:  Con_Printf("FRONTEND\n"); break;
+		case PluQ_MODE_BOTH:      Con_Printf("BOTH\n"); break;
 		default:                  Con_Printf("UNKNOWN\n"); break;
 	}
 
-	if (!IPC_InitializeSharedMemory())
+	if (!PluQ_InitializeSharedMemory())
 	{
 		Con_Printf("Failed to initialize shared memory\n");
 		return false;
 	}
 
 	// Backend initializes shared memory structure
-	if (mode == IPC_MODE_BACKEND || mode == IPC_MODE_BOTH)
+	if (mode == PluQ_MODE_BACKEND || mode == PluQ_MODE_BOTH)
 	{
-		memset(shared_mem, 0, sizeof(ipc_shared_memory_t));
+		memset(shared_mem, 0, sizeof(pluq_shared_memory_t));
 		shared_mem->frame_sequence = 0;
 		shared_mem->write_in_progress = 0;
 		shared_mem->input_ready = 0;
-		shared_mem->header.max_entities = IPC_MAX_ENTITIES;
+		shared_mem->header.max_entities = PluQ_MAX_ENTITIES;
 	}
 
 	// Reset statistics
-	memset(&perf_stats, 0, sizeof(ipc_stats_t));
+	memset(&perf_stats, 0, sizeof(pluq_stats_t));
 	last_received_frame = 0;
 
-	ipc_initialized = true;
-	ipc_mode = mode;
+	pluq_initialized = true;
+	pluq_mode = mode;
 
 	Con_Printf("PluQ IPC system initialized successfully\n");
 	return true;
@@ -120,22 +120,22 @@ qboolean IPC_Initialize(ipc_mode_t mode)
 
 /*
 ==================
-IPC_Shutdown
+PluQ_Shutdown
 
 Shutdown IPC system
 ==================
 */
-void IPC_Shutdown(void)
+void PluQ_Shutdown(void)
 {
-	if (!ipc_initialized)
+	if (!pluq_initialized)
 		return;
 
 	Con_Printf("Shutting down PluQ IPC system...\n");
 
-	IPC_CleanupSharedMemory();
+	PluQ_CleanupSharedMemory();
 
-	ipc_initialized = false;
-	ipc_mode = IPC_MODE_DISABLED;
+	pluq_initialized = false;
+	pluq_mode = PluQ_MODE_DISABLED;
 	shared_mem = NULL;
 
 	Con_Printf("PluQ IPC system shut down\n");
@@ -143,96 +143,96 @@ void IPC_Shutdown(void)
 
 /*
 ==================
-IPC_GetMode
+PluQ_GetMode
 
 Get current IPC mode
 ==================
 */
-ipc_mode_t IPC_GetMode(void)
+pluq_mode_t PluQ_GetMode(void)
 {
-	return ipc_mode;
+	return pluq_mode;
 }
 
 /*
 ==================
-IPC_SetMode
+PluQ_SetMode
 
 Set IPC mode (requires reinitialization)
 ==================
 */
-void IPC_SetMode(ipc_mode_t mode)
+void PluQ_SetMode(pluq_mode_t mode)
 {
-	if (ipc_initialized && mode != ipc_mode)
+	if (pluq_initialized && mode != pluq_mode)
 	{
 		Con_Printf("Switching PluQ mode requires reinitialization\n");
-		IPC_Shutdown();
-		if (mode != IPC_MODE_DISABLED)
-			IPC_Initialize(mode);
+		PluQ_Shutdown();
+		if (mode != PluQ_MODE_DISABLED)
+			PluQ_Initialize(mode);
 	}
-	else if (!ipc_initialized && mode != IPC_MODE_DISABLED)
+	else if (!pluq_initialized && mode != PluQ_MODE_DISABLED)
 	{
-		IPC_Initialize(mode);
+		PluQ_Initialize(mode);
 	}
 }
 
 /*
 ==================
-IPC_IsEnabled
+PluQ_IsEnabled
 
 Check if IPC is enabled and active
 ==================
 */
-qboolean IPC_IsEnabled(void)
+qboolean PluQ_IsEnabled(void)
 {
-	return ipc_initialized && ipc_mode != IPC_MODE_DISABLED && shared_mem != NULL;
+	return pluq_initialized && pluq_mode != PluQ_MODE_DISABLED && shared_mem != NULL;
 }
 
 /*
 ==================
-IPC_IsBackend
+PluQ_IsBackend
 
 Check if running in backend mode
 ==================
 */
-qboolean IPC_IsBackend(void)
+qboolean PluQ_IsBackend(void)
 {
-	return IPC_IsEnabled() && (ipc_mode == IPC_MODE_BACKEND || ipc_mode == IPC_MODE_BOTH);
+	return PluQ_IsEnabled() && (pluq_mode == PluQ_MODE_BACKEND || pluq_mode == PluQ_MODE_BOTH);
 }
 
 /*
 ==================
-IPC_IsFrontend
+PluQ_IsFrontend
 
 Check if running in frontend mode
 ==================
 */
-qboolean IPC_IsFrontend(void)
+qboolean PluQ_IsFrontend(void)
 {
-	return IPC_IsEnabled() && (ipc_mode == IPC_MODE_FRONTEND || ipc_mode == IPC_MODE_BOTH);
+	return PluQ_IsEnabled() && (pluq_mode == PluQ_MODE_FRONTEND || pluq_mode == PluQ_MODE_BOTH);
 }
 
 /*
 ==================
-IPC_IsHeadless
+PluQ_IsHeadless
 
 Check if running in headless mode (backend without rendering/input)
 ==================
 */
-qboolean IPC_IsHeadless(void)
+qboolean PluQ_IsHeadless(void)
 {
-	return IPC_IsBackend() && pluq_headless.value != 0;
+	return PluQ_IsBackend() && pluq_headless.value != 0;
 }
 
 /*
 ==================
-IPC_InitializeSharedMemory
+PluQ_InitializeSharedMemory
 
 Platform-specific shared memory initialization
 ==================
 */
-static qboolean IPC_InitializeSharedMemory(void)
+static qboolean PluQ_InitializeSharedMemory(void)
 {
-	size_t size = sizeof(ipc_shared_memory_t);
+	size_t size = sizeof(pluq_shared_memory_t);
 
 #ifndef _WIN32
 	// Unix/Linux implementation using POSIX shared memory
@@ -258,7 +258,7 @@ static qboolean IPC_InitializeSharedMemory(void)
 	}
 
 	// Map the shared memory
-	shared_mem = (ipc_shared_memory_t *)mmap(NULL, size, PROT_READ | PROT_WRITE,
+	shared_mem = (pluq_shared_memory_t *)mmap(NULL, size, PROT_READ | PROT_WRITE,
 	                                          MAP_SHARED, shm_fd, 0);
 	if (shared_mem == MAP_FAILED)
 	{
@@ -290,7 +290,7 @@ static qboolean IPC_InitializeSharedMemory(void)
 		return false;
 	}
 
-	shared_mem = (ipc_shared_memory_t *)MapViewOfFile(
+	shared_mem = (pluq_shared_memory_t *)MapViewOfFile(
 		hMapFile,                // handle to map object
 		FILE_MAP_ALL_ACCESS,     // read/write permission
 		0,
@@ -313,19 +313,19 @@ static qboolean IPC_InitializeSharedMemory(void)
 
 /*
 ==================
-IPC_CleanupSharedMemory
+PluQ_CleanupSharedMemory
 
 Platform-specific shared memory cleanup
 ==================
 */
-static void IPC_CleanupSharedMemory(void)
+static void PluQ_CleanupSharedMemory(void)
 {
 	if (shared_mem == NULL)
 		return;
 
 #ifndef _WIN32
 	// Unix/Linux cleanup
-	munmap(shared_mem, sizeof(ipc_shared_memory_t));
+	munmap(shared_mem, sizeof(pluq_shared_memory_t));
 	close(shm_fd);
 	shm_unlink(shm_name);
 	shm_fd = -1;
@@ -341,14 +341,14 @@ static void IPC_CleanupSharedMemory(void)
 
 /*
 ==================
-IPC_BroadcastWorldState
+PluQ_BroadcastWorldState
 
 Broadcast current world state to frontend via shared memory
 ==================
 */
-void IPC_BroadcastWorldState(void)
+void PluQ_BroadcastWorldState(void)
 {
-	if (!IPC_IsEnabled())
+	if (!PluQ_IsEnabled())
 		return;
 
 	double start_time = Sys_DoubleTime();
@@ -389,7 +389,7 @@ void IPC_BroadcastWorldState(void)
 	}
 
 	// Copy entity data (zero-copy approach - direct memcpy)
-	uint16_t num_entities = q_min(cl.num_entities, IPC_MAX_ENTITIES);
+	uint16_t num_entities = q_min(cl.num_entities, PluQ_MAX_ENTITIES);
 	shared_mem->header.num_entities = num_entities;
 
 	if (num_entities > 0)
@@ -432,15 +432,15 @@ void IPC_BroadcastWorldState(void)
 
 /*
 ==================
-IPC_ReceiveWorldState
+PluQ_ReceiveWorldState
 
 Frontend: Receive world state from backend via shared memory
 Returns true if new data was received
 ==================
 */
-qboolean IPC_ReceiveWorldState(void)
+qboolean PluQ_ReceiveWorldState(void)
 {
-	if (!IPC_IsFrontend())
+	if (!PluQ_IsFrontend())
 		return false;
 
 	// Wait for backend to finish writing
@@ -458,14 +458,14 @@ qboolean IPC_ReceiveWorldState(void)
 
 /*
 ==================
-IPC_ApplyReceivedState
+PluQ_ApplyReceivedState
 
 Frontend: Apply received state to local client for rendering
 ==================
 */
-void IPC_ApplyReceivedState(void)
+void PluQ_ApplyReceivedState(void)
 {
-	if (!IPC_IsFrontend() || !shared_mem)
+	if (!PluQ_IsFrontend() || !shared_mem)
 		return;
 
 	// Wait for backend to finish writing
@@ -501,18 +501,18 @@ void IPC_ApplyReceivedState(void)
 
 /*
 ==================
-IPC_SendInput
+PluQ_SendInput
 
 Frontend: Send input to backend
 ==================
 */
-void IPC_SendInput(usercmd_t *cmd)
+void PluQ_SendInput(usercmd_t *cmd)
 {
-	if (!IPC_IsFrontend())
+	if (!PluQ_IsFrontend())
 		return;
 
 	// Prepare input command
-	ipc_input_cmd_t input;
+	pluq_input_cmd_t input;
 	memset(&input, 0, sizeof(input));
 
 	input.sequence = host_framecount;
@@ -539,7 +539,7 @@ void IPC_SendInput(usercmd_t *cmd)
 	input.impulse = in_impulse;
 
 	// Copy to shared memory
-	memcpy(&shared_mem->input_cmd, &input, sizeof(ipc_input_cmd_t));
+	memcpy(&shared_mem->input_cmd, &input, sizeof(pluq_input_cmd_t));
 
 	// Signal backend
 	shared_mem->input_ready = 1;
@@ -547,14 +547,14 @@ void IPC_SendInput(usercmd_t *cmd)
 
 /*
 ==================
-IPC_HasPendingInput
+PluQ_HasPendingInput
 
 Check if there is pending input from frontend (backend only)
 ==================
 */
-qboolean IPC_HasPendingInput(void)
+qboolean PluQ_HasPendingInput(void)
 {
-	if (!IPC_IsBackend())
+	if (!PluQ_IsBackend())
 		return false;
 
 	return (shared_mem->input_ready != 0);
@@ -562,18 +562,18 @@ qboolean IPC_HasPendingInput(void)
 
 /*
 ==================
-IPC_ProcessInputCommands
+PluQ_ProcessInputCommands
 
 Process input commands from frontend (backend only)
 ==================
 */
-void IPC_ProcessInputCommands(void)
+void PluQ_ProcessInputCommands(void)
 {
-	if (!IPC_IsBackend() || !IPC_HasPendingInput())
+	if (!PluQ_IsBackend() || !PluQ_HasPendingInput())
 		return;
 
 	// Copy input command from shared memory
-	memcpy(&current_input, &shared_mem->input_cmd, sizeof(ipc_input_cmd_t));
+	memcpy(&current_input, &shared_mem->input_cmd, sizeof(pluq_input_cmd_t));
 	has_current_input = true;
 
 	// Clear ready flag
@@ -586,20 +586,20 @@ void IPC_ProcessInputCommands(void)
 		Cbuf_AddText("\n");
 	}
 
-	// Movement, view angles, and buttons are processed in IPC_Move() and IPC_ApplyViewAngles()
+	// Movement, view angles, and buttons are processed in PluQ_Move() and PluQ_ApplyViewAngles()
 }
 
 /*
 ==================
-IPC_Move
+PluQ_Move
 
 Apply IPC input to movement command (backend only)
 Called during input accumulation phase
 ==================
 */
-void IPC_Move(usercmd_t *cmd)
+void PluQ_Move(usercmd_t *cmd)
 {
-	if (!IPC_IsBackend() || !has_current_input)
+	if (!PluQ_IsBackend() || !has_current_input)
 		return;
 
 	// Add movement from IPC frontend
@@ -610,15 +610,15 @@ void IPC_Move(usercmd_t *cmd)
 
 /*
 ==================
-IPC_ApplyViewAngles
+PluQ_ApplyViewAngles
 
 Apply IPC view angles and buttons to client (backend only)
 Called during input accumulation phase
 ==================
 */
-void IPC_ApplyViewAngles(void)
+void PluQ_ApplyViewAngles(void)
 {
-	if (!IPC_IsBackend() || !has_current_input)
+	if (!PluQ_IsBackend() || !has_current_input)
 		return;
 
 	// Apply view angles from IPC frontend
@@ -653,27 +653,27 @@ void IPC_ApplyViewAngles(void)
 
 /*
 ==================
-IPC_GetStats
+PluQ_GetStats
 
 Get performance statistics
 ==================
 */
-void IPC_GetStats(ipc_stats_t *stats)
+void PluQ_GetStats(pluq_stats_t *stats)
 {
 	if (stats)
-		memcpy(stats, &perf_stats, sizeof(ipc_stats_t));
+		memcpy(stats, &perf_stats, sizeof(pluq_stats_t));
 }
 
 /*
 ==================
-IPC_ResetStats
+PluQ_ResetStats
 
 Reset performance statistics
 ==================
 */
-void IPC_ResetStats(void)
+void PluQ_ResetStats(void)
 {
-	memset(&perf_stats, 0, sizeof(ipc_stats_t));
+	memset(&perf_stats, 0, sizeof(pluq_stats_t));
 }
 
 /*
@@ -682,17 +682,17 @@ Console Commands
 ==================
 */
 
-static void IPC_Mode_f(void)
+static void PluQ_Mode_f(void)
 {
 	if (Cmd_Argc() < 2)
 	{
 		const char *mode_str = "disabled";
-		switch (ipc_mode)
+		switch (pluq_mode)
 		{
-			case IPC_MODE_DISABLED:  mode_str = "disabled"; break;
-			case IPC_MODE_BACKEND:   mode_str = "backend"; break;
-			case IPC_MODE_FRONTEND:  mode_str = "frontend"; break;
-			case IPC_MODE_BOTH:      mode_str = "both (backend)"; break;
+			case PluQ_MODE_DISABLED:  mode_str = "disabled"; break;
+			case PluQ_MODE_BACKEND:   mode_str = "backend"; break;
+			case PluQ_MODE_FRONTEND:  mode_str = "frontend"; break;
+			case PluQ_MODE_BOTH:      mode_str = "both (backend)"; break;
 		}
 		Con_Printf("Usage: pluq_mode <disabled|backend|frontend|both>\n");
 		Con_Printf("\n");
@@ -708,35 +708,35 @@ static void IPC_Mode_f(void)
 	}
 
 	const char *mode_arg = Cmd_Argv(1);
-	ipc_mode_t new_mode = IPC_MODE_DISABLED;
+	pluq_mode_t new_mode = PluQ_MODE_DISABLED;
 
 	if (!Q_strcasecmp(mode_arg, "disabled") || !Q_strcasecmp(mode_arg, "0"))
-		new_mode = IPC_MODE_DISABLED;
+		new_mode = PluQ_MODE_DISABLED;
 	else if (!Q_strcasecmp(mode_arg, "backend") || !Q_strcasecmp(mode_arg, "1"))
-		new_mode = IPC_MODE_BACKEND;
+		new_mode = PluQ_MODE_BACKEND;
 	else if (!Q_strcasecmp(mode_arg, "frontend") || !Q_strcasecmp(mode_arg, "2"))
-		new_mode = IPC_MODE_FRONTEND;
+		new_mode = PluQ_MODE_FRONTEND;
 	else if (!Q_strcasecmp(mode_arg, "both") || !Q_strcasecmp(mode_arg, "3"))
-		new_mode = IPC_MODE_BOTH;
+		new_mode = PluQ_MODE_BOTH;
 	else
 	{
 		Con_Printf("Invalid mode. Use: disabled, backend, frontend, or both\n");
 		return;
 	}
 
-	IPC_SetMode(new_mode);
+	PluQ_SetMode(new_mode);
 }
 
-static void IPC_Stats_f(void)
+static void PluQ_Stats_f(void)
 {
-	if (!IPC_IsEnabled())
+	if (!PluQ_IsEnabled())
 	{
 		Con_Printf("IPC is not enabled\n");
 		return;
 	}
 
-	ipc_stats_t stats;
-	IPC_GetStats(&stats);
+	pluq_stats_t stats;
+	PluQ_GetStats(&stats);
 
 	if (stats.frames_sent == 0)
 	{
@@ -759,33 +759,33 @@ static void IPC_Stats_f(void)
 	Con_Printf("Average entities: %.1f\n", avg_entities);
 	Con_Printf("Bandwidth: %.1f entities/sec\n",
 	           stats.total_entities / stats.total_time);
-	Con_Printf("Shared memory size: %zu bytes\n", sizeof(ipc_shared_memory_t));
+	Con_Printf("Shared memory size: %zu bytes\n", sizeof(pluq_shared_memory_t));
 	Con_Printf("\n");
 }
 
-static void IPC_ResetStats_f(void)
+static void PluQ_ResetStats_f(void)
 {
-	IPC_ResetStats();
+	PluQ_ResetStats();
 	Con_Printf("IPC statistics reset\n");
 }
 
 /*
 ==================
-IPC_Init
+PluQ_Init
 
 Initialize IPC console commands
 Called from Host_Init
 ==================
 */
-void IPC_Init(void)
+void PluQ_Init(void)
 {
 	// Register cvar
 	Cvar_RegisterVariable(&pluq_headless);
 
 	// Register commands
-	Cmd_AddCommand("pluq_mode", IPC_Mode_f);
-	Cmd_AddCommand("ipc_stats", IPC_Stats_f);
-	Cmd_AddCommand("ipc_reset_stats", IPC_ResetStats_f);
+	Cmd_AddCommand("pluq_mode", PluQ_Mode_f);
+	Cmd_AddCommand("pluq_stats", PluQ_Stats_f);
+	Cmd_AddCommand("pluq_reset_stats", PluQ_ResetStats_f);
 
 	Con_Printf("PluQ IPC subsystem ready\n");
 	Con_Printf("Use 'pluq_mode backend' to enable backend mode\n");

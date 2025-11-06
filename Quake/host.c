@@ -25,7 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "bgmusic.h"
 #include "steam.h"
-#include "ipc.h"
+#include "pluq.h"
 #include <setjmp.h>
 
 /*
@@ -1219,7 +1219,7 @@ void _Host_Frame (double time)
 	AsyncQueue_Drain (&async_queue);
 
 // get new key events (skip local input in headless mode)
-	if (!IPC_IsHeadless())
+	if (!PluQ_IsHeadless())
 	{
 		Key_UpdateForDest ();
 		IN_UpdateInputMode ();
@@ -1233,8 +1233,8 @@ void _Host_Frame (double time)
 	Host_GetConsoleCommands ();
 
 // PluQ: Process input commands from IPC frontend (backend receives input from frontend)
-	if (IPC_IsBackend())
-		IPC_ProcessInputCommands();
+	if (PluQ_IsBackend())
+		PluQ_ProcessInputCommands();
 
 // process console commands
 	Cbuf_Execute ();
@@ -1270,7 +1270,7 @@ void _Host_Frame (double time)
 			accumtime -= host_netinterval;
 
 		// PluQ: Frontend mode doesn't send to server
-		if (IPC_IsFrontend())
+		if (PluQ_IsFrontend())
 		{
 			// Frontend: send input to backend via IPC instead
 			// (handled in CL_SendCmd)
@@ -1278,7 +1278,7 @@ void _Host_Frame (double time)
 		CL_SendCmd ();
 
 		// PluQ: Frontend mode doesn't run server
-		if (sv.active && !IPC_IsFrontend())
+		if (sv.active && !PluQ_IsFrontend())
 		{
 			PR_SwitchQCVM(&sv.qcvm);
 			Host_ServerFrame ();
@@ -1293,10 +1293,10 @@ void _Host_Frame (double time)
 	if (cls.state == ca_connected)
 	{
 		// PluQ: Frontend mode receives state from backend via IPC
-		if (IPC_IsFrontend())
+		if (PluQ_IsFrontend())
 		{
-			if (IPC_ReceiveWorldState())
-				IPC_ApplyReceivedState();
+			if (PluQ_ReceiveWorldState())
+				PluQ_ApplyReceivedState();
 		}
 		else
 		{
@@ -1306,14 +1306,14 @@ void _Host_Frame (double time)
 	}
 
 // PluQ: Backend mode broadcasts world state via IPC (purely additive)
-	if (IPC_IsBackend())
-		IPC_BroadcastWorldState();
+	if (PluQ_IsBackend())
+		PluQ_BroadcastWorldState();
 
 // update video (skip in headless mode)
 	if (host_speeds.value)
 		time2 = Sys_DoubleTime ();
 
-	if (!IPC_IsHeadless())
+	if (!PluQ_IsHeadless())
 	{
 		SCR_UpdateScreen ();
 		CL_RunParticles (); //johnfitz -- seperated from rendering
@@ -1323,7 +1323,7 @@ void _Host_Frame (double time)
 		time3 = Sys_DoubleTime ();
 
 // update audio (skip in headless mode)
-	if (!IPC_IsHeadless())
+	if (!PluQ_IsHeadless())
 	{
 		BGM_Update();	// adds music raw samples and/or advances midi driver
 		if (cls.signon == SIGNONS)
@@ -1481,7 +1481,7 @@ void Host_Init (void)
 
 	LOC_Init (); // for 2021 rerelease support.
 
-	IPC_Init (); // PluQ: Initialize IPC subsystem
+	PluQ_Init (); // PluQ: Initialize IPC subsystem
 
 	Hunk_AllocName (0, "-HOST_HUNKLEVEL-");
 	host_hunklevel = Hunk_LowMark ();
@@ -1565,7 +1565,7 @@ void Host_Shutdown(void)
 
 	LOG_Close ();
 
-	IPC_Shutdown (); // PluQ: Shutdown IPC subsystem
+	PluQ_Shutdown (); // PluQ: Shutdown IPC subsystem
 
 	LOC_Shutdown ();
 }
