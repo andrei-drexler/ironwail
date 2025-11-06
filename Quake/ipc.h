@@ -45,10 +45,13 @@ typedef struct
 	vec3_t view_angles;
 
 	// Buttons (bitfield)
+	// Bit 0: Attack
+	// Bit 1: Jump
+	// Bit 2: Use
 	uint32_t buttons;
 
-	// Weapon selection
-	uint8_t weapon;
+	// Impulse command (weapon selection, etc)
+	uint8_t impulse;
 
 	// Console commands (optional)
 	char cmd_text[256];
@@ -122,9 +125,14 @@ void IPC_BroadcastWorldState(void);
 // Input handling
 qboolean IPC_HasPendingInput(void);
 void IPC_ProcessInputCommands(void);
+void IPC_Move(usercmd_t *cmd);  // Add IPC input to movement command
+void IPC_ApplyViewAngles(void);  // Apply IPC view angles
 
 // Performance monitoring
 void IPC_GetStats(ipc_stats_t *stats);
 void IPC_ResetStats(void);
+
+// Console registration
+void IPC_Init(void);
 
 #endif // _IPC_H_

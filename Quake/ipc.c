@@ -39,6 +39,10 @@ static qboolean ipc_enabled = false;
 static ipc_shared_memory_t *shared_mem = NULL;
 static ipc_stats_t perf_stats = {0};
 
+// Current input from frontend
+static ipc_input_cmd_t current_input = {0};
+static qboolean has_current_input = false;
+
 #ifndef _WIN32
 static int shm_fd = -1;
 static const char *shm_name = "/quake_ipc_ironwail";
@@ -360,23 +364,83 @@ void IPC_ProcessInputCommands(void)
 	if (!IPC_IsEnabled() || !IPC_HasPendingInput())
 		return;
 
-	// Copy input command
-	ipc_input_cmd_t input;
-	memcpy(&input, &shared_mem->input_cmd, sizeof(ipc_input_cmd_t));
+	// Copy input command from shared memory
+	memcpy(&current_input, &shared_mem->input_cmd, sizeof(ipc_input_cmd_t));
+	has_current_input = true;
 
 	// Clear ready flag
 	shared_mem->input_ready = 0;
 
 	// Process console commands if any
-	if (input.cmd_text[0] != '\0')
+	if (current_input.cmd_text[0] != '\0')
 	{
-		Cbuf_AddText(input.cmd_text);
+		Cbuf_AddText(current_input.cmd_text);
 		Cbuf_AddText("\n");
 	}
 
-	// TODO: Process movement, view angles, buttons, etc.
-	// This would require hooking into the input system more deeply
-	// For now, we just process console commands
+	// Movement, view angles, and buttons are processed in IPC_Move() and IPC_ApplyViewAngles()
+}
+
+/*
+==================
+IPC_Move
+
+Apply IPC input to movement command
+Called during input accumulation phase
+==================
+*/
+void IPC_Move(usercmd_t *cmd)
+{
+	if (!IPC_IsEnabled() || !has_current_input)
+		return;
+
+	// Add movement from IPC frontend
+	cmd->forwardmove += current_input.forward_move;
+	cmd->sidemove += current_input.side_move;
+	cmd->upmove += current_input.up_move;
+}
+
+/*
+==================
+IPC_ApplyViewAngles
+
+Apply IPC view angles and buttons to client
+Called during input accumulation phase
+==================
+*/
+void IPC_ApplyViewAngles(void)
+{
+	if (!IPC_IsEnabled() || !has_current_input)
+		return;
+
+	// Apply view angles from IPC frontend
+	VectorCopy(current_input.view_angles, cl.viewangles);
+
+	// Apply button states
+	// Bit 0: Attack
+	if (current_input.buttons & 1)
+		in_attack.state |= 1 + 2;  // down + impulse down
+	else
+		in_attack.state &= ~1;  // clear down state
+
+	// Bit 1: Jump
+	if (current_input.buttons & 2)
+		in_jump.state |= 1 + 2;  // down + impulse down
+	else
+		in_jump.state &= ~1;  // clear down state
+
+	// Bit 2: Use
+	if (current_input.buttons & 4)
+		in_use.state |= 1 + 2;  // down + impulse down
+	else
+		in_use.state &= ~1;  // clear down state
+
+	// Apply impulse command (weapon selection, etc)
+	if (current_input.impulse > 0)
+		in_impulse = current_input.impulse;
+
+	// Clear the input after processing
+	has_current_input = false;
 }
 
 /*
