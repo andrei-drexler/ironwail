@@ -1218,19 +1218,22 @@ void _Host_Frame (double time)
 // run async procs
 	AsyncQueue_Drain (&async_queue);
 
-// get new key events
-	Key_UpdateForDest ();
-	IN_UpdateInputMode ();
-	Sys_SendKeyEvents ();
+// get new key events (skip local input in headless mode)
+	if (!IPC_IsHeadless())
+	{
+		Key_UpdateForDest ();
+		IN_UpdateInputMode ();
+		Sys_SendKeyEvents ();
 
-// allow mice or other external controllers to add commands
-	IN_Commands ();
+		// allow mice or other external controllers to add commands
+		IN_Commands ();
+	}
 
 //check the stdin for commands (dedicated servers)
 	Host_GetConsoleCommands ();
 
-// PluQ: Process input commands from IPC frontend
-	if (IPC_IsEnabled())
+// PluQ: Process input commands from IPC frontend (backend receives input from frontend)
+	if (IPC_IsBackend())
 		IPC_ProcessInputCommands();
 
 // process console commands
@@ -1266,11 +1269,15 @@ void _Host_Frame (double time)
 		else
 			accumtime -= host_netinterval;
 
-		// PluQ: In frontend mode, don't send commands to server
-		if (!IPC_IsFrontend())
-			CL_SendCmd ();
+		// PluQ: Frontend mode doesn't send to server
+		if (IPC_IsFrontend())
+		{
+			// Frontend: send input to backend via IPC instead
+			// (handled in CL_SendCmd)
+		}
+		CL_SendCmd ();
 
-		// PluQ: Only run server in backend mode (not in frontend-only mode)
+		// PluQ: Frontend mode doesn't run server
 		if (sv.active && !IPC_IsFrontend())
 		{
 			PR_SwitchQCVM(&sv.qcvm);
@@ -1285,7 +1292,7 @@ void _Host_Frame (double time)
 // fetch results from server
 	if (cls.state == ca_connected)
 	{
-		// PluQ: If in frontend mode, receive state from backend instead of reading from server
+		// PluQ: Frontend mode receives state from backend via IPC
 		if (IPC_IsFrontend())
 		{
 			if (IPC_ReceiveWorldState())
@@ -1293,37 +1300,43 @@ void _Host_Frame (double time)
 		}
 		else
 		{
+			// Normal operation: read from local server/network
 			CL_ReadFromServer ();
 		}
 	}
 
-// PluQ: Backend broadcasts world state via IPC after server/client update
+// PluQ: Backend mode broadcasts world state via IPC (purely additive)
 	if (IPC_IsBackend())
 		IPC_BroadcastWorldState();
 
-// update video
+// update video (skip in headless mode)
 	if (host_speeds.value)
 		time2 = Sys_DoubleTime ();
 
-	SCR_UpdateScreen ();
-
-	CL_RunParticles (); //johnfitz -- seperated from rendering
+	if (!IPC_IsHeadless())
+	{
+		SCR_UpdateScreen ();
+		CL_RunParticles (); //johnfitz -- seperated from rendering
+	}
 
 	if (host_speeds.value)
 		time3 = Sys_DoubleTime ();
 
-// update audio
-	BGM_Update();	// adds music raw samples and/or advances midi driver
-	if (cls.signon == SIGNONS)
+// update audio (skip in headless mode)
+	if (!IPC_IsHeadless())
 	{
-		S_Update (r_origin, vpn, vright, vup);
-		CL_DecayLights ();
-	}
-	else
-		S_Update (vec3_origin, vec3_origin, vec3_origin, vec3_origin);
+		BGM_Update();	// adds music raw samples and/or advances midi driver
+		if (cls.signon == SIGNONS)
+		{
+			S_Update (r_origin, vpn, vright, vup);
+			CL_DecayLights ();
+		}
+		else
+			S_Update (vec3_origin, vec3_origin, vec3_origin, vec3_origin);
 
-	CDAudio_Update();
-	UpdateWindowTitle();
+		CDAudio_Update();
+		UpdateWindowTitle();
+	}
 
 	if (host_speeds.value)
 	{

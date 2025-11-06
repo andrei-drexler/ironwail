@@ -34,9 +34,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 typedef enum
 {
 	IPC_MODE_DISABLED,   // IPC not active
-	IPC_MODE_BACKEND,    // Act as backend (broadcast state, receive input)
-	IPC_MODE_FRONTEND,   // Act as frontend (receive state, send input)
-	IPC_MODE_BOTH        // Act as both (for testing/comparison)
+	IPC_MODE_BACKEND,    // Backend: run simulation, broadcast state, receive IPC input (additive to normal operation)
+	IPC_MODE_FRONTEND,   // Frontend: receive state from backend, send input to backend (no local simulation)
+	IPC_MODE_BOTH        // Same as BACKEND (legacy name for clarity)
 } ipc_mode_t;
 
 // Input command structure
@@ -131,6 +131,7 @@ void IPC_SetMode(ipc_mode_t mode);
 qboolean IPC_IsEnabled(void);
 qboolean IPC_IsBackend(void);
 qboolean IPC_IsFrontend(void);
+qboolean IPC_IsHeadless(void);  // Check if running in headless mode
 
 // Backend functions (state broadcasting)
 void IPC_BroadcastWorldState(void);

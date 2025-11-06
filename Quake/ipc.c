@@ -33,6 +33,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <windows.h>
 #endif
 
+// Console variables
+static cvar_t pluq_headless = {"pluq_headless", "0", CVAR_NONE};
+
 // Global state
 static qboolean ipc_initialized = false;
 static ipc_mode_t ipc_mode = IPC_MODE_DISABLED;
@@ -206,6 +209,18 @@ Check if running in frontend mode
 qboolean IPC_IsFrontend(void)
 {
 	return IPC_IsEnabled() && (ipc_mode == IPC_MODE_FRONTEND || ipc_mode == IPC_MODE_BOTH);
+}
+
+/*
+==================
+IPC_IsHeadless
+
+Check if running in headless mode (backend without rendering/input)
+==================
+*/
+qboolean IPC_IsHeadless(void)
+{
+	return IPC_IsBackend() && pluq_headless.value != 0;
 }
 
 /*
@@ -677,10 +692,18 @@ static void IPC_Mode_f(void)
 			case IPC_MODE_DISABLED:  mode_str = "disabled"; break;
 			case IPC_MODE_BACKEND:   mode_str = "backend"; break;
 			case IPC_MODE_FRONTEND:  mode_str = "frontend"; break;
-			case IPC_MODE_BOTH:      mode_str = "both"; break;
+			case IPC_MODE_BOTH:      mode_str = "both (backend)"; break;
 		}
 		Con_Printf("Usage: pluq_mode <disabled|backend|frontend|both>\n");
+		Con_Printf("\n");
+		Con_Printf("Modes:\n");
+		Con_Printf("  disabled - PluQ IPC is off\n");
+		Con_Printf("  backend  - Run simulation + broadcast state + receive IPC input (additive)\n");
+		Con_Printf("  frontend - Receive state from backend, send input (no local simulation)\n");
+		Con_Printf("  both     - Same as backend (legacy alias)\n");
+		Con_Printf("\n");
 		Con_Printf("Current mode: %s\n", mode_str);
+		Con_Printf("Headless: %s\n", pluq_headless.value ? "yes" : "no");
 		return;
 	}
 
@@ -756,6 +779,10 @@ Called from Host_Init
 */
 void IPC_Init(void)
 {
+	// Register cvar
+	Cvar_RegisterVariable(&pluq_headless);
+
+	// Register commands
 	Cmd_AddCommand("pluq_mode", IPC_Mode_f);
 	Cmd_AddCommand("ipc_stats", IPC_Stats_f);
 	Cmd_AddCommand("ipc_reset_stats", IPC_ResetStats_f);
@@ -763,4 +790,5 @@ void IPC_Init(void)
 	Con_Printf("PluQ IPC subsystem ready\n");
 	Con_Printf("Use 'pluq_mode backend' to enable backend mode\n");
 	Con_Printf("Use 'pluq_mode frontend' to enable frontend mode\n");
+	Con_Printf("Use 'pluq_headless 1' for headless backend (no rendering/input)\n");
 }
