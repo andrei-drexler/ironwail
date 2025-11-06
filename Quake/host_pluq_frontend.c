@@ -44,19 +44,17 @@ void Host_Init_PluQ_Frontend (void)
 		Con_Printf ("Requested heap size: %i kb\n", heapsize/1024);
 	}
 
-	host_parms->memsize = lpMem_RoundUpToPageSize (host_parms->memsize);
-
 	if (host_parms->memsize < minimum_memory)
 		Sys_Error ("Only %4.1f megs of memory available, can't execute game", host_parms->memsize / (float)0x100000);
 
-	host_memsize = host_parms->memsize;
+	// Note: host_memsize not needed in frontend
 	Memory_Init (host_parms->membase, host_parms->memsize);
 	Cbuf_Init ();
 	Cmd_Init ();
 	Cvar_Init (); //johnfitz
 	COM_Init ();
 	COM_InitFilesystem ();
-	Host_InitLocal ();
+	Host_InitLocal ();  // Stubbed in stubs_pluq_frontend.c
 	W_LoadWadFile (); //johnfitz -- filename is now hard-coded for honesty
 
 	Key_Init ();
@@ -100,7 +98,7 @@ void Host_Init_PluQ_Frontend (void)
 	LOC_Init (); // for 2021 rerelease support.
 
 	Hunk_AllocName (0, "-HOST_HUNKLEVEL-");
-	host_hunklevel = Hunk_LowMark ();
+	// Note: host_hunklevel tracking not needed in frontend
 
 	// Initialize PluQ in frontend mode
 	PluQ_Init ();
@@ -148,11 +146,8 @@ void Host_Shutdown_PluQ_Frontend(void)
 
 	PluQ_Shutdown (); // Shutdown PluQ subsystem
 
-	Steam_Shutdown ();
+	// Note: Steam and AsyncQueue not needed in frontend
 
-	AsyncQueue_Destroy (&async_queue);
-
-	Host_ShutdownSave ();
 	Host_WriteConfiguration ();
 
 	// PluQ Frontend doesn't have networking or modlist
@@ -161,13 +156,10 @@ void Host_Shutdown_PluQ_Frontend(void)
 
 	if (con_initialized)
 		History_Shutdown ();
-	BGM_Shutdown();
-	CDAudio_Shutdown ();
+	// Note: Audio shutdown handled by main shutdown path
 	S_Shutdown ();
 	IN_Shutdown ();
 	VID_Shutdown();
-
-	LOG_Close ();
 
 	LOC_Shutdown ();
 }

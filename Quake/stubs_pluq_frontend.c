@@ -37,7 +37,7 @@ qboolean SV_FilterPacket (void) { return false; }
 void SV_ReadClientMessage (void) {}
 void SV_RunClients (void) {}
 void SV_SaveSpawnparms (void) {}
-void SV_SpawnServer (const char *server, const char *startspot) {}
+void SV_SpawnServer (const char *server) {}  // Frontend doesn't use startspot param
 void SV_ClearDatagram (void) {}
 void SV_SendClientMessages (void) {}
 void SV_ClientPrintf (const char *fmt, ...)
@@ -58,19 +58,27 @@ void SV_LinkEdict (edict_t *ent, qboolean touch_triggers) {}
 void NET_Init (void) {}
 void NET_Shutdown (void) {}
 void NET_Poll (void) {}
-int NET_SendMessage (qsocket_t *sock, sizebuf_t *data) { return 0; }
-int NET_SendUnreliableMessage (qsocket_t *sock, sizebuf_t *data) { return 0; }
-qboolean NET_CanSendMessage (qsocket_t *sock) { return false; }
-int NET_GetMessage (qsocket_t *sock) { return 0; }
-qsocket_t *NET_Connect (const char *host) { return NULL; }
-void NET_Close (qsocket_t *sock) {}
+int NET_SendMessage (struct qsocket_s *sock, sizebuf_t *data) { return 0; }
+int NET_SendUnreliableMessage (struct qsocket_s *sock, sizebuf_t *data) { return 0; }
+qboolean NET_CanSendMessage (struct qsocket_s *sock) { return false; }
+int NET_GetMessage (struct qsocket_s *sock) { return 0; }
+struct qsocket_s *NET_Connect (const char *host) { return NULL; }
+void NET_Close (struct qsocket_s *sock) {}
 
 // QuakeC/Progs stubs (no game logic in PluQ frontend)
 void PR_Init (void) {}
 void PR_Shutdown (void) {}
-void PR_LoadProgs (const char *filename, qboolean fatal) {}
-void PR_SwitchQCVM (void *vm) {}
+qboolean PR_LoadProgs (const char *filename, qboolean fatal) { return false; }
+void PR_SwitchQCVM (qcvm_t *vm) {}
 string_t PR_SetEngineString (const char *s) { return 0; }
+
+// BGM stubs (audio handled differently in frontend)
+void BGM_Init (void) {}
+void BGM_Shutdown (void) {}
+void BGM_Update (void) {}
+int CDAudio_Init (void) { return 0; }  // Returns int, not void
+void CDAudio_Shutdown (void) {}
+void CDAudio_Update (void) {}
 
 // Model/World loading stubs (PluQ frontend receives from PluQ)
 void Mod_Init (void) {}
@@ -97,6 +105,8 @@ void Modlist_ShutDown (void) {}
 // Host command stubs (some may call server functions)
 void Host_ServerFrame (void) {}
 void Host_ClearMemory (void) {}
+void Host_InitLocal (void) {}  // Frontend doesn't need host command registration
+void Host_ShutdownSave (void) {}  // Frontend doesn't save
 
 // Console command stubs that reference server
 void Host_Map_f (void) { Con_Printf ("Map command not available in PluQ frontend mode\n"); }
@@ -114,3 +124,6 @@ void Host_Give_f (void) { Con_Printf ("Give not available in PluQ frontend mode\
 // Edict/World stubs
 edict_t *EDICT_NUM(int n) { return NULL; }
 int NUM_FOR_EDICT(edict_t *e) { return 0; }
+
+// Save/Load stubs
+void SaveData_Clear (savedata_t *save) {}  // Frontend doesn't save

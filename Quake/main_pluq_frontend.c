@@ -125,13 +125,6 @@ Simplified version that only handles PluQ reception and rendering
 */
 void Host_Frame_PluQ_Frontend (double time)
 {
-	static double time1 = 0;
-	static double time2 = 0;
-	static double time3 = 0;
-
-	if (setjmp (host_abortserver) )
-		return;
-
 	host_framecount++;
 
 	realtime += time;
@@ -159,14 +152,8 @@ void Host_Frame_PluQ_Frontend (double time)
 		PluQ_ApplyReceivedState();
 
 	// Update video
-	if (host_speeds.value)
-		time2 = Sys_DoubleTime ();
-
 	SCR_UpdateScreen ();
 	CL_RunParticles (); //johnfitz -- separated from rendering
-
-	if (host_speeds.value)
-		time3 = Sys_DoubleTime ();
 
 	// Update audio
 	if (cls.signon == SIGNONS)
@@ -179,22 +166,6 @@ void Host_Frame_PluQ_Frontend (double time)
 
 	CDAudio_Update();
 	BGM_Update();
-
-	if (host_speeds.value)
-	{
-		int pass1, pass2, pass3;
-
-		time1 = time2 - time1;
-		time2 = time3 - time2;
-		time3 = Sys_DoubleTime () - time3;
-		pass1 = time1*1000;
-		pass2 = time2*1000;
-		pass3 = time3*1000;
-		Con_Printf ("%3i fps  %3i tot %3i gfx %3i snd\n",
-					(int)(1.0/time), pass1, pass2, pass3);
-	}
-
-	host_time += host_frametime;
 }
 
 // Forward declarations

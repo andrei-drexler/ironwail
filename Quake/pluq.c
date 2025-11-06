@@ -38,7 +38,7 @@ static cvar_t pluq_headless = {"pluq_headless", "0", CVAR_NONE};
 
 // Global state
 static qboolean pluq_initialized = false;
-static pluq_mode_t pluq_mode = PluQ_MODE_DISABLED;
+static pluq_mode_t pluq_mode = PLUQ_MODE_DISABLED;
 static pluq_shared_memory_t *shared_mem = NULL;
 static pluq_stats_t perf_stats = {0};
 
@@ -70,13 +70,13 @@ Initialize IPC system with specified mode
 */
 qboolean PluQ_Initialize(pluq_mode_t mode)
 {
-	if (pluq_initialized && pluq_mode != PluQ_MODE_DISABLED)
+	if (pluq_initialized && pluq_mode != PLUQ_MODE_DISABLED)
 	{
 		Con_Printf("IPC already initialized in mode %d\n", pluq_mode);
 		return true;
 	}
 
-	if (mode == PluQ_MODE_DISABLED)
+	if (mode == PLUQ_MODE_DISABLED)
 	{
 		Con_Printf("Cannot initialize IPC in disabled mode\n");
 		return false;
@@ -85,9 +85,9 @@ qboolean PluQ_Initialize(pluq_mode_t mode)
 	Con_Printf("Initializing PluQ IPC system in mode: ");
 	switch (mode)
 	{
-		case PluQ_MODE_BACKEND:   Con_Printf("BACKEND\n"); break;
-		case PluQ_MODE_FRONTEND:  Con_Printf("FRONTEND\n"); break;
-		case PluQ_MODE_BOTH:      Con_Printf("BOTH\n"); break;
+		case PLUQ_MODE_BACKEND:   Con_Printf("BACKEND\n"); break;
+		case PLUQ_MODE_FRONTEND:  Con_Printf("FRONTEND\n"); break;
+		case PLUQ_MODE_BOTH:      Con_Printf("BOTH\n"); break;
 		default:                  Con_Printf("UNKNOWN\n"); break;
 	}
 
@@ -98,13 +98,13 @@ qboolean PluQ_Initialize(pluq_mode_t mode)
 	}
 
 	// Backend initializes shared memory structure
-	if (mode == PluQ_MODE_BACKEND || mode == PluQ_MODE_BOTH)
+	if (mode == PLUQ_MODE_BACKEND || mode == PLUQ_MODE_BOTH)
 	{
 		memset(shared_mem, 0, sizeof(pluq_shared_memory_t));
 		shared_mem->frame_sequence = 0;
 		shared_mem->write_in_progress = 0;
 		shared_mem->input_ready = 0;
-		shared_mem->header.max_entities = PluQ_MAX_ENTITIES;
+		shared_mem->header.max_entities = PLUQ_MAX_ENTITIES;
 	}
 
 	// Reset statistics
@@ -135,7 +135,7 @@ void PluQ_Shutdown(void)
 	PluQ_CleanupSharedMemory();
 
 	pluq_initialized = false;
-	pluq_mode = PluQ_MODE_DISABLED;
+	pluq_mode = PLUQ_MODE_DISABLED;
 	shared_mem = NULL;
 
 	Con_Printf("PluQ IPC system shut down\n");
@@ -166,10 +166,10 @@ void PluQ_SetMode(pluq_mode_t mode)
 	{
 		Con_Printf("Switching PluQ mode requires reinitialization\n");
 		PluQ_Shutdown();
-		if (mode != PluQ_MODE_DISABLED)
+		if (mode != PLUQ_MODE_DISABLED)
 			PluQ_Initialize(mode);
 	}
-	else if (!pluq_initialized && mode != PluQ_MODE_DISABLED)
+	else if (!pluq_initialized && mode != PLUQ_MODE_DISABLED)
 	{
 		PluQ_Initialize(mode);
 	}
@@ -184,7 +184,7 @@ Check if IPC is enabled and active
 */
 qboolean PluQ_IsEnabled(void)
 {
-	return pluq_initialized && pluq_mode != PluQ_MODE_DISABLED && shared_mem != NULL;
+	return pluq_initialized && pluq_mode != PLUQ_MODE_DISABLED && shared_mem != NULL;
 }
 
 /*
@@ -196,7 +196,7 @@ Check if running in backend mode
 */
 qboolean PluQ_IsBackend(void)
 {
-	return PluQ_IsEnabled() && (pluq_mode == PluQ_MODE_BACKEND || pluq_mode == PluQ_MODE_BOTH);
+	return PluQ_IsEnabled() && (pluq_mode == PLUQ_MODE_BACKEND || pluq_mode == PLUQ_MODE_BOTH);
 }
 
 /*
@@ -208,7 +208,7 @@ Check if running in frontend mode
 */
 qboolean PluQ_IsFrontend(void)
 {
-	return PluQ_IsEnabled() && (pluq_mode == PluQ_MODE_FRONTEND || pluq_mode == PluQ_MODE_BOTH);
+	return PluQ_IsEnabled() && (pluq_mode == PLUQ_MODE_FRONTEND || pluq_mode == PLUQ_MODE_BOTH);
 }
 
 /*
@@ -371,7 +371,7 @@ void PluQ_BroadcastWorldState(void)
 	// Update player state
 	if (cls.state == ca_connected && cl.viewentity > 0 && cl.viewentity < cl.num_entities)
 	{
-		VectorCopy(cl.entities[cl.viewentity].origin, shared_mem->header.player_origin);
+		VectorCopy(cl_entities[cl.viewentity].origin, shared_mem->header.player_origin);
 		VectorCopy(cl.viewangles, shared_mem->header.player_angles);
 		shared_mem->header.player_health = cl.stats[STAT_HEALTH];
 		shared_mem->header.player_armor = cl.stats[STAT_ARMOR];
@@ -389,7 +389,7 @@ void PluQ_BroadcastWorldState(void)
 	}
 
 	// Copy entity data (zero-copy approach - direct memcpy)
-	uint16_t num_entities = q_min(cl.num_entities, PluQ_MAX_ENTITIES);
+	uint16_t num_entities = q_min(cl.num_entities, PLUQ_MAX_ENTITIES);
 	shared_mem->header.num_entities = num_entities;
 
 	if (num_entities > 0)
@@ -689,10 +689,10 @@ static void PluQ_Mode_f(void)
 		const char *mode_str = "disabled";
 		switch (pluq_mode)
 		{
-			case PluQ_MODE_DISABLED:  mode_str = "disabled"; break;
-			case PluQ_MODE_BACKEND:   mode_str = "backend"; break;
-			case PluQ_MODE_FRONTEND:  mode_str = "frontend"; break;
-			case PluQ_MODE_BOTH:      mode_str = "both (backend)"; break;
+			case PLUQ_MODE_DISABLED:  mode_str = "disabled"; break;
+			case PLUQ_MODE_BACKEND:   mode_str = "backend"; break;
+			case PLUQ_MODE_FRONTEND:  mode_str = "frontend"; break;
+			case PLUQ_MODE_BOTH:      mode_str = "both (backend)"; break;
 		}
 		Con_Printf("Usage: pluq_mode <disabled|backend|frontend|both>\n");
 		Con_Printf("\n");
@@ -708,16 +708,16 @@ static void PluQ_Mode_f(void)
 	}
 
 	const char *mode_arg = Cmd_Argv(1);
-	pluq_mode_t new_mode = PluQ_MODE_DISABLED;
+	pluq_mode_t new_mode = PLUQ_MODE_DISABLED;
 
-	if (!Q_strcasecmp(mode_arg, "disabled") || !Q_strcasecmp(mode_arg, "0"))
-		new_mode = PluQ_MODE_DISABLED;
-	else if (!Q_strcasecmp(mode_arg, "backend") || !Q_strcasecmp(mode_arg, "1"))
-		new_mode = PluQ_MODE_BACKEND;
-	else if (!Q_strcasecmp(mode_arg, "frontend") || !Q_strcasecmp(mode_arg, "2"))
-		new_mode = PluQ_MODE_FRONTEND;
-	else if (!Q_strcasecmp(mode_arg, "both") || !Q_strcasecmp(mode_arg, "3"))
-		new_mode = PluQ_MODE_BOTH;
+	if (!q_strcasecmp(mode_arg, "disabled") || !q_strcasecmp(mode_arg, "0"))
+		new_mode = PLUQ_MODE_DISABLED;
+	else if (!q_strcasecmp(mode_arg, "backend") || !q_strcasecmp(mode_arg, "1"))
+		new_mode = PLUQ_MODE_BACKEND;
+	else if (!q_strcasecmp(mode_arg, "frontend") || !q_strcasecmp(mode_arg, "2"))
+		new_mode = PLUQ_MODE_FRONTEND;
+	else if (!q_strcasecmp(mode_arg, "both") || !q_strcasecmp(mode_arg, "3"))
+		new_mode = PLUQ_MODE_BOTH;
 	else
 	{
 		Con_Printf("Invalid mode. Use: disabled, backend, frontend, or both\n");
