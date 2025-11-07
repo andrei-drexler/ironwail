@@ -323,13 +323,127 @@ qboolean PluQ_Backend_ReceiveInput(void **flatbuf_out, size_t *size_out)
 
 void PluQ_BroadcastWorldState(void)
 {
-	// TODO: Build FrameUpdate FlatBuffer and publish
+	if (!pluq_initialized || !pluq_ctx.is_backend)
+		return;
+
+	// Don't broadcast if not in game
+	if (!cl.worldmodel || cls.state != ca_connected)
+		return;
+
+	static uint32_t frame_counter = 0;
+	double start_time = Sys_DoubleTime();
+
+	// Initialize FlatBuffers builder
+	flatcc_builder_t builder;
+	flatcc_builder_init(&builder);
+
+	// Build FrameUpdate
+	PluQ_FrameUpdate_start(&builder);
+
+	// Frame info
+	PluQ_FrameUpdate_frame_number_add(&builder, frame_counter++);
+	PluQ_FrameUpdate_timestamp_add(&builder, cl.time);
+
+	// View state
+	PluQ_Vec3_t view_origin = QuakeVec3_To_FB(r_refdef.vieworg);
+	PluQ_Vec3_t view_angles = QuakeVec3_To_FB(cl.viewangles);
+	PluQ_FrameUpdate_view_origin_add(&builder, &view_origin);
+	PluQ_FrameUpdate_view_angles_add(&builder, &view_angles);
+
+	// Player stats
+	PluQ_FrameUpdate_health_add(&builder, (int16_t)cl.stats[STAT_HEALTH]);
+	PluQ_FrameUpdate_armor_add(&builder, (int16_t)cl.stats[STAT_ARMOR]);
+	PluQ_FrameUpdate_weapon_add(&builder, (uint8_t)cl.stats[STAT_WEAPON]);
+	PluQ_FrameUpdate_ammo_add(&builder, (uint16_t)cl.stats[STAT_AMMO]);
+
+	// Game state
+	PluQ_FrameUpdate_paused_add(&builder, (cl.paused != 0));
+	PluQ_FrameUpdate_in_game_add(&builder, true);
+
+	// TODO: Add entities (cl_visedicts)
+	// For now, just send player state
+
+	PluQ_FrameUpdate_ref_t frame_ref = PluQ_FrameUpdate_end(&builder);
+
+	// Wrap in GameplayMessage
+	PluQ_GameplayEvent_union_ref_t event;
+	event.type = PluQ_GameplayEvent_FrameUpdate;
+	event.value = frame_ref;
+
+	PluQ_GameplayMessage_create(&builder, event);
+	PluQ_GameplayMessage_end_as_root(&builder);
+
+	// Finalize buffer
+	size_t size;
+	void *buf = flatcc_builder_finalize_buffer(&builder, &size);
+
+	if (buf)
+	{
+		// Publish frame
+		PluQ_Backend_PublishFrame(buf, size);
+
+		// Update stats
+		perf_stats.frames_sent++;
+		double frame_time = Sys_DoubleTime() - start_time;
+		perf_stats.total_time += frame_time;
+		if (frame_time > perf_stats.max_frame_time)
+			perf_stats.max_frame_time = frame_time;
+		if (perf_stats.min_frame_time == 0.0 || frame_time < perf_stats.min_frame_time)
+			perf_stats.min_frame_time = frame_time;
+
+		// Free buffer
+		flatcc_builder_aligned_free(buf);
+	}
+
+	flatcc_builder_clear(&builder);
 }
 
 qboolean PluQ_ReceiveWorldState(void)
 {
-	// TODO: Receive and parse GameplayMessage
-	return false;
+	void *buf;
+	size_t size;
+
+	if (!PluQ_Frontend_ReceiveFrame(&buf, &size))
+		return false;
+
+	// Parse GameplayMessage
+	PluQ_GameplayMessage_table_t msg = PluQ_GameplayMessage_as_root(buf);
+	if (!msg)
+	{
+		nng_msg_free((nng_msg *)buf);  // Free the nng_msg wrapper
+		return false;
+	}
+
+	// Get event type and value
+	PluQ_GameplayEvent_union_type_t event_type = PluQ_GameplayMessage_event_type(msg);
+	flatbuffers_generic_t event_value = PluQ_GameplayMessage_event(msg);
+
+	if (event_type == PluQ_GameplayEvent_FrameUpdate)
+	{
+		PluQ_FrameUpdate_table_t frame = (PluQ_FrameUpdate_table_t)event_value;
+
+		// Update last received frame
+		last_received_frame = PluQ_FrameUpdate_frame_number(frame);
+
+		// TODO: Store frame data for PluQ_ApplyReceivedState()
+		// For now, just log
+		Con_DPrintf("PluQ: Received frame %u\n", last_received_frame);
+	}
+	else if (event_type == PluQ_GameplayEvent_MapChanged)
+	{
+		PluQ_MapChanged_table_t mapchange = (PluQ_MapChanged_table_t)event_value;
+		const char *mapname = PluQ_MapChanged_mapname(mapchange);
+		Con_Printf("PluQ: Map changed to %s\n", mapname);
+	}
+	else if (event_type == PluQ_GameplayEvent_Disconnected)
+	{
+		PluQ_Disconnected_table_t disc = (PluQ_Disconnected_table_t)event_value;
+		const char *reason = PluQ_Disconnected_reason(disc);
+		Con_Printf("PluQ: Disconnected: %s\n", reason);
+	}
+
+	nng_msg_free((nng_msg *)buf);
+	return true;
 }
 
 void PluQ_ApplyReceivedState(void)
