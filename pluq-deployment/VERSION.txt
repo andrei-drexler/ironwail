@@ -1,0 +1,53 @@
+Ironwail PluQ Build
+===================
+
+Build Date: 2025-11-07
+PluQ Version: 1.0
+Ironwail Base: Latest
+
+Components:
+-----------
+Backend:  ironwail (1.1 MB)
+  - Full Quake engine
+  - PluQ IPC support (backend/frontend/both modes)
+  - Server, physics, AI, networking
+  - All original features
+
+Frontend: ironwail-pluq-frontend (870 KB)  
+  - Slim rendering client
+  - PluQ IPC receiver
+  - OpenGL rendering, SDL2 input/audio
+  - Menu and console UI
+  - Maximum code reuse (95% shared with backend)
+
+Excluded from Frontend:
+  - host_cmd.o (server commands)
+  - cl_parse.o (network parsing - PluQ handles state sync)
+
+PluQ IPC Features:
+------------------
+- Zero-copy shared memory architecture
+- POSIX shared memory (/dev/shm/quake_pluq)
+- Up to 8192 entities per frame
+- 32 dynamic lights
+- Atomic synchronization
+- Frame sequence tracking
+- Input command streaming
+
+Performance:
+------------
+- ~98 KB per frame (shared memory)
+- Sub-millisecond IPC latency
+- 72 FPS default (configurable)
+- Lock-free read/write
+
+Architecture:
+-------------
+Split Mode:
+  Backend Process → Shared Memory → Frontend Process
+  Frontend → Input Commands → Backend
+
+Standard Mode:
+  Single Process (PluQ disabled)
+
+License: GPL v2
