@@ -264,7 +264,6 @@ OBJS = strlcat.o \
 	common.o \
 	steam.o \
 	pluq.o \
-	pluq_nng.o \
 	json.o \
 	miniz.o \
 	crc.o \
