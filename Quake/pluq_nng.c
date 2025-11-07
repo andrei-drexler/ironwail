@@ -93,7 +93,7 @@ qboolean PluQ_NNG_Init(qboolean is_backend)
             goto error;
         }
         // Subscribe to all topics (empty topic = all)
-        if ((rv = nng_socket_set(pluq_ctx.gameplay_sub, NNG_OPT_SUB_SUBSCRIBE, "", 0)) != 0)
+        if ((rv = nng_sub0_socket_subscribe(pluq_ctx.gameplay_sub, "", 0)) != 0)
         {
             Con_Printf("PluQ NNG: Failed to subscribe to gameplay events: %s\n", nng_strerror(rv));
             goto error;
@@ -136,15 +136,15 @@ void PluQ_NNG_Shutdown(void)
 
     if (pluq_ctx.is_backend)
     {
-        nng_close(pluq_ctx.resources_rep);
-        nng_close(pluq_ctx.gameplay_pub);
-        nng_close(pluq_ctx.input_pull);
+        nng_socket_close(pluq_ctx.resources_rep);
+        nng_socket_close(pluq_ctx.gameplay_pub);
+        nng_socket_close(pluq_ctx.input_pull);
     }
     else
     {
-        nng_close(pluq_ctx.resources_req);
-        nng_close(pluq_ctx.gameplay_sub);
-        nng_close(pluq_ctx.input_push);
+        nng_socket_close(pluq_ctx.resources_req);
+        nng_socket_close(pluq_ctx.gameplay_sub);
+        nng_socket_close(pluq_ctx.input_push);
     }
 
     memset(&pluq_ctx, 0, sizeof(pluq_ctx));
@@ -196,21 +196,21 @@ qboolean PluQ_NNG_Frontend_RequestResource(uint32_t resource_id)
 qboolean PluQ_NNG_Frontend_ReceiveResource(void **flatbuf_out, size_t *size_out)
 {
     int rv;
-    void *buf;
-    size_t sz;
+    nng_msg *msg;
 
     if (!pluq_ctx.initialized || !pluq_ctx.is_frontend)
         return false;
 
-    if ((rv = nng_recv(pluq_ctx.resources_req, &buf, &sz, NNG_FLAG_ALLOC | NNG_FLAG_NONBLOCK)) != 0)
+    if ((rv = nng_recvmsg(pluq_ctx.resources_req, &msg, NNG_FLAG_NONBLOCK)) != 0)
     {
         if (rv != NNG_EAGAIN)
             Con_Printf("PluQ NNG: Failed to receive resource: %s\n", nng_strerror(rv));
         return false;
     }
 
-    *flatbuf_out = buf;
-    *size_out = sz;
+    *flatbuf_out = nng_msg_body(msg);
+    *size_out = nng_msg_len(msg);
+    // Note: Caller must call nng_msg_free(msg) when done
     return true;
 }
 
@@ -237,21 +237,21 @@ qboolean PluQ_NNG_Backend_PublishFrame(const void *flatbuf, size_t size)
 qboolean PluQ_NNG_Frontend_ReceiveFrame(void **flatbuf_out, size_t *size_out)
 {
     int rv;
-    void *buf;
-    size_t sz;
+    nng_msg *msg;
 
     if (!pluq_ctx.initialized || !pluq_ctx.is_frontend)
         return false;
 
-    if ((rv = nng_recv(pluq_ctx.gameplay_sub, &buf, &sz, NNG_FLAG_ALLOC | NNG_FLAG_NONBLOCK)) != 0)
+    if ((rv = nng_recvmsg(pluq_ctx.gameplay_sub, &msg, NNG_FLAG_NONBLOCK)) != 0)
     {
         if (rv != NNG_EAGAIN)
             Con_Printf("PluQ NNG: Failed to receive gameplay frame: %s\n", nng_strerror(rv));
         return false;
     }
 
-    *flatbuf_out = buf;
-    *size_out = sz;
+    *flatbuf_out = nng_msg_body(msg);
+    *size_out = nng_msg_len(msg);
+    // Note: Caller must call nng_msg_free(msg) when done
     return true;
 }
 
@@ -278,20 +278,20 @@ qboolean PluQ_NNG_Frontend_SendInput(const void *flatbuf, size_t size)
 qboolean PluQ_NNG_Backend_ReceiveInput(void **flatbuf_out, size_t *size_out)
 {
     int rv;
-    void *buf;
-    size_t sz;
+    nng_msg *msg;
 
     if (!pluq_ctx.initialized || !pluq_ctx.is_backend)
         return false;
 
-    if ((rv = nng_recv(pluq_ctx.input_pull, &buf, &sz, NNG_FLAG_ALLOC | NNG_FLAG_NONBLOCK)) != 0)
+    if ((rv = nng_recvmsg(pluq_ctx.input_pull, &msg, NNG_FLAG_NONBLOCK)) != 0)
     {
         if (rv != NNG_EAGAIN)
             Con_Printf("PluQ NNG: Failed to receive input command: %s\n", nng_strerror(rv));
         return false;
     }
 
-    *flatbuf_out = buf;
-    *size_out = sz;
+    *flatbuf_out = nng_msg_body(msg);
+    *size_out = nng_msg_len(msg);
+    // Note: Caller must call nng_msg_free(msg) when done
     return true;
 }

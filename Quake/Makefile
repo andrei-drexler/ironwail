@@ -56,6 +56,7 @@ CPUFLAGS=
 LDFLAGS?=
 DFLAGS ?=
 CFLAGS ?= -Wall -Wno-trigraphs
+CFLAGS += -I.  # For flatcc headers
 CFLAGS += -D_FILE_OFFSET_BITS=64
 CFLAGS += $(call check_gcc,-std=gnu11,)
 CFLAGS += $(call check_gcc,-Werror=format,)

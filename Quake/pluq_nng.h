@@ -15,12 +15,8 @@ of the License, or (at your option) any later version.
 
 #include "quakedef.h"
 #include <nng/nng.h>
-#include <nng/protocol/pubsub0/pub.h>
-#include <nng/protocol/pubsub0/sub.h>
-#include <nng/protocol/reqrep0/req.h>
-#include <nng/protocol/reqrep0/rep.h>
-#include <nng/protocol/pipeline0/push.h>
-#include <nng/protocol/pipeline0/pull.h>
+// Note: In nng 2.0+, protocol functions are declared in nng.h
+// No need for separate protocol headers
 
 // Include generated FlatBuffers C headers
 // (Generated from pluq.fbs using: flatcc -a pluq.fbs)
