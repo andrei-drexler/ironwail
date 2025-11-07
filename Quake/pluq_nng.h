@@ -82,21 +82,26 @@ qboolean PluQ_NNG_Backend_ReceiveInput(void **flatbuf_out, size_t *size_out);
 // ============================================================================
 
 // Convert Quake vec3_t to FlatBuffers Vec3
-static inline PluQ_Vec3_t QuakeVec3_To_FB(vec3_t v)
+// Note: FlatBuffers structs are packed, so PluQ_Vec3_t has identical layout to float[3]
+static inline PluQ_Vec3_t QuakeVec3_To_FB(const vec3_t v)
 {
     PluQ_Vec3_t fb_vec;
-    fb_vec.x = v[0];
-    fb_vec.y = v[1];
-    fb_vec.z = v[2];
+    // Use memcpy for optimal performance (compiler will likely optimize to direct load)
+    memcpy(&fb_vec, v, sizeof(PluQ_Vec3_t));
     return fb_vec;
 }
 
 // Convert FlatBuffers Vec3 to Quake vec3_t
-static inline void FB_Vec3_To_Quake(PluQ_Vec3_t fb_vec, vec3_t v)
+static inline void FB_Vec3_To_Quake(const PluQ_Vec3_t *fb_vec, vec3_t v)
 {
-    v[0] = fb_vec.x;
-    v[1] = fb_vec.y;
-    v[2] = fb_vec.z;
+    // Use memcpy for optimal performance (compiler will likely optimize to direct store)
+    memcpy(v, fb_vec, sizeof(PluQ_Vec3_t));
+}
+
+// Alternate version: Convert by value (for cases where you already have the struct)
+static inline void FB_Vec3_To_Quake_Val(PluQ_Vec3_t fb_vec, vec3_t v)
+{
+    memcpy(v, &fb_vec, sizeof(PluQ_Vec3_t));
 }
 
 #endif // _PLUQ_NNG_H_
