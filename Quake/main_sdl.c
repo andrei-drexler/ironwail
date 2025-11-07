@@ -139,7 +139,9 @@ int main(int argc, char *argv[])
 
 	COM_InitArgv(parms.argc, parms.argv);
 
-	isDedicated = (COM_CheckParm("-dedicated") != 0);
+	// isDedicated controls main loop selection (dedicated loop has no VID calls)
+	// -pluq uses dedicated loop but runs full client code (not ca_dedicated state)
+	isDedicated = (COM_CheckParm("-dedicated") != 0) || (COM_CheckParm("-pluq") != 0);
 
 	Sys_InitSDL ();
 

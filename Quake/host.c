@@ -1058,38 +1058,42 @@ static void UpdateWindowTitle (void)
 		return;
 	last = current;
 
-	if (current.map[0])
+	// Skip window title updates in headless mode
+	if (!PluQ_IsHeadless() && cls.state != ca_dedicated)
 	{
-		char cleanname[sizeof (cl.levelname)];
-		char utf8name[4 * sizeof (cl.levelname)];
-		char title[1024];
+		if (current.map[0])
+		{
+			char cleanname[sizeof (cl.levelname)];
+			char utf8name[4 * sizeof (cl.levelname)];
+			char title[1024];
 
-		Mod_SanitizeMapDescription (cleanname, sizeof (cleanname), cl.levelname);
+			Mod_SanitizeMapDescription (cleanname, sizeof (cleanname), cl.levelname);
 
-		UTF8_FromQuake (utf8name, sizeof (utf8name), cleanname);
-		q_snprintf (title, sizeof (title),
-			utf8name[0] ?
-				"%s (%s)  |  skill %d  |  %d/%d kills  |  %d/%d secrets  -  " WINDOW_TITLE_STRING :
-				"%s%s  |  skill %d  |  %d/%d kills  |  %d/%d secrets  -  " WINDOW_TITLE_STRING,
-			utf8name, current.map,
-			current.stats.skill,
-			current.stats.monsters, current.stats.total_monsters,
-			current.stats.secrets, current.stats.total_secrets
-		);
-		VID_SetWindowTitle (title);
+			UTF8_FromQuake (utf8name, sizeof (utf8name), cleanname);
+			q_snprintf (title, sizeof (title),
+				utf8name[0] ?
+					"%s (%s)  |  skill %d  |  %d/%d kills  |  %d/%d secrets  -  " WINDOW_TITLE_STRING :
+					"%s%s  |  skill %d  |  %d/%d kills  |  %d/%d secrets  -  " WINDOW_TITLE_STRING,
+				utf8name, current.map,
+				current.stats.skill,
+				current.stats.monsters, current.stats.total_monsters,
+				current.stats.secrets, current.stats.total_secrets
+			);
+			VID_SetWindowTitle (title);
 
-		if (current.stats.max_players > 1)
-			Steam_SetStatus_Multiplayer (current.stats.players, current.stats.max_players, utf8name[0] ? utf8name : current.map);
+			if (current.stats.max_players > 1)
+				Steam_SetStatus_Multiplayer (current.stats.players, current.stats.max_players, utf8name[0] ? utf8name : current.map);
+			else
+				Steam_SetStatus_SinglePlayer (utf8name[0] ? utf8name : current.map);
+		}
 		else
-			Steam_SetStatus_SinglePlayer (utf8name[0] ? utf8name : current.map);
-	}
-	else
-	{
-		VID_SetWindowTitle (WINDOW_TITLE_STRING);
-		if (cls.state == ca_connected)
-			Steam_ClearStatus ();
-		else
-			Steam_SetStatus_Menu ();
+		{
+			VID_SetWindowTitle (WINDOW_TITLE_STRING);
+			if (cls.state == ca_connected)
+				Steam_ClearStatus ();
+			else
+				Steam_SetStatus_Menu ();
+		}
 	}
 }
 
@@ -1454,6 +1458,8 @@ void Host_Init (void)
 
 	if (cls.state != ca_dedicated)
 	{
+		qboolean pluq_headless = (COM_CheckParm("-pluq") != 0);
+
 		host_colormap = (byte *)COM_LoadHunkFile ("gfx/colormap.lmp", NULL);
 		if (!host_colormap)
 			Sys_Error ("Couldn't load gfx/colormap.lmp");
@@ -1461,17 +1467,23 @@ void Host_Init (void)
 		V_Init ();
 		Chase_Init ();
 		M_Init ();
-		VID_Init ();
-		IN_Init ();
-		TexMgr_Init (); //johnfitz
-		Draw_Init ();
-		SCR_Init ();
-		R_Init ();
-		S_Init ();
-		CDAudio_Init ();
-		BGM_Init();
+
+		// PluQ: Skip hardware and rendering initialization in headless mode
+		if (!pluq_headless)
+		{
+			VID_Init ();
+			IN_Init ();
+			TexMgr_Init (); //johnfitz
+			Draw_Init ();
+			SCR_Init ();
+			R_Init ();
+			S_Init ();
+			CDAudio_Init ();
+			BGM_Init();
+		}
+
 		Sbar_Init ();
-		CL_Init ();
+		CL_Init ();  // PluQ: Client MUST be initialized even in headless mode
 		ExtraMaps_Init (); //johnfitz
 		DemoList_Init (); //ericw
 		SaveList_Init ();
@@ -1482,6 +1494,14 @@ void Host_Init (void)
 	LOC_Init (); // for 2021 rerelease support.
 
 	PluQ_Init (); // PluQ: Initialize IPC subsystem
+
+	// PluQ: Auto-enable backend mode when using -pluq
+	if (COM_CheckParm("-pluq"))
+	{
+		Con_Printf ("PluQ headless backend mode enabled\n");
+		Cvar_Set ("pluq_headless", "1");
+		PluQ_SetMode (PLUQ_MODE_BACKEND);
+	}
 
 	Hunk_AllocName (0, "-HOST_HUNKLEVEL-");
 	host_hunklevel = Hunk_LowMark ();
