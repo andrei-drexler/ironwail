@@ -73,29 +73,33 @@ void Host_Init_PluQ_Frontend (void)
 	if (!host_colormap)
 		Sys_Error ("Couldn't load gfx/colormap.lmp");
 
+	// Rendering subsystem
 	V_Init ();
 	Chase_Init ();
-	M_Init ();
 	VID_Init ();
 	IN_Init ();
 	TexMgr_Init (); //johnfitz
 	Draw_Init ();
 	SCR_Init ();
 	R_Init ();
+	Sbar_Init ();
+
+	// Audio subsystem
 	S_Init ();
 	CDAudio_Init ();
 	BGM_Init();
-	Sbar_Init ();
+
+	// Client & UI subsystems
 	CL_Init ();
+	M_Init ();
 
-	// PluQ Frontend doesn't need these:
-	// ExtraMaps_Init (); //johnfitz
-	// DemoList_Init (); //ericw
-	// SaveList_Init ();
-	// SkyList_Init ();
-	// M_CheckMods ();
-
-	LOC_Init (); // for 2021 rerelease support.
+	// PluQ Frontend optional features (disabled for minimal footprint):
+	// ExtraMaps_Init (); - no extra map management
+	// DemoList_Init (); - demos handled but not indexed
+	// SaveList_Init (); - saves handled but not indexed
+	// SkyList_Init (); - skies handled but not indexed
+	// M_CheckMods (); - mod checking disabled
+	// LOC_Init (); - localization disabled
 
 	Hunk_AllocName (0, "-HOST_HUNKLEVEL-");
 	// Note: host_hunklevel tracking not needed in frontend

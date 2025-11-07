@@ -231,7 +231,8 @@ GLOBJS = \
 	r_brush.o \
 	gl_model.o
 
-# PluQ Frontend-specific objects (minimal set)
+# PluQ Frontend-specific objects (slim client with maximum code reuse)
+# Excludes only: host_cmd.o (server commands), cl_parse.o (network parsing - PluQ handles this)
 OBJS = strlcat.o \
 	strlcpy.o \
 	$(GLOBJS) \
@@ -239,12 +240,10 @@ OBJS = strlcat.o \
 	$(COMOBJ_SND) \
 	$(SYSOBJ_SND) \
 	$(SYSOBJ_CDA) \
-	$(SYSOBJ_NET) \
 	chase.o \
 	cl_demo.o \
 	cl_input.o \
 	cl_main.o \
-	cl_parse.o \
 	cl_tent.o \
 	console.o \
 	keys.o \
@@ -262,7 +261,6 @@ OBJS = strlcat.o \
 	cvar.o \
 	cfgfile.o \
 	host_pluq_frontend.o \
-	host_cmd.o \
 	mathlib.o \
 	zone.o \
 	stubs_pluq_frontend.o \
