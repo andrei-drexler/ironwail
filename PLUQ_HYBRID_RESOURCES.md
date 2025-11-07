@@ -11,18 +11,18 @@ PluQ supports **hybrid resource loading** where frontends can choose how to obta
 
 ### 1. Map Load Start
 
-**Backend → Frontend (via Resources channel):**
+**Backend → Frontend (via Gameplay channel):**
 ```
-MapStart {
-    mapname: "e1m1"
-    num_textures: 47
-    num_models: 12
-    resources: [
-        { id: 1, type: Texture, name: "wall01", size: 16384 }
-        { id: 2, type: Texture, name: "floor03", size: 32768 }
-        { id: 3, type: Model, name: "player.mdl", size: 4096 }
-        ...
-    ]
+GameplayMessage {
+    event: MapChanged {
+        mapname: "e1m1"
+        resources: [
+            { id: 1, type: Texture, name: "wall01", size: 16384 }
+            { id: 2, type: Texture, name: "floor03", size: 32768 }
+            { id: 3, type: Model, name: "player.mdl", size: 4096 }
+            ...
+        ]
+    }
 }
 ```
 
@@ -30,14 +30,17 @@ MapStart {
 
 **Smart Frontend (has pak files):**
 ```c
-void OnMapStart(MapStart msg) {
-    for (resource in msg.resources) {
-        if (CanLoadLocally(resource.name)) {
-            // Load from local pak files
-            LoadFromPak(resource.name, resource.id);
-        } else {
-            // Request from backend
-            RequestResource(resource.id, resource.type);
+void OnGameplayMessage(GameplayMessage msg) {
+    if (msg.event == MapChanged) {
+        MapChanged* mapChanged = msg.event.MapChanged;
+        for (resource in mapChanged.resources) {
+            if (CanLoadLocally(resource.name)) {
+                // Load from local pak files
+                LoadFromPak(resource.name, resource.id);
+            } else {
+                // Request from backend
+                RequestResource(resource.id, resource.type);
+            }
         }
     }
 }
@@ -45,21 +48,27 @@ void OnMapStart(MapStart msg) {
 
 **Dumb Frontend (no pak files):**
 ```c
-void OnMapStart(MapStart msg) {
-    for (resource in msg.resources) {
-        // Always request from backend
-        RequestResource(resource.id, resource.type);
+void OnGameplayMessage(GameplayMessage msg) {
+    if (msg.event == MapChanged) {
+        MapChanged* mapChanged = msg.event.MapChanged;
+        for (resource in mapChanged.resources) {
+            // Always request from backend
+            RequestResource(resource.id, resource.type);
+        }
     }
 }
 ```
 
 **Web Frontend (no filesystem):**
 ```c
-async void OnMapStart(MapStart msg) {
-    for (resource in msg.resources) {
-        // Request and cache in IndexedDB
-        if (!IsCached(resource.id)) {
-            await RequestAndCache(resource.id);
+async void OnGameplayMessage(GameplayMessage msg) {
+    if (msg.event == MapChanged) {
+        MapChanged* mapChanged = msg.event.MapChanged;
+        for (resource in mapChanged.resources) {
+            // Request and cache in IndexedDB
+            if (!IsCached(resource.id)) {
+                await RequestAndCache(resource.id);
+            }
         }
     }
 }
@@ -95,16 +104,17 @@ ResourceMessage {
 
 **Backend broadcasts every frame:**
 ```
-GameplayFrame {
-    entities: [
-        Entity {
-            origin: (100, 200, 50)
-            angles: (0, 90, 0)
-            model_id: 3        // ← Just the ID!
-            texture_id: 1      // ← Just the ID!
-            ...
-        }
-    ]
+GameplayMessage {
+    event: FrameUpdate {
+        entities: [
+            Entity {
+                origin: (100, 200, 50)
+                angles: (0, 90, 0)
+                model_id: 3        // ← Just the ID!
+                ...
+            }
+        ]
+    }
 }
 ```
 
@@ -225,22 +235,26 @@ PluQ_BulkPushResources(resource_list);
 
 ### Frontend (C#/Unity):
 ```csharp
-void OnMapStart(MapStart msg) {
-    foreach (var resource in msg.Resources) {
-        if (File.Exists($"Assets/Quake/{resource.Name}")) {
-            // Load locally
-            LoadLocal(resource);
-        } else {
-            // Request from backend
-            await RequestResource(resource.Id);
-        }
-    }
-}
+void OnGameplayMessage(GameplayMessage msg) {
+    switch (msg.Event) {
+        case MapChanged mapChanged:
+            foreach (var resource in mapChanged.Resources) {
+                if (File.Exists($"Assets/Quake/{resource.Name}")) {
+                    // Load locally
+                    LoadLocal(resource);
+                } else {
+                    // Request from backend
+                    await RequestResource(resource.Id);
+                }
+            }
+            break;
 
-void OnGameplayFrame(GameplayFrame frame) {
-    foreach (var entity in frame.Entities) {
-        var model = modelCache[entity.ModelId];
-        DrawModel(model, entity.Origin, entity.Angles);
+        case FrameUpdate frame:
+            foreach (var entity in frame.Entities) {
+                var model = modelCache[entity.ModelId];
+                DrawModel(model, entity.Origin, entity.Angles);
+            }
+            break;
     }
 }
 ```

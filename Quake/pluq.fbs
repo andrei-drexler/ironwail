@@ -14,20 +14,17 @@ struct Vec3 {
 }
 
 // ============================================================================
-// RESOURCES CHANNEL - Resource streaming (on-demand or bulk)
-// Frontend can either:
-//  1. Request specific resources by ID (REQ/REP)
-//  2. Receive bulk resource dump during map load (PUB/SUB)
+// RESOURCES CHANNEL - On-demand resource data only (REQ/REP)
+// Frontend requests specific resources by ID
+// Backend replies with resource data
 // ============================================================================
 
 enum ResourceType : byte {
-  MapStart = 0,
   Texture = 1,
   Model = 2,
   BSPVertices = 3,
   BSPFaces = 4,
-  Lightmap = 5,
-  MapComplete = 6
+  Lightmap = 5
 }
 
 // Frontend → Backend: Request a specific resource
@@ -35,18 +32,6 @@ table ResourceRequest {
   resource_type: ResourceType;
   resource_id: uint32;
   resource_name: string;  // Optional: request by name instead of ID
-}
-
-table MapStart {
-  mapname: string;
-  num_textures: uint32;
-  num_models: uint32;
-  num_lightmaps: uint32;
-
-  // Resource lookup table - frontend can use this to decide:
-  // 1. Load locally (if it has pak files)
-  // 2. Request from backend (if it doesn't)
-  resources: [ResourceLookup];
 }
 
 table Texture {
@@ -95,39 +80,49 @@ table Lightmap {
   data: [ubyte];  // RGB lightmap data
 }
 
-table MapComplete {
-  total_resources: uint32;
-}
-
-union ResourceData {
-  MapStart,
-  Texture,
-  Model,
-  BSPVertices,
-  BSPFaces,
-  Lightmap,
-  MapComplete
-}
-
-// Backend → Frontend: Resource response (REP) or broadcast (PUB)
-table ResourceMessage {
-  type: ResourceType;
-  sequence: uint32;
-  data: ResourceData;
-}
-
-// Resource lookup table (sent with MapStart)
-table ResourceLookup {
+// Resource lookup table entry
+table ResourceInfo {
   id: uint32;
   type: ResourceType;
   name: string;
   size: uint32;  // Size in bytes (for progress bars)
 }
 
+union ResourceData {
+  Texture,
+  Model,
+  BSPVertices,
+  BSPFaces,
+  Lightmap
+}
+
+// Backend → Frontend: Resource response (REP)
+table ResourceResponse {
+  resource_id: uint32;
+  data: ResourceData;
+}
+
 // ============================================================================
-// GAMEPLAY CHANNEL - Runtime game state (every frame)
+// GAMEPLAY CHANNEL - All game state events (PUB/SUB)
+// Includes: map changes, frame updates, disconnects, etc.
 // ============================================================================
 
+// Map changed event (sent when map loads)
+table MapChanged {
+  mapname: string;
+
+  // Resource lookup table - frontend can use this to decide:
+  // 1. Load locally (if it has pak files)
+  // 2. Request from backend (if it doesn't)
+  resources: [ResourceInfo];
+}
+
+// Disconnect event
+table Disconnected {
+  reason: string;
+}
+
+// Entity in the game world
 table Entity {
   origin: Vec3;
   angles: Vec3;
@@ -139,7 +134,8 @@ table Entity {
   alpha: float;
 }
 
-table GameplayFrame {
+// Frame update (sent every tick)
+table FrameUpdate {
   frame_number: uint32;
   timestamp: double;
 
@@ -159,6 +155,18 @@ table GameplayFrame {
 
   // Entities
   entities: [Entity];
+}
+
+// Union of all gameplay events
+union GameplayEvent {
+  MapChanged,
+  FrameUpdate,
+  Disconnected
+}
+
+// Gameplay message (sent on gameplay channel)
+table GameplayMessage {
+  event: GameplayEvent;
 }
 
 // ============================================================================
@@ -191,7 +199,12 @@ table InputCommand {
 // ROOT TYPES (one per channel)
 // ============================================================================
 
-root_type ResourceMessage;
-// Also valid root types for other channels:
-// root_type GameplayFrame;
-// root_type InputCommand;
+// Resources channel: REQ/REP for resource data
+root_type ResourceRequest;    // Frontend → Backend
+root_type ResourceResponse;   // Backend → Frontend
+
+// Gameplay channel: PUB/SUB for all game events
+root_type GameplayMessage;
+
+// Input channel: PUSH/PULL for user input
+root_type InputCommand;
