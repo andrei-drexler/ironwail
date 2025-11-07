@@ -1458,7 +1458,8 @@ void Host_Init (void)
 
 	if (cls.state != ca_dedicated)
 	{
-		qboolean pluq_headless = (COM_CheckParm("-pluq") != 0);
+		// Check for headless mode (runs full client without hardware I/O)
+		qboolean headless = (COM_CheckParm("-headless") != 0);
 
 		host_colormap = (byte *)COM_LoadHunkFile ("gfx/colormap.lmp", NULL);
 		if (!host_colormap)
@@ -1468,8 +1469,8 @@ void Host_Init (void)
 		Chase_Init ();
 		M_Init ();
 
-		// PluQ: Skip hardware and rendering initialization in headless mode
-		if (!pluq_headless)
+		// Skip hardware and rendering initialization in headless mode
+		if (!headless)
 		{
 			VID_Init ();
 			IN_Init ();
@@ -1483,7 +1484,7 @@ void Host_Init (void)
 		}
 
 		Sbar_Init ();
-		CL_Init ();  // PluQ: Client MUST be initialized even in headless mode
+		CL_Init ();  // Client runs even in headless mode
 		ExtraMaps_Init (); //johnfitz
 		DemoList_Init (); //ericw
 		SaveList_Init ();
@@ -1496,9 +1497,13 @@ void Host_Init (void)
 	PluQ_Init (); // PluQ: Initialize IPC subsystem
 
 	// PluQ: Auto-enable backend mode when using -pluq
+	// Note: -pluq requires -headless to be used together
 	if (COM_CheckParm("-pluq"))
 	{
-		Con_Printf ("PluQ headless backend mode enabled\n");
+		if (!COM_CheckParm("-headless"))
+			Sys_Error ("PluQ backend mode requires -headless flag");
+
+		Con_Printf ("PluQ backend mode enabled\n");
 		Cvar_Set ("pluq_headless", "1");
 		PluQ_SetMode (PLUQ_MODE_BACKEND);
 	}
