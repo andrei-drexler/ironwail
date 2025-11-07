@@ -20,6 +20,7 @@ struct Vec3 {
 // ============================================================================
 
 enum ResourceType : byte {
+  None = 0,
   Texture = 1,
   Model = 2,
   BSPVertices = 3,
@@ -196,15 +197,11 @@ table InputCommand {
 }
 
 // ============================================================================
-// ROOT TYPES (one per channel)
+// ROOT TYPES
 // ============================================================================
-
-// Resources channel: REQ/REP for resource data
-root_type ResourceRequest;    // Frontend → Backend
-root_type ResourceResponse;   // Backend → Frontend
-
-// Gameplay channel: PUB/SUB for all game events
-root_type GameplayMessage;
-
-// Input channel: PUSH/PULL for user input
-root_type InputCommand;
+// Note: FlatBuffers only allows one root_type per schema.
+// For multi-channel IPC, we don't use root_type - just access tables directly.
+// Each channel uses specific message types:
+// - Resources channel: ResourceRequest (frontend->backend), ResourceResponse (backend->frontend)
+// - Gameplay channel: GameplayMessage (backend->frontend)
+// - Input channel: InputCommand (frontend->backend)

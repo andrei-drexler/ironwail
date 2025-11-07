@@ -24,7 +24,8 @@ of the License, or (at your option) any later version.
 
 // Include generated FlatBuffers C headers
 // (Generated from pluq.fbs using: flatcc -a pluq.fbs)
-#include "pluq_generated.h"
+#include "pluq_reader.h"
+#include "pluq_builder.h"
 
 // ============================================================================
 // CHANNEL ENDPOINTS

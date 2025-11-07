@@ -181,7 +181,10 @@ else
 COMMON_LIBS= -lGL -ldl -lm
 endif
 
-LIBS = $(COMMON_LIBS) $(NET_LIBS) $(CODECLIBS)
+# PluQ: nng + flatcc libraries for IPC (using local builds)
+PLUQ_LIBS = -Lnng_lib -lnng -lflatccrt -Wl,-rpath,nng_lib
+
+LIBS = $(COMMON_LIBS) $(NET_LIBS) $(CODECLIBS) $(PLUQ_LIBS)
 
 # name of this makefile, so we can use it as a dependency
 MAKEFILE := $(lastword $(MAKEFILE_LIST))
@@ -260,6 +263,7 @@ OBJS = strlcat.o \
 	common.o \
 	steam.o \
 	pluq.o \
+	pluq_nng.o \
 	json.o \
 	miniz.o \
 	crc.o \
