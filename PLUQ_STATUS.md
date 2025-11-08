@@ -130,14 +130,18 @@ cd pluq-deployment
 # Terminal 2: Start monitor
 ./test-monitor
 # Should see: "Frame 1: Received N bytes" every 16ms
+
+# Test input commands:
+./test-input-complete.sh
+# Should see commands sent and received successfully
 ```
 
 ## 🔄 Next Steps (Priority Order)
 
 ### High Priority
-1. **Live IPC test** - Verify backend → monitor data flow
-2. **Add entities to FrameUpdate** - Broadcast visible entities
-3. **Implement input handling** - Backend receives input commands
+1. ✅ ~~**Live IPC test**~~ - DONE: Verified backend → monitor data flow
+2. ✅ ~~**Implement input handling**~~ - DONE: Backend receives and processes commands
+3. **Add entities to FrameUpdate** - Broadcast visible entities
 
 ### Medium Priority
 4. **Frontend mode testing** - Full ironwail as frontend
@@ -149,32 +153,41 @@ cd pluq-deployment
 8. **Delta encoding** - Only send changed data
 9. **Unity frontend example** - C# FlatBuffers client
 
-## 📝 Commits in This Session
+## 📝 Recent Commits
 
 ```
-9ddc7bc - Add PluQ testing infrastructure
-68bf6fd - Implement FlatBuffers message building and parsing
-23cbef1 - Remove shared memory code, unify nng+FlatBuffers into pluq.c/h
-123c59c - Optimize vec3_t conversion functions
-fc6fda8 - Fix nng 2.0 API compatibility and build issues
-21adf94 - Implement nng+FlatBuffers IPC transport for PluQ
-bdcba24 - Refactor PluQ schema: Move MapChanged to Gameplay channel
+(current) - Add input command receiver test and verify backend processing
+0a181e0   - Fix FlatBuffers message building in test-command
+90466d3   - Migrate PluQ to nng 2.0 API and implement input command processing
+ab77bde   - Add PluQ implementation status document
+9ddc7bc   - Add PluQ testing infrastructure
+68bf6fd   - Implement FlatBuffers message building and parsing
+23cbef1   - Remove shared memory code, unify nng+FlatBuffers into pluq.c/h
 ```
 
 ## 🏗️ Architecture Summary
 
 ```
 Backend (ironwail -headless -pluq):
-  Game Loop → PluQ_BroadcastWorldState()
-             → flatcc_builder (serialize)
-             → nng_send(gameplay_pub)
-             → IPC socket
+  Output: Game Loop → PluQ_BroadcastWorldState()
+                    → flatcc_builder (serialize)
+                    → nng_send(gameplay_pub)
+                    → IPC socket
+
+  Input:  IPC socket → nng_recvmsg(input_pull)
+                    → PluQ_ProcessInputCommands()
+                    → flatcc reader (deserialize)
+                    → Cbuf_AddText(cmd)
 
 Frontend (ironwail or test-monitor):
-  IPC socket → nng_recvmsg(gameplay_sub)
-             → PluQ_ReceiveWorldState()
-             → flatcc reader (deserialize)
-             → Process frame data
+  Input:  IPC socket → nng_recvmsg(gameplay_sub)
+                    → PluQ_ReceiveWorldState()
+                    → flatcc reader (deserialize)
+                    → Process frame data
+
+  Output: User input → flatcc_builder (serialize)
+                    → nng_send(input_push)
+                    → IPC socket
 ```
 
 ## 🎉 Key Achievements
