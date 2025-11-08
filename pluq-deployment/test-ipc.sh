@@ -14,20 +14,24 @@ echo ""
 # Clean up any existing IPC sockets
 rm -f /tmp/quake_pluq_*
 
-# Start test monitor in background
-echo "Starting monitor..."
-./test-monitor &
-MONITOR_PID=$!
+# Set library path (use absolute path)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+export LD_LIBRARY_PATH="$SCRIPT_DIR/../Quake/nng_lib:$LD_LIBRARY_PATH"
 
-# Give monitor time to connect
-sleep 1
-
-# Start backend
+# Start backend in background (it creates the IPC endpoint)
 echo "Starting backend..."
+"$SCRIPT_DIR/../Quake/ironwail" -basedir "$SCRIPT_DIR" -headless -pluq +map start &
+BACKEND_PID=$!
+
+# Give backend time to initialize and create IPC endpoints
+sleep 2
+
+# Start test monitor
+echo "Starting monitor..."
 echo ""
-../Quake/ironwail -headless -pluq +map start
+./test-monitor
 
 # Cleanup
-kill $MONITOR_PID 2>/dev/null
+kill $BACKEND_PID 2>/dev/null
 rm -f /tmp/quake_pluq_*
 

@@ -24,9 +24,9 @@ of the License, or (at your option) any later version.
 // CHANNEL ENDPOINTS
 // ============================================================================
 
-#define PLUQ_URL_RESOURCES  "ipc:///tmp/quake_pluq_resources"
-#define PLUQ_URL_GAMEPLAY   "ipc:///tmp/quake_pluq_gameplay"
-#define PLUQ_URL_INPUT      "ipc:///tmp/quake_pluq_input"
+#define PLUQ_URL_RESOURCES  "tcp://127.0.0.1:9001"
+#define PLUQ_URL_GAMEPLAY   "tcp://127.0.0.1:9002"
+#define PLUQ_URL_INPUT      "tcp://127.0.0.1:9003"
 
 // ============================================================================
 // PLUQ OPERATION MODES
@@ -48,6 +48,8 @@ typedef struct {
 	nng_socket resources_rep, resources_req;
 	nng_socket gameplay_pub, gameplay_sub;
 	nng_socket input_pull, input_push;
+	nng_listener resources_listener, gameplay_listener, input_listener;
+	nng_dialer resources_dialer, gameplay_dialer, input_dialer;
 	qboolean is_backend, is_frontend, initialized;
 } pluq_context_t;
 

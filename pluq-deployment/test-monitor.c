@@ -11,7 +11,7 @@
 #include <unistd.h>
 #include <stdint.h>
 
-#define PLUQ_URL_GAMEPLAY "ipc:///tmp/quake_pluq_gameplay"
+#define PLUQ_URL_GAMEPLAY "tcp://127.0.0.1:9002"
 
 static int running = 1;
 
@@ -25,21 +25,29 @@ int main(void)
 {
 	int rv;
 	nng_socket sub;
-	
+	nng_dialer dialer;
+
 	printf("PluQ Monitor - FlatBuffers Frame Receiver\n");
 	printf("==========================================\n\n");
-	
+
 	// Setup signal handler
 	signal(SIGINT, signal_handler);
 	signal(SIGTERM, signal_handler);
-	
+
+	// Initialize nng (required for nng 2.0)
+	if ((rv = nng_init(NULL)) != 0)
+	{
+		fprintf(stderr, "Failed to initialize nng: %s\n", nng_strerror(rv));
+		return 1;
+	}
+
 	// Open SUB socket
 	if ((rv = nng_sub0_open(&sub)) != 0)
 	{
 		fprintf(stderr, "Failed to create SUB socket: %s\n", nng_strerror(rv));
 		return 1;
 	}
-	
+
 	// Subscribe to all topics (nng 2.0 API)
 	if ((rv = nng_sub0_socket_subscribe(sub, "", 0)) != 0)
 	{
@@ -47,16 +55,23 @@ int main(void)
 		nng_socket_close(sub);
 		return 1;
 	}
-	
-	// Connect to backend
+
+	// Connect to backend using dialer API (nng 2.0)
 	printf("Connecting to %s...\n", PLUQ_URL_GAMEPLAY);
-	if ((rv = nng_dial(sub, PLUQ_URL_GAMEPLAY, NULL, 0)) != 0)
+	if ((rv = nng_dialer_create(&dialer, sub, PLUQ_URL_GAMEPLAY)) != 0)
 	{
-		fprintf(stderr, "Failed to dial: %s\n", nng_strerror(rv));
+		fprintf(stderr, "Failed to create dialer: %s\n", nng_strerror(rv));
 		nng_socket_close(sub);
 		return 1;
 	}
-	
+
+	if ((rv = nng_dialer_start(dialer, 0)) != 0)
+	{
+		fprintf(stderr, "Failed to start dialer: %s\n", nng_strerror(rv));
+		nng_socket_close(sub);
+		return 1;
+	}
+
 	printf("Connected! Waiting for frames...\n\n");
 	
 	uint32_t frame_count = 0;

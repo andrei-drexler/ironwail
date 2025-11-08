@@ -30,8 +30,17 @@ static pluq_stats_t perf_stats = {0};
 
 void PluQ_Init(void)
 {
+	int rv;
+
 	Cvar_RegisterVariable(&pluq_headless);
-	Con_Printf("PluQ IPC system ready (nng + FlatBuffers)\n");
+
+	// Initialize nng library (required for nng 2.0 API)
+	if ((rv = nng_init(NULL)) != 0)
+	{
+		Sys_Error("PluQ: Failed to initialize nng library: %s", nng_strerror(rv));
+	}
+
+	Con_Printf("PluQ IPC system ready (nng 2.0 + FlatBuffers)\n");
 }
 
 qboolean PluQ_Initialize(pluq_mode_t mode)
@@ -65,36 +74,54 @@ qboolean PluQ_Initialize(pluq_mode_t mode)
 
 	if (pluq_ctx.is_backend)
 	{
+		// Resources channel (REQ/REP)
 		if ((rv = nng_rep0_open(&pluq_ctx.resources_rep)) != 0)
 		{
 			Con_Printf("PluQ: Failed to create resources REP socket: %s\n", nng_strerror(rv));
 			goto error;
 		}
-		if ((rv = nng_listen(pluq_ctx.resources_rep, PLUQ_URL_RESOURCES, NULL, 0)) != 0)
+		if ((rv = nng_listener_create(&pluq_ctx.resources_listener, pluq_ctx.resources_rep, PLUQ_URL_RESOURCES)) != 0)
 		{
-			Con_Printf("PluQ: Failed to listen on %s: %s\n", PLUQ_URL_RESOURCES, nng_strerror(rv));
+			Con_Printf("PluQ: Failed to create listener for %s: %s\n", PLUQ_URL_RESOURCES, nng_strerror(rv));
+			goto error;
+		}
+		if ((rv = nng_listener_start(pluq_ctx.resources_listener, 0)) != 0)
+		{
+			Con_Printf("PluQ: Failed to start listener on %s: %s\n", PLUQ_URL_RESOURCES, nng_strerror(rv));
 			goto error;
 		}
 
+		// Gameplay channel (PUB/SUB)
 		if ((rv = nng_pub0_open(&pluq_ctx.gameplay_pub)) != 0)
 		{
 			Con_Printf("PluQ: Failed to create gameplay PUB socket: %s\n", nng_strerror(rv));
 			goto error;
 		}
-		if ((rv = nng_listen(pluq_ctx.gameplay_pub, PLUQ_URL_GAMEPLAY, NULL, 0)) != 0)
+		if ((rv = nng_listener_create(&pluq_ctx.gameplay_listener, pluq_ctx.gameplay_pub, PLUQ_URL_GAMEPLAY)) != 0)
 		{
-			Con_Printf("PluQ: Failed to listen on %s: %s\n", PLUQ_URL_GAMEPLAY, nng_strerror(rv));
+			Con_Printf("PluQ: Failed to create listener for %s: %s\n", PLUQ_URL_GAMEPLAY, nng_strerror(rv));
+			goto error;
+		}
+		if ((rv = nng_listener_start(pluq_ctx.gameplay_listener, 0)) != 0)
+		{
+			Con_Printf("PluQ: Failed to start listener on %s: %s\n", PLUQ_URL_GAMEPLAY, nng_strerror(rv));
 			goto error;
 		}
 
+		// Input channel (PUSH/PULL)
 		if ((rv = nng_pull0_open(&pluq_ctx.input_pull)) != 0)
 		{
 			Con_Printf("PluQ: Failed to create input PULL socket: %s\n", nng_strerror(rv));
 			goto error;
 		}
-		if ((rv = nng_listen(pluq_ctx.input_pull, PLUQ_URL_INPUT, NULL, 0)) != 0)
+		if ((rv = nng_listener_create(&pluq_ctx.input_listener, pluq_ctx.input_pull, PLUQ_URL_INPUT)) != 0)
 		{
-			Con_Printf("PluQ: Failed to listen on %s: %s\n", PLUQ_URL_INPUT, nng_strerror(rv));
+			Con_Printf("PluQ: Failed to create listener for %s: %s\n", PLUQ_URL_INPUT, nng_strerror(rv));
+			goto error;
+		}
+		if ((rv = nng_listener_start(pluq_ctx.input_listener, 0)) != 0)
+		{
+			Con_Printf("PluQ: Failed to start listener on %s: %s\n", PLUQ_URL_INPUT, nng_strerror(rv));
 			goto error;
 		}
 
@@ -102,17 +129,24 @@ qboolean PluQ_Initialize(pluq_mode_t mode)
 	}
 	else
 	{
+		// Resources channel (REQ/REP)
 		if ((rv = nng_req0_open(&pluq_ctx.resources_req)) != 0)
 		{
 			Con_Printf("PluQ: Failed to create resources REQ socket: %s\n", nng_strerror(rv));
 			goto error;
 		}
-		if ((rv = nng_dial(pluq_ctx.resources_req, PLUQ_URL_RESOURCES, NULL, 0)) != 0)
+		if ((rv = nng_dialer_create(&pluq_ctx.resources_dialer, pluq_ctx.resources_req, PLUQ_URL_RESOURCES)) != 0)
 		{
-			Con_Printf("PluQ: Failed to dial %s: %s\n", PLUQ_URL_RESOURCES, nng_strerror(rv));
+			Con_Printf("PluQ: Failed to create dialer for %s: %s\n", PLUQ_URL_RESOURCES, nng_strerror(rv));
+			goto error;
+		}
+		if ((rv = nng_dialer_start(pluq_ctx.resources_dialer, 0)) != 0)
+		{
+			Con_Printf("PluQ: Failed to start dialer for %s: %s\n", PLUQ_URL_RESOURCES, nng_strerror(rv));
 			goto error;
 		}
 
+		// Gameplay channel (PUB/SUB)
 		if ((rv = nng_sub0_open(&pluq_ctx.gameplay_sub)) != 0)
 		{
 			Con_Printf("PluQ: Failed to create gameplay SUB socket: %s\n", nng_strerror(rv));
@@ -123,20 +157,31 @@ qboolean PluQ_Initialize(pluq_mode_t mode)
 			Con_Printf("PluQ: Failed to subscribe to gameplay events: %s\n", nng_strerror(rv));
 			goto error;
 		}
-		if ((rv = nng_dial(pluq_ctx.gameplay_sub, PLUQ_URL_GAMEPLAY, NULL, 0)) != 0)
+		if ((rv = nng_dialer_create(&pluq_ctx.gameplay_dialer, pluq_ctx.gameplay_sub, PLUQ_URL_GAMEPLAY)) != 0)
 		{
-			Con_Printf("PluQ: Failed to dial %s: %s\n", PLUQ_URL_GAMEPLAY, nng_strerror(rv));
+			Con_Printf("PluQ: Failed to create dialer for %s: %s\n", PLUQ_URL_GAMEPLAY, nng_strerror(rv));
+			goto error;
+		}
+		if ((rv = nng_dialer_start(pluq_ctx.gameplay_dialer, 0)) != 0)
+		{
+			Con_Printf("PluQ: Failed to start dialer for %s: %s\n", PLUQ_URL_GAMEPLAY, nng_strerror(rv));
 			goto error;
 		}
 
+		// Input channel (PUSH/PULL)
 		if ((rv = nng_push0_open(&pluq_ctx.input_push)) != 0)
 		{
 			Con_Printf("PluQ: Failed to create input PUSH socket: %s\n", nng_strerror(rv));
 			goto error;
 		}
-		if ((rv = nng_dial(pluq_ctx.input_push, PLUQ_URL_INPUT, NULL, 0)) != 0)
+		if ((rv = nng_dialer_create(&pluq_ctx.input_dialer, pluq_ctx.input_push, PLUQ_URL_INPUT)) != 0)
 		{
-			Con_Printf("PluQ: Failed to dial %s: %s\n", PLUQ_URL_INPUT, nng_strerror(rv));
+			Con_Printf("PluQ: Failed to create dialer for %s: %s\n", PLUQ_URL_INPUT, nng_strerror(rv));
+			goto error;
+		}
+		if ((rv = nng_dialer_start(pluq_ctx.input_dialer, 0)) != 0)
+		{
+			Con_Printf("PluQ: Failed to start dialer for %s: %s\n", PLUQ_URL_INPUT, nng_strerror(rv));
 			goto error;
 		}
 
@@ -323,15 +368,30 @@ qboolean PluQ_Backend_ReceiveInput(void **flatbuf_out, size_t *size_out)
 
 void PluQ_BroadcastWorldState(void)
 {
+	static int debug_count = 0;
+
 	if (!pluq_initialized || !pluq_ctx.is_backend)
+	{
+		if (debug_count++ < 5)
+			Con_DPrintf("PluQ_BroadcastWorldState: not initialized or not backend\n");
 		return;
+	}
 
 	// Don't broadcast if not in game
 	if (!cl.worldmodel || cls.state != ca_connected)
+	{
+		if (debug_count++ < 5)
+			Con_DPrintf("PluQ_BroadcastWorldState: no worldmodel (%p) or not connected (state=%d)\n",
+				cl.worldmodel, cls.state);
 		return;
+	}
 
 	static uint32_t frame_counter = 0;
 	double start_time = Sys_DoubleTime();
+
+	// Debug: Log first few broadcasts
+	if (frame_counter < 5)
+		Con_Printf("PluQ: Broadcasting frame %u\n", frame_counter);
 
 	// Initialize FlatBuffers builder
 	flatcc_builder_t builder;
@@ -466,7 +526,39 @@ qboolean PluQ_HasPendingInput(void)
 	return false;
 }
 
-void PluQ_ProcessInputCommands(void) { /* TODO */ }
+void PluQ_ProcessInputCommands(void)
+{
+	void *buf;
+	size_t size;
+
+	if (!PluQ_IsBackend() || !pluq_initialized)
+		return;
+
+	// Process all pending input commands
+	while (PluQ_Backend_ReceiveInput(&buf, &size))
+	{
+		// Parse FlatBuffer
+		PluQ_InputCommand_table_t cmd = PluQ_InputCommand_as_root(buf);
+		if (!cmd)
+		{
+			Con_Printf("PluQ: Failed to parse InputCommand\n");
+			nng_msg_free((nng_msg *)buf);
+			continue;
+		}
+
+		// Get command text
+		const char *cmd_text = PluQ_InputCommand_cmd_text(cmd);
+		if (cmd_text && cmd_text[0])
+		{
+			Con_Printf("PluQ: Received command: \"%s\"\n", cmd_text);
+			Cbuf_AddText(cmd_text);
+			Cbuf_AddText("\n");
+		}
+
+		nng_msg_free((nng_msg *)buf);
+	}
+}
+
 void PluQ_SendInput(usercmd_t *cmd) { /* TODO */ }
 void PluQ_Move(usercmd_t *cmd) { /* TODO */ }
 void PluQ_ApplyViewAngles(void) { /* TODO */ }
