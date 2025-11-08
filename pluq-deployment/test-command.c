@@ -70,25 +70,28 @@ int main(int argc, char **argv)
 	flatcc_builder_t builder;
 	flatcc_builder_init(&builder);
 
+	// Create string first (must be done before starting table)
+	flatbuffers_string_ref_t cmd_ref = flatbuffers_string_create_str(&builder, cmd_text);
+
+	PluQ_Vec3_t angles = {0.0f, 0.0f, 0.0f};
+
+	// Start buffer before building table
+	flatcc_builder_start_buffer(&builder, 0, 0, 0);
+
+	// Build InputCommand table using start/end pattern
 	PluQ_InputCommand_start(&builder);
 	PluQ_InputCommand_sequence_add(&builder, 0);
 	PluQ_InputCommand_timestamp_add(&builder, 0.0);
 	PluQ_InputCommand_forward_move_add(&builder, 0.0f);
 	PluQ_InputCommand_side_move_add(&builder, 0.0f);
 	PluQ_InputCommand_up_move_add(&builder, 0.0f);
-
-	PluQ_Vec3_t angles = {0.0f, 0.0f, 0.0f};
 	PluQ_InputCommand_view_angles_add(&builder, &angles);
-
 	PluQ_InputCommand_buttons_add(&builder, 0);
 	PluQ_InputCommand_impulse_add(&builder, 0);
-
-	flatbuffers_string_ref_t cmd_ref = flatbuffers_string_create_str(&builder, cmd_text);
 	PluQ_InputCommand_cmd_text_add(&builder, cmd_ref);
-
 	PluQ_InputCommand_end_as_root(&builder);
 
-	// Finalize
+	// Finalize buffer
 	size_t size;
 	void *buf = flatcc_builder_finalize_buffer(&builder, &size);
 
