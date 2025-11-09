@@ -1238,8 +1238,7 @@ void _Host_Frame (double time)
 	Host_GetConsoleCommands ();
 
 // PluQ: Process input commands from IPC frontend (backend receives input from frontend)
-	if (PluQ_IsEnabled())
-		PluQ_ProcessInputCommands();
+	PluQ_ProcessInputCommands();
 
 // process console commands
 	Cbuf_Execute ();
@@ -1296,9 +1295,8 @@ void _Host_Frame (double time)
 		CL_ReadFromServer ();
 	}
 
-// PluQ: Broadcast world state via IPC if enabled (purely additive)
-	if (PluQ_IsEnabled())
-		PluQ_BroadcastWorldState();
+// PluQ: Broadcast world state via IPC (purely additive)
+	PluQ_BroadcastWorldState();
 
 // update video (skip in headless mode)
 	if (host_speeds.value)
@@ -1483,19 +1481,7 @@ void Host_Init (void)
 
 	LOC_Init (); // for 2021 rerelease support.
 
-	PluQ_Init (); // PluQ: Initialize IPC subsystem
-
-	// PluQ: Auto-enable backend mode when using -pluq
-	// Note: -pluq requires -headless to be used together
-	if (COM_CheckParm("-pluq"))
-	{
-		if (!COM_CheckParm("-headless"))
-			Sys_Error ("PluQ backend mode requires -headless flag");
-
-		Con_Printf ("PluQ backend mode enabled\n");
-		Cvar_Set ("pluq_headless", "1");
-		PluQ_Enable ();
-	}
+	PluQ_Init ();
 
 	Hunk_AllocName (0, "-HOST_HUNKLEVEL-");
 	host_hunklevel = Hunk_LowMark ();

@@ -41,6 +41,18 @@ void PluQ_Init(void)
 	}
 
 	Con_Printf("PluQ IPC system ready (nng 2.0 + FlatBuffers)\n");
+
+	// Auto-enable backend mode when using -pluq
+	// Note: -pluq requires -headless to be used together
+	if (COM_CheckParm("-pluq"))
+	{
+		if (!COM_CheckParm("-headless"))
+			Sys_Error("PluQ backend mode requires -headless flag");
+
+		Con_Printf("PluQ backend mode enabled\n");
+		Cvar_Set("pluq_headless", "1");
+		PluQ_Enable();
+	}
 }
 
 static qboolean PluQ_InitializeSockets(void)
@@ -231,12 +243,8 @@ void PluQ_BroadcastWorldState(void)
 {
 	static int debug_count = 0;
 
-	if (!pluq_initialized || !pluq_ctx.is_backend)
-	{
-		if (debug_count++ < 5)
-			Con_DPrintf("PluQ_BroadcastWorldState: not initialized or not backend\n");
+	if (!PluQ_IsEnabled())
 		return;
-	}
 
 	// Don't broadcast if not in game
 	if (!cl.worldmodel || cls.state != ca_connected)
@@ -342,7 +350,7 @@ void PluQ_ProcessInputCommands(void)
 	void *buf;
 	size_t size;
 
-	if (!PluQ_IsEnabled() || !pluq_initialized)
+	if (!PluQ_IsEnabled())
 		return;
 
 	// Process all pending input commands
@@ -368,6 +376,20 @@ void PluQ_ProcessInputCommands(void)
 
 		nng_msg_free((nng_msg *)buf);
 	}
+}
+
+void PluQ_Move(usercmd_t *cmd)
+{
+	if (!PluQ_IsEnabled())
+		return;
+	// TODO: Apply IPC-received movement to command
+}
+
+void PluQ_ApplyViewAngles(void)
+{
+	if (!PluQ_IsEnabled())
+		return;
+	// TODO: Apply IPC-received view angles to cl.viewangles
 }
 
 // Frontend input functions moved to pluq_frontend.c

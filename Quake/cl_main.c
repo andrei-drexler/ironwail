@@ -803,12 +803,9 @@ void CL_AccumulateCmd (void)
 		//accumulate movement from other devices
 		IN_Move (&cl.pendingcmd);
 
-		//PluQ: Backend mode - apply IPC input from frontend
-		if (PluQ_IsEnabled())
-		{
-			PluQ_Move (&cl.pendingcmd);
-			PluQ_ApplyViewAngles ();
-		}
+		//PluQ: Apply IPC input from frontend (if enabled)
+		PluQ_Move (&cl.pendingcmd);
+		PluQ_ApplyViewAngles ();
 	}
 }
 

@@ -85,6 +85,8 @@ void PluQ_Disable(void);
 void PluQ_BroadcastWorldState(void);
 qboolean PluQ_HasPendingInput(void);
 void PluQ_ProcessInputCommands(void);
+void PluQ_Move(usercmd_t *cmd);
+void PluQ_ApplyViewAngles(void);
 
 // Frontend API moved to pluq_frontend.h
 // (PluQ_Frontend_ReceiveWorldState, PluQ_Frontend_ApplyReceivedState,
