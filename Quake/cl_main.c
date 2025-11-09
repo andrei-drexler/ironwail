@@ -831,16 +831,10 @@ void CL_SendCmd (void)
 		cmd.sidemove	+= cl.pendingcmd.sidemove;
 		cmd.upmove		+= cl.pendingcmd.upmove;
 
-		// PluQ mode doesn't send to network (receives input via IPC)
-		// Frontend binary overrides CL_SendMove in separate build
-		if (!PluQ_IsEnabled())
-			CL_SendMove (&cmd);
+		CL_SendMove (&cmd);
 	}
 	else
-	{
-		if (!PluQ_IsEnabled())
-			CL_SendMove (NULL);
-	}
+		CL_SendMove (NULL);
 	memset(&cl.pendingcmd, 0, sizeof(cl.pendingcmd));
 
 	if (cls.demoplayback)
