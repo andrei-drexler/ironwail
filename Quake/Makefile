@@ -7,14 +7,14 @@
 # Enable/Disable user directories support
 DO_USERDIRS=1
 
-# Include dependency detection (supports local and system libs)
--include Makefile.deps
-
 ### Enable/Disable SDL2
 USE_SDL2=1
 
 ### Enable/Disable Curl
-USE_CURL=1
+USE_CURL=0
+
+# Include dependency detection (supports local and system libs)
+-include Makefile.deps
 
 ### Enable/Disable codecs for streaming music support
 USE_CODEC_WAVE=1
