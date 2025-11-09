@@ -29,6 +29,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 #include <stdio.h>
 #include "pluq.h"
+#include "pluq_frontend.h"
 
 static void Sys_AtExit (void)
 {
@@ -148,8 +149,8 @@ void Host_Frame_PluQ_Frontend (double time)
 	CL_SendCmd ();
 
 	// PluQ Frontend: Receive world state from backend via PluQ
-	if (PluQ_ReceiveWorldState())
-		PluQ_ApplyReceivedState();
+	if (PluQ_Frontend_ReceiveWorldState())
+		PluQ_Frontend_ApplyReceivedState();
 
 	// Update video
 	SCR_UpdateScreen ();

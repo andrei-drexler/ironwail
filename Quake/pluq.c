@@ -184,33 +184,7 @@ qboolean PluQ_Backend_SendResource(const void *flatbuf, size_t size)
 	return true;
 }
 
-qboolean PluQ_Frontend_RequestResource(uint32_t resource_id)
-{
-	// TODO: Build ResourceRequest FlatBuffer and send
-	Con_Printf("PluQ: Requesting resource ID %u (not yet implemented)\n", resource_id);
-	return false;
-}
-
-qboolean PluQ_Frontend_ReceiveResource(void **flatbuf_out, size_t *size_out)
-{
-	int rv;
-	nng_msg *msg;
-
-	if (!pluq_ctx.initialized || !pluq_ctx.is_frontend)
-		return false;
-
-	if ((rv = nng_recvmsg(pluq_ctx.resources_req, &msg, NNG_FLAG_NONBLOCK)) != 0)
-	{
-		if (rv != NNG_EAGAIN)
-			Con_Printf("PluQ: Failed to receive resource: %s\n", nng_strerror(rv));
-		return false;
-	}
-
-	*flatbuf_out = nng_msg_body(msg);
-	*size_out = nng_msg_len(msg);
-	// Note: Caller must call nng_msg_free(msg) when done
-	return true;
-}
+// Frontend resource functions moved to pluq_frontend.c
 
 qboolean PluQ_Backend_PublishFrame(const void *flatbuf, size_t size)
 {
@@ -226,40 +200,7 @@ qboolean PluQ_Backend_PublishFrame(const void *flatbuf, size_t size)
 	return true;
 }
 
-qboolean PluQ_Frontend_ReceiveFrame(void **flatbuf_out, size_t *size_out)
-{
-	int rv;
-	nng_msg *msg;
-
-	if (!pluq_ctx.initialized || !pluq_ctx.is_frontend)
-		return false;
-
-	if ((rv = nng_recvmsg(pluq_ctx.gameplay_sub, &msg, NNG_FLAG_NONBLOCK)) != 0)
-	{
-		if (rv != NNG_EAGAIN)
-			Con_Printf("PluQ: Failed to receive gameplay frame: %s\n", nng_strerror(rv));
-		return false;
-	}
-
-	*flatbuf_out = nng_msg_body(msg);
-	*size_out = nng_msg_len(msg);
-	// Note: Caller must call nng_msg_free(msg) when done
-	return true;
-}
-
-qboolean PluQ_Frontend_SendInput(const void *flatbuf, size_t size)
-{
-	if (!pluq_ctx.initialized || !pluq_ctx.is_frontend)
-		return false;
-
-	int rv = nng_send(pluq_ctx.input_push, (void *)flatbuf, size, 0);
-	if (rv != 0)
-	{
-		Con_Printf("PluQ: Failed to send input command: %s\n", nng_strerror(rv));
-		return false;
-	}
-	return true;
-}
+// Frontend gameplay and input functions moved to pluq_frontend.c
 
 qboolean PluQ_Backend_ReceiveInput(void **flatbuf_out, size_t *size_out)
 {
@@ -378,62 +319,12 @@ void PluQ_BroadcastWorldState(void)
 	flatcc_builder_clear(&builder);
 }
 
-qboolean PluQ_ReceiveWorldState(void)
-{
-	void *buf;
-	size_t size;
-
-	if (!PluQ_Frontend_ReceiveFrame(&buf, &size))
-		return false;
-
-	// Parse GameplayMessage
-	PluQ_GameplayMessage_table_t msg = PluQ_GameplayMessage_as_root(buf);
-	if (!msg)
-	{
-		nng_msg_free((nng_msg *)buf);  // Free the nng_msg wrapper
-		return false;
-	}
-
-	// Get event type and value
-	PluQ_GameplayEvent_union_type_t event_type = PluQ_GameplayMessage_event_type(msg);
-	flatbuffers_generic_t event_value = PluQ_GameplayMessage_event(msg);
-
-	if (event_type == PluQ_GameplayEvent_FrameUpdate)
-	{
-		PluQ_FrameUpdate_table_t frame = (PluQ_FrameUpdate_table_t)event_value;
-
-		// Update last received frame
-		last_received_frame = PluQ_FrameUpdate_frame_number(frame);
-
-		// TODO: Store frame data for PluQ_ApplyReceivedState()
-		// For now, just log
-		Con_DPrintf("PluQ: Received frame %u\n", last_received_frame);
-	}
-	else if (event_type == PluQ_GameplayEvent_MapChanged)
-	{
-		PluQ_MapChanged_table_t mapchange = (PluQ_MapChanged_table_t)event_value;
-		const char *mapname = PluQ_MapChanged_mapname(mapchange);
-		Con_Printf("PluQ: Map changed to %s\n", mapname);
-	}
-	else if (event_type == PluQ_GameplayEvent_Disconnected)
-	{
-		PluQ_Disconnected_table_t disc = (PluQ_Disconnected_table_t)event_value;
-		const char *reason = PluQ_Disconnected_reason(disc);
-		Con_Printf("PluQ: Disconnected: %s\n", reason);
-	}
-
-	nng_msg_free((nng_msg *)buf);
-	return true;
-}
-
-void PluQ_ApplyReceivedState(void)
-{
-	// TODO: Apply received state to local game
-}
+// Frontend world state functions moved to pluq_frontend.c
+// (PluQ_Frontend_ReceiveWorldState and PluQ_Frontend_ApplyReceivedState)
 
 qboolean PluQ_HasPendingInput(void)
 {
-	if (!PluQ_IsBackend() || !pluq_initialized)
+	if (!PluQ_IsEnabled() || !pluq_initialized)
 		return false;
 
 	nng_msg *msg;
@@ -451,7 +342,7 @@ void PluQ_ProcessInputCommands(void)
 	void *buf;
 	size_t size;
 
-	if (!PluQ_IsBackend() || !pluq_initialized)
+	if (!PluQ_IsEnabled() || !pluq_initialized)
 		return;
 
 	// Process all pending input commands
@@ -479,9 +370,8 @@ void PluQ_ProcessInputCommands(void)
 	}
 }
 
-void PluQ_SendInput(usercmd_t *cmd) { /* TODO */ }
-void PluQ_Move(usercmd_t *cmd) { /* TODO */ }
-void PluQ_ApplyViewAngles(void) { /* TODO */ }
+// Frontend input functions moved to pluq_frontend.c
+// (PluQ_Frontend_SendInputCommand, PluQ_Frontend_Move, PluQ_Frontend_ApplyViewAngles)
 
 void PluQ_GetStats(pluq_stats_t *stats)
 {

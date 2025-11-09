@@ -81,27 +81,26 @@ qboolean PluQ_IsEnabled(void);
 void PluQ_Enable(void);
 void PluQ_Disable(void);
 
+// Backend API (main binary)
 void PluQ_BroadcastWorldState(void);
-qboolean PluQ_ReceiveWorldState(void);
-void PluQ_ApplyReceivedState(void);
-
 qboolean PluQ_HasPendingInput(void);
 void PluQ_ProcessInputCommands(void);
-void PluQ_SendInput(usercmd_t *cmd);
-void PluQ_Move(usercmd_t *cmd);
-void PluQ_ApplyViewAngles(void);
+
+// Frontend API moved to pluq_frontend.h
+// (PluQ_Frontend_ReceiveWorldState, PluQ_Frontend_ApplyReceivedState,
+//  PluQ_Frontend_SendInputCommand, PluQ_Frontend_Move, PluQ_Frontend_ApplyViewAngles)
 
 void PluQ_GetStats(pluq_stats_t *stats);
 void PluQ_ResetStats(void);
 
-// Transport layer
+// Backend transport layer (main binary)
 qboolean PluQ_Backend_SendResource(const void *flatbuf, size_t size);
-qboolean PluQ_Frontend_RequestResource(uint32_t resource_id);
-qboolean PluQ_Frontend_ReceiveResource(void **flatbuf_out, size_t *size_out);
 qboolean PluQ_Backend_PublishFrame(const void *flatbuf, size_t size);
-qboolean PluQ_Frontend_ReceiveFrame(void **flatbuf_out, size_t *size_out);
-qboolean PluQ_Frontend_SendInput(const void *flatbuf, size_t size);
 qboolean PluQ_Backend_ReceiveInput(void **flatbuf_out, size_t *size_out);
+
+// Frontend transport layer moved to pluq_frontend.h
+// (PluQ_Frontend_RequestResource, PluQ_Frontend_ReceiveResource,
+//  PluQ_Frontend_ReceiveFrame, PluQ_Frontend_SendInput)
 
 // vec3_t conversion helpers
 static inline PluQ_Vec3_t QuakeVec3_To_FB(const vec3_t v)

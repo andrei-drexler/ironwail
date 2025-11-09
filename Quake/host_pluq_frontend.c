@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 #include "pluq.h"
+#include "pluq_frontend.h"
 
 extern cvar_t pausable;
 
@@ -104,11 +105,11 @@ void Host_Init_PluQ_Frontend (void)
 	Hunk_AllocName (0, "-HOST_HUNKLEVEL-");
 	// Note: host_hunklevel tracking not needed in frontend
 
-	// Initialize PluQ in frontend mode
-	PluQ_Init ();
-	if (!PluQ_Initialize(PLUQ_MODE_FRONTEND))
+	// Initialize PluQ frontend
+	PluQ_Init ();  // Basic init (cvars, nng library)
+	if (!PluQ_Frontend_Init())
 	{
-		Sys_Error ("Failed to initialize PluQ in frontend mode");
+		Sys_Error ("Failed to initialize PluQ frontend sockets");
 	}
 
 	host_initialized = true;
@@ -148,7 +149,7 @@ void Host_Shutdown_PluQ_Frontend(void)
 	// keep Con_Printf from trying to update the screen
 	scr_disabled_for_loading = true;
 
-	PluQ_Shutdown (); // Shutdown PluQ subsystem
+	PluQ_Frontend_Shutdown (); // Shutdown PluQ frontend
 
 	// Note: Steam and AsyncQueue not needed in frontend
 
