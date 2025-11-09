@@ -7,6 +7,9 @@
 # Enable/Disable user directories support
 DO_USERDIRS=1
 
+# Include dependency detection (supports local and system libs)
+-include Makefile.deps
+
 ### Enable/Disable SDL2
 USE_SDL2=1
 
@@ -86,13 +89,8 @@ ifeq ($(USE_SDL2),1)
 CFLAGS += -DUSE_SDL2
 endif
 
-ifeq ($(USE_SDL2),1)
-SDL_CONFIG ?= sdl2-config
-else
-SDL_CONFIG ?= sdl-config
-endif
-SDL_CFLAGS = $(shell $(SDL_CONFIG) --cflags)
-SDL_LIBS   = $(shell $(SDL_CONFIG) --libs)
+# SDL configuration now handled by Makefile.deps
+# SDL_CFLAGS and SDL_LIBS are set there
 
 NET_LIBS   =
 ifeq ($(HOST_OS),sunos)
@@ -182,10 +180,11 @@ else
 COMMON_LIBS= -lGL -ldl -lm
 endif
 
-# PluQ: nng + flatcc libraries for IPC (using local builds)
-PLUQ_LIBS = -Lnng_lib -lnng -lflatccrt -Wl,-rpath,nng_lib
+# PluQ and audio libs now handled by Makefile.deps
+# PLUQ_LIBS and AUDIO_LIBS are set there
+# Include paths are added to CFLAGS directly (like other libs)
 
-LIBS = $(COMMON_LIBS) $(NET_LIBS) $(CODECLIBS) $(PLUQ_LIBS)
+LIBS = $(COMMON_LIBS) $(NET_LIBS) $(CODECLIBS) $(AUDIO_LIBS) $(PLUQ_LIBS)
 
 # name of this makefile, so we can use it as a dependency
 MAKEFILE := $(lastword $(MAKEFILE_LIST))

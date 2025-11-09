@@ -62,7 +62,7 @@ This will download and build from source:
 - nng 2.0.0-dev (if not in nng_lib/)
 - flatcc 0.6.2 (if not in nng_lib/)
 
-Libraries are installed to `deps_downloaded/`.
+Libraries are installed to `dependencies/`.
 
 #### Option C: Manual Download
 
@@ -491,7 +491,7 @@ LD_LIBRARY_PATH=nng_lib ./ironwail-pluq-frontend
 - `/home/user/PluQuake/Quake/nng_lib/libflatccrt.a`
 
 **Downloaded dependencies** (optional, built by download-dependencies.sh):
-- `/home/user/PluQuake/Quake/deps_downloaded/lib/libSDL2*.so*`
-- `/home/user/PluQuake/Quake/deps_downloaded/lib/libvorbis*.so*`
-- `/home/user/PluQuake/Quake/deps_downloaded/lib/libogg*.so*`
-- `/home/user/PluQuake/Quake/deps_downloaded/lib/libmpg123*.so*`
+- `/home/user/PluQuake/Quake/dependencies/lib/libSDL2*.so*`
+- `/home/user/PluQuake/Quake/dependencies/lib/libvorbis*.so*`
+- `/home/user/PluQuake/Quake/dependencies/lib/libogg*.so*`
+- `/home/user/PluQuake/Quake/dependencies/lib/libmpg123*.so*`

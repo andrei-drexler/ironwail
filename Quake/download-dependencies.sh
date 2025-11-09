@@ -6,7 +6,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-DEPS_DIR="$SCRIPT_DIR/deps_downloaded"
+DEPS_DIR="$SCRIPT_DIR/dependencies"
 WORK_DIR="/tmp/ironwail_deps_$$"
 
 echo "=========================================="
@@ -208,7 +208,7 @@ cat > "$SCRIPT_DIR/run-with-downloaded-libs.sh" << 'EOFWRAPPER'
 #!/bin/bash
 # Run Ironwail with downloaded dependencies + existing nng/flatcc
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-export LD_LIBRARY_PATH="$SCRIPT_DIR/deps_downloaded/lib:$SCRIPT_DIR/nng_lib:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="$SCRIPT_DIR/dependencies/lib:$SCRIPT_DIR/nng_lib:$LD_LIBRARY_PATH"
 exec "$SCRIPT_DIR/ironwail" "$@"
 EOFWRAPPER
 chmod +x "$SCRIPT_DIR/run-with-downloaded-libs.sh"

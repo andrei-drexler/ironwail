@@ -1,0 +1,121 @@
+# Dependency detection for local and system libraries
+# Supports both locally-built deps (dependencies/) and system installs
+# Include this early in your Makefile
+
+# Detect if we have local dependencies
+LOCAL_DEPS_DIR := $(wildcard dependencies)
+LOCAL_NNG_DIR := $(wildcard nng_lib)
+
+# SDL2 Configuration
+# Priority: 1) Local deps, 2) System via sdl2-config, 3) System via pkg-config
+ifeq ($(USE_SDL2),1)
+    # Check for local SDL2
+    ifneq ($(LOCAL_DEPS_DIR),)
+        ifneq ($(wildcard dependencies/lib/libSDL2*),)
+            $(info [DEPS] Using local SDL2 from dependencies/)
+            SDL_CFLAGS := -Idependencies/include -Idependencies/include/SDL2
+            SDL_LIBS := -Ldependencies/lib -lSDL2 -Wl,-rpath,dependencies/lib
+        endif
+    endif
+
+    # Fallback to sdl2-config if no local SDL2
+    ifeq ($(SDL_CFLAGS),)
+        SDL_CONFIG := $(shell command -v sdl2-config 2>/dev/null)
+        ifneq ($(SDL_CONFIG),)
+            $(info [DEPS] Using system SDL2 via sdl2-config)
+            SDL_CFLAGS := $(shell $(SDL_CONFIG) --cflags)
+            SDL_LIBS := $(shell $(SDL_CONFIG) --libs)
+        else
+            # Final fallback to pkg-config
+            PKG_CONFIG := $(shell command -v pkg-config 2>/dev/null)
+            ifneq ($(PKG_CONFIG),)
+                ifneq ($(shell $(PKG_CONFIG) --exists sdl2 && echo yes),)
+                    $(info [DEPS] Using system SDL2 via pkg-config)
+                    SDL_CFLAGS := $(shell $(PKG_CONFIG) --cflags sdl2)
+                    SDL_LIBS := $(shell $(PKG_CONFIG) --libs sdl2)
+                endif
+            endif
+        endif
+    endif
+
+    # If still not found, error
+    ifeq ($(SDL_CFLAGS),)
+        $(warning *** SDL2 not found! Install libsdl2-dev or run ./download-dependencies.sh)
+        $(warning *** Attempting build anyway with default flags...)
+        SDL_LIBS := -lSDL2
+    endif
+else
+    # SDL 1.2 fallback
+    SDL_CONFIG := $(shell command -v sdl-config 2>/dev/null)
+    ifneq ($(SDL_CONFIG),)
+        SDL_CFLAGS := $(shell $(SDL_CONFIG) --cflags)
+        SDL_LIBS := $(shell $(SDL_CONFIG) --libs)
+    else
+        SDL_LIBS := -lSDL
+    endif
+endif
+
+# Audio libraries configuration - handle like other libraries
+# Priority: 1) Local deps, 2) System
+AUDIO_LIBS :=
+
+ifneq ($(LOCAL_DEPS_DIR),)
+    ifneq ($(wildcard dependencies/lib/libvorbis*),)
+        $(info [DEPS] Using local audio libs from dependencies/)
+        CFLAGS += -Idependencies/include
+        AUDIO_LIBS := -Ldependencies/lib -Wl,-rpath,dependencies/lib
+    endif
+endif
+
+# nng + flatcc configuration (PluQ IPC) - handle like other libraries
+# Priority: 1) Local nng_lib/, 2) Local dependencies/, 3) System
+PLUQ_LIBS :=
+
+ifneq ($(LOCAL_NNG_DIR),)
+    ifneq ($(wildcard nng_lib/libnng.so*),)
+        $(info [DEPS] Using local nng from nng_lib/)
+        # Add include paths to main CFLAGS (like other libs)
+        CFLAGS += -Inng -Iflatcc
+        PLUQ_LIBS := -Lnng_lib -lnng -lflatccrt -Wl,-rpath,nng_lib
+    endif
+else ifneq ($(LOCAL_DEPS_DIR),)
+    ifneq ($(wildcard dependencies/lib/libnng*),)
+        $(info [DEPS] Using local nng from dependencies/)
+        CFLAGS += -Idependencies/include
+        PLUQ_LIBS := -Ldependencies/lib -lnng -lflatccrt -Wl,-rpath,dependencies/lib
+    endif
+endif
+
+# Fallback to system nng if available
+ifeq ($(PLUQ_LIBS),)
+    PKG_CONFIG := $(shell command -v pkg-config 2>/dev/null)
+    ifneq ($(PKG_CONFIG),)
+        ifneq ($(shell $(PKG_CONFIG) --exists nng && echo yes),)
+            $(info [DEPS] Using system nng via pkg-config)
+            CFLAGS += $(shell $(PKG_CONFIG) --cflags nng)
+            PLUQ_LIBS := $(shell $(PKG_CONFIG) --libs nng) -lflatccrt
+        else
+            $(warning *** nng not found! PluQ IPC will not work.)
+            $(warning *** nng libraries should be in nng_lib/ or run ./download-dependencies.sh)
+        endif
+    else
+        $(warning *** pkg-config not found, cannot detect system nng)
+        $(warning *** Assuming nng is in system library path)
+        PLUQ_LIBS := -lnng -lflatccrt
+    endif
+endif
+
+# Combined library path for LD_LIBRARY_PATH runtime
+# This helps when running binaries
+export LD_LIBRARY_PATH := $(shell pwd)/nng_lib:$(shell pwd)/dependencies/lib:$(LD_LIBRARY_PATH)
+
+# Export all for use in main Makefile
+export SDL_CFLAGS SDL_LIBS
+export AUDIO_LIBS
+export PLUQ_LIBS
+
+# Summary
+$(info [DEPS] ===== Dependency Summary =====)
+$(info [DEPS] SDL2: $(if $(SDL_CFLAGS),Found,NOT FOUND))
+$(info [DEPS] nng:  $(if $(PLUQ_LIBS),Found,NOT FOUND))
+$(info [DEPS] ==============================)
