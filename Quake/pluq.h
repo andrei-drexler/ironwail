@@ -29,16 +29,10 @@ of the License, or (at your option) any later version.
 #define PLUQ_URL_INPUT      "tcp://127.0.0.1:9003"
 
 // ============================================================================
-// PLUQ OPERATION MODES
+// PLUQ MODE (Simplified: enabled/disabled)
+// Main binary: PluQ IPC enabled or disabled
+// Frontend binary: Uses separate entry point (main_pluq_frontend.c)
 // ============================================================================
-
-typedef enum
-{
-	PLUQ_MODE_DISABLED,
-	PLUQ_MODE_BACKEND,
-	PLUQ_MODE_FRONTEND,
-	PLUQ_MODE_BOTH
-} pluq_mode_t;
 
 // ============================================================================
 // NNG CONTEXT
@@ -78,16 +72,14 @@ typedef struct
 // PUBLIC API
 // ============================================================================
 
+// Initialize/Shutdown
 void PluQ_Init(void);
-qboolean PluQ_Initialize(pluq_mode_t mode);
 void PluQ_Shutdown(void);
 
-pluq_mode_t PluQ_GetMode(void);
-void PluQ_SetMode(pluq_mode_t mode);
+// Enable/Disable IPC
 qboolean PluQ_IsEnabled(void);
-qboolean PluQ_IsBackend(void);
-qboolean PluQ_IsFrontend(void);
-qboolean PluQ_IsHeadless(void);
+void PluQ_Enable(void);
+void PluQ_Disable(void);
 
 void PluQ_BroadcastWorldState(void);
 qboolean PluQ_ReceiveWorldState(void);

@@ -17,7 +17,7 @@ static cvar_t pluq_headless = {"pluq_headless", "0", CVAR_NONE};
 
 // Global state
 static qboolean pluq_initialized = false;
-static pluq_mode_t pluq_mode = PLUQ_MODE_DISABLED;
+static qboolean pluq_enabled = false;
 static pluq_context_t pluq_ctx;
 static pluq_input_cmd_t current_input = {0};
 static qboolean has_current_input = false;
@@ -43,35 +43,23 @@ void PluQ_Init(void)
 	Con_Printf("PluQ IPC system ready (nng 2.0 + FlatBuffers)\n");
 }
 
-qboolean PluQ_Initialize(pluq_mode_t mode)
+static qboolean PluQ_InitializeSockets(void)
 {
 	int rv;
 
-	if (pluq_initialized && pluq_mode != PLUQ_MODE_DISABLED)
+	if (pluq_initialized)
 	{
-		Con_Printf("PluQ already initialized in mode %d\n", pluq_mode);
+		Con_Printf("PluQ already initialized\n");
 		return true;
 	}
 
-	if (mode == PLUQ_MODE_DISABLED)
-	{
-		Con_Printf("Cannot initialize PluQ in disabled mode\n");
-		return false;
-	}
-
-	Con_Printf("Initializing PluQ (nng+FlatBuffers) in mode: ");
-	switch (mode)
-	{
-		case PLUQ_MODE_BACKEND:   Con_Printf("BACKEND\n"); break;
-		case PLUQ_MODE_FRONTEND:  Con_Printf("FRONTEND\n"); break;
-		case PLUQ_MODE_BOTH:      Con_Printf("BOTH (same as BACKEND)\n"); break;
-		default:                  Con_Printf("UNKNOWN\n"); break;
-	}
+	Con_Printf("Initializing PluQ IPC sockets (nng+FlatBuffers)...\n");
 
 	memset(&pluq_ctx, 0, sizeof(pluq_ctx));
-	pluq_ctx.is_backend = (mode == PLUQ_MODE_BACKEND || mode == PLUQ_MODE_BOTH);
-	pluq_ctx.is_frontend = (mode == PLUQ_MODE_FRONTEND);
+	pluq_ctx.is_backend = true;   // Main binary is always backend
+	pluq_ctx.is_frontend = false; // Frontend is separate binary
 
+	// Initialize backend sockets (REP, PUB, PULL)
 	if (pluq_ctx.is_backend)
 	{
 		// Resources channel (REQ/REP)
@@ -125,72 +113,11 @@ qboolean PluQ_Initialize(pluq_mode_t mode)
 			goto error;
 		}
 
-		Con_Printf("PluQ: Backend initialized successfully\n");
-	}
-	else
-	{
-		// Resources channel (REQ/REP)
-		if ((rv = nng_req0_open(&pluq_ctx.resources_req)) != 0)
-		{
-			Con_Printf("PluQ: Failed to create resources REQ socket: %s\n", nng_strerror(rv));
-			goto error;
-		}
-		if ((rv = nng_dialer_create(&pluq_ctx.resources_dialer, pluq_ctx.resources_req, PLUQ_URL_RESOURCES)) != 0)
-		{
-			Con_Printf("PluQ: Failed to create dialer for %s: %s\n", PLUQ_URL_RESOURCES, nng_strerror(rv));
-			goto error;
-		}
-		if ((rv = nng_dialer_start(pluq_ctx.resources_dialer, 0)) != 0)
-		{
-			Con_Printf("PluQ: Failed to start dialer for %s: %s\n", PLUQ_URL_RESOURCES, nng_strerror(rv));
-			goto error;
-		}
-
-		// Gameplay channel (PUB/SUB)
-		if ((rv = nng_sub0_open(&pluq_ctx.gameplay_sub)) != 0)
-		{
-			Con_Printf("PluQ: Failed to create gameplay SUB socket: %s\n", nng_strerror(rv));
-			goto error;
-		}
-		if ((rv = nng_sub0_socket_subscribe(pluq_ctx.gameplay_sub, "", 0)) != 0)
-		{
-			Con_Printf("PluQ: Failed to subscribe to gameplay events: %s\n", nng_strerror(rv));
-			goto error;
-		}
-		if ((rv = nng_dialer_create(&pluq_ctx.gameplay_dialer, pluq_ctx.gameplay_sub, PLUQ_URL_GAMEPLAY)) != 0)
-		{
-			Con_Printf("PluQ: Failed to create dialer for %s: %s\n", PLUQ_URL_GAMEPLAY, nng_strerror(rv));
-			goto error;
-		}
-		if ((rv = nng_dialer_start(pluq_ctx.gameplay_dialer, 0)) != 0)
-		{
-			Con_Printf("PluQ: Failed to start dialer for %s: %s\n", PLUQ_URL_GAMEPLAY, nng_strerror(rv));
-			goto error;
-		}
-
-		// Input channel (PUSH/PULL)
-		if ((rv = nng_push0_open(&pluq_ctx.input_push)) != 0)
-		{
-			Con_Printf("PluQ: Failed to create input PUSH socket: %s\n", nng_strerror(rv));
-			goto error;
-		}
-		if ((rv = nng_dialer_create(&pluq_ctx.input_dialer, pluq_ctx.input_push, PLUQ_URL_INPUT)) != 0)
-		{
-			Con_Printf("PluQ: Failed to create dialer for %s: %s\n", PLUQ_URL_INPUT, nng_strerror(rv));
-			goto error;
-		}
-		if ((rv = nng_dialer_start(pluq_ctx.input_dialer, 0)) != 0)
-		{
-			Con_Printf("PluQ: Failed to start dialer for %s: %s\n", PLUQ_URL_INPUT, nng_strerror(rv));
-			goto error;
-		}
-
-		Con_Printf("PluQ: Frontend initialized successfully\n");
+		Con_Printf("PluQ: IPC sockets initialized successfully\n");
 	}
 
 	pluq_ctx.initialized = true;
 	pluq_initialized = true;
-	pluq_mode = mode;
 	return true;
 
 error:
@@ -205,45 +132,38 @@ void PluQ_Shutdown(void)
 
 	Con_Printf("PluQ: Shutting down\n");
 
-	if (pluq_ctx.is_backend)
-	{
-		nng_socket_close(pluq_ctx.resources_rep);
-		nng_socket_close(pluq_ctx.gameplay_pub);
-		nng_socket_close(pluq_ctx.input_pull);
-	}
-	else
-	{
-		nng_socket_close(pluq_ctx.resources_req);
-		nng_socket_close(pluq_ctx.gameplay_sub);
-		nng_socket_close(pluq_ctx.input_push);
-	}
+	// Main binary only has backend sockets
+	nng_socket_close(pluq_ctx.resources_rep);
+	nng_socket_close(pluq_ctx.gameplay_pub);
+	nng_socket_close(pluq_ctx.input_pull);
 
 	memset(&pluq_ctx, 0, sizeof(pluq_ctx));
 	pluq_initialized = false;
-	pluq_mode = PLUQ_MODE_DISABLED;
+	pluq_enabled = false;
 }
 
 // ============================================================================
 // MODE MANAGEMENT
 // ============================================================================
 
-pluq_mode_t PluQ_GetMode(void) { return pluq_mode; }
-qboolean PluQ_IsEnabled(void) { return pluq_initialized && pluq_mode != PLUQ_MODE_DISABLED; }
-qboolean PluQ_IsBackend(void) { return pluq_mode == PLUQ_MODE_BACKEND || pluq_mode == PLUQ_MODE_BOTH; }
-qboolean PluQ_IsFrontend(void) { return pluq_mode == PLUQ_MODE_FRONTEND; }
-qboolean PluQ_IsHeadless(void) { return (COM_CheckParm("-headless") != 0); }
-
-void PluQ_SetMode(pluq_mode_t mode)
+qboolean PluQ_IsEnabled(void)
 {
-	if (pluq_initialized && mode != pluq_mode)
-	{
-		PluQ_Shutdown();
-		PluQ_Initialize(mode);
-	}
-	else if (!pluq_initialized && mode != PLUQ_MODE_DISABLED)
-	{
-		PluQ_Initialize(mode);
-	}
+	return pluq_enabled && pluq_initialized;
+}
+
+void PluQ_Enable(void)
+{
+	if (!pluq_initialized)
+		PluQ_InitializeSockets();
+
+	pluq_enabled = true;
+	Con_Printf("PluQ IPC enabled\n");
+}
+
+void PluQ_Disable(void)
+{
+	pluq_enabled = false;
+	Con_Printf("PluQ IPC disabled\n");
 }
 
 // ============================================================================
