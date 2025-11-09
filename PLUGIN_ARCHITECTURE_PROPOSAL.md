@@ -92,23 +92,18 @@ void PluQ_RegisterExtension(void)
 
 Replace 11 checks with **iterator pattern**:
 
+**Note**: Frontend is a **separate binary**, so NO `IsFrontend()` checks needed!
+
 ```c
 void _Host_Frame(double time)
 {
     // ... existing setup ...
 
     // Extension hooks: frame begin
-    for (int i = 0; i < num_extensions; i++)
-        if (extensions[i]->frame_begin)
-            extensions[i]->frame_begin();
+    Host_Extension_FrameBegin();
 
-    // Input processing
-    qboolean skip_local_input = false;
-    for (int i = 0; i < num_extensions; i++)
-        if (extensions[i]->override_input && extensions[i]->override_input())
-            skip_local_input = true;
-
-    if (!skip_local_input)
+    // Input processing - extensions can skip local input
+    if (!Host_Extension_ShouldSkipLocalInput())
     {
         Key_UpdateForDest();
         IN_UpdateInputMode();
@@ -116,39 +111,35 @@ void _Host_Frame(double time)
         IN_Commands();
     }
 
-    // Extension input processing
-    for (int i = 0; i < num_extensions; i++)
-        if (extensions[i]->process_input)
-            extensions[i]->process_input();
+    // Extension input processing (e.g., IPC commands)
+    Host_Extension_ProcessInput();
 
     // ... rest of frame ...
 
-    // Server frame
-    qboolean skip_server = false;
-    for (int i = 0; i < num_extensions; i++)
-        if (extensions[i]->override_server && extensions[i]->override_server())
-            skip_server = true;
-
-    if (sv.active && !skip_server)
+    // Server frame - no frontend check needed!
+    // Frontend binary doesn't link server code at all
+    if (sv.active)
+    {
+        Host_Extension_PreServerFrame();
         Host_ServerFrame();
+        Host_Extension_PostServerFrame();
+    }
 
-    // World state broadcast
-    for (int i = 0; i < num_extensions; i++)
-        if (extensions[i]->broadcast_state)
-            extensions[i]->broadcast_state();
+    // World state broadcast (backend only)
+    Host_Extension_BroadcastWorldState();
 
-    // Rendering
-    qboolean skip_render = false;
-    for (int i = 0; i < num_extensions; i++)
-        if (extensions[i]->should_skip_render && extensions[i]->should_skip_render())
-            skip_render = true;
-
-    if (!skip_render)
+    // Rendering - extensions can skip rendering
+    if (!Host_Extension_ShouldSkipRendering())
     {
         SCR_UpdateScreen();
         // ... audio, particles, etc ...
     }
 }
+```
+
+**Key Insight**: No `ShouldSkipServer()` hook needed because:
+- Main binary: `sv.active` controls server execution
+- Frontend binary: Server code not even linked!
 ```
 
 ---
