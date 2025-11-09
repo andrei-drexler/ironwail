@@ -834,15 +834,14 @@ void CL_SendCmd (void)
 		cmd.sidemove	+= cl.pendingcmd.sidemove;
 		cmd.upmove		+= cl.pendingcmd.upmove;
 
-	// PluQ: If in frontend mode, send input to backend via IPC
-		if (PluQ_IsFrontend())
-			PluQ_SendInput(&cmd);
-		else
-			CL_SendMove (&cmd);  // Otherwise send to server normally
+		// Backend mode doesn't send to network (receives input via IPC)
+		// Frontend binary overrides CL_SendMove in separate build
+		if (!PluQ_IsBackend())
+			CL_SendMove (&cmd);
 	}
 	else
 	{
-		if (!PluQ_IsFrontend())
+		if (!PluQ_IsBackend())
 			CL_SendMove (NULL);
 	}
 	memset(&cl.pendingcmd, 0, sizeof(cl.pendingcmd));

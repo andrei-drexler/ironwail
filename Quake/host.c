@@ -1273,16 +1273,10 @@ void _Host_Frame (double time)
 		else
 			accumtime -= host_netinterval;
 
-		// PluQ: Frontend mode doesn't send to server
-		if (PluQ_IsFrontend())
-		{
-			// Frontend: send input to backend via IPC instead
-			// (handled in CL_SendCmd)
-		}
 		CL_SendCmd ();
 
-		// PluQ: Frontend mode doesn't run server
-		if (sv.active && !PluQ_IsFrontend())
+		// Run server frame (frontend binary doesn't link server code)
+		if (sv.active)
 		{
 			PR_SwitchQCVM(&sv.qcvm);
 			Host_ServerFrame ();
@@ -1296,17 +1290,9 @@ void _Host_Frame (double time)
 // fetch results from server
 	if (cls.state == ca_connected)
 	{
-		// PluQ: Frontend mode receives state from backend via IPC
-		if (PluQ_IsFrontend())
-		{
-			if (PluQ_ReceiveWorldState())
-				PluQ_ApplyReceivedState();
-		}
-		else
-		{
-			// Normal operation: read from local server/network
-			CL_ReadFromServer ();
-		}
+		// Read from local server/network
+		// (Frontend binary uses different frame loop in main_pluq_frontend.c)
+		CL_ReadFromServer ();
 	}
 
 // PluQ: Backend mode broadcasts world state via IPC (purely additive)
