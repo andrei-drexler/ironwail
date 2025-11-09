@@ -42,6 +42,7 @@ Memory is cleared / released when a server or client begins, not when they end.
 quakeparms_t *host_parms;
 
 qboolean	host_initialized;		// true if into command execution
+qboolean	host_headless;			// true if running without video/audio
 
 double		host_frametime;
 double		host_rawframetime;
@@ -1059,7 +1060,7 @@ static void UpdateWindowTitle (void)
 	last = current;
 
 	// Skip window title updates in headless mode
-	if (!PluQ_IsHeadless() && cls.state != ca_dedicated)
+	if (!Host_IsHeadless() && cls.state != ca_dedicated)
 	{
 		if (current.map[0])
 		{
@@ -1223,7 +1224,7 @@ void _Host_Frame (double time)
 	AsyncQueue_Drain (&async_queue);
 
 // get new key events (skip local input in headless mode)
-	if (!PluQ_IsHeadless())
+	if (!Host_IsHeadless())
 	{
 		Key_UpdateForDest ();
 		IN_UpdateInputMode ();
@@ -1237,7 +1238,7 @@ void _Host_Frame (double time)
 	Host_GetConsoleCommands ();
 
 // PluQ: Process input commands from IPC frontend (backend receives input from frontend)
-	if (PluQ_IsBackend())
+	if (PluQ_IsEnabled())
 		PluQ_ProcessInputCommands();
 
 // process console commands
@@ -1295,15 +1296,15 @@ void _Host_Frame (double time)
 		CL_ReadFromServer ();
 	}
 
-// PluQ: Backend mode broadcasts world state via IPC (purely additive)
-	if (PluQ_IsBackend())
+// PluQ: Broadcast world state via IPC if enabled (purely additive)
+	if (PluQ_IsEnabled())
 		PluQ_BroadcastWorldState();
 
 // update video (skip in headless mode)
 	if (host_speeds.value)
 		time2 = Sys_DoubleTime ();
 
-	if (!PluQ_IsHeadless())
+	if (!Host_IsHeadless())
 	{
 		SCR_UpdateScreen ();
 		CL_RunParticles (); //johnfitz -- seperated from rendering
@@ -1313,7 +1314,7 @@ void _Host_Frame (double time)
 		time3 = Sys_DoubleTime ();
 
 // update audio (skip in headless mode)
-	if (!PluQ_IsHeadless())
+	if (!Host_IsHeadless())
 	{
 		BGM_Update();	// adds music raw samples and/or advances midi driver
 		if (cls.signon == SIGNONS)
@@ -1445,7 +1446,9 @@ void Host_Init (void)
 	if (cls.state != ca_dedicated)
 	{
 		// Check for headless mode (runs full client without hardware I/O)
-		qboolean headless = (COM_CheckParm("-headless") != 0);
+		host_headless = (COM_CheckParm("-headless") != 0);
+		if (host_headless)
+			Con_Printf("Running in headless mode (no video/audio)\n");
 
 		host_colormap = (byte *)COM_LoadHunkFile ("gfx/colormap.lmp", NULL);
 		if (!host_colormap)
@@ -1456,7 +1459,7 @@ void Host_Init (void)
 		M_Init ();
 
 		// Skip hardware and rendering initialization in headless mode
-		if (!headless)
+		if (!host_headless)
 		{
 			VID_Init ();
 			IN_Init ();
@@ -1491,7 +1494,7 @@ void Host_Init (void)
 
 		Con_Printf ("PluQ backend mode enabled\n");
 		Cvar_Set ("pluq_headless", "1");
-		PluQ_SetMode (PLUQ_MODE_BACKEND);
+		PluQ_Enable ();
 	}
 
 	Hunk_AllocName (0, "-HOST_HUNKLEVEL-");
@@ -1527,6 +1530,18 @@ void Host_Init (void)
 	}
 }
 
+
+/*
+===============
+Host_IsHeadless
+
+Returns true if running in headless mode (no video/audio)
+===============
+*/
+qboolean Host_IsHeadless(void)
+{
+	return host_headless;
+}
 
 /*
 ===============

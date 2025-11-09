@@ -804,7 +804,7 @@ void CL_AccumulateCmd (void)
 		IN_Move (&cl.pendingcmd);
 
 		//PluQ: Backend mode - apply IPC input from frontend
-		if (PluQ_IsBackend())
+		if (PluQ_IsEnabled())
 		{
 			PluQ_Move (&cl.pendingcmd);
 			PluQ_ApplyViewAngles ();
@@ -834,14 +834,14 @@ void CL_SendCmd (void)
 		cmd.sidemove	+= cl.pendingcmd.sidemove;
 		cmd.upmove		+= cl.pendingcmd.upmove;
 
-		// Backend mode doesn't send to network (receives input via IPC)
+		// PluQ mode doesn't send to network (receives input via IPC)
 		// Frontend binary overrides CL_SendMove in separate build
-		if (!PluQ_IsBackend())
+		if (!PluQ_IsEnabled())
 			CL_SendMove (&cmd);
 	}
 	else
 	{
-		if (!PluQ_IsBackend())
+		if (!PluQ_IsEnabled())
 			CL_SendMove (NULL);
 	}
 	memset(&cl.pendingcmd, 0, sizeof(cl.pendingcmd));
