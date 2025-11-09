@@ -66,29 +66,20 @@ The `Makefile.deps` file (included by main `Makefile`) detects dependencies in t
 4. Fallback to `-lSDL2` (assume in system path)
 
 ### nng + flatcc (PluQ IPC)
-1. Check `nng_lib/` (local, **already in repo**)
-2. Check `dependencies/lib/libnng*` (local)
-3. Try `pkg-config nng` (system)
-4. Fallback to `-lnng -lflatccrt` (assume in system path)
+1. Check `dependencies/lib/libnng*` (local)
+2. Try `pkg-config nng` (system)
+3. Fallback to `-lnng -lflatccrt` (assume in system path)
 
 ### Audio Libraries
 1. Check `dependencies/lib/` (local)
 2. Use system libraries (via existing Makefile logic)
-
-## What's Already Included
-
-**nng and flatcc are ALREADY in the repository** at `Quake/nng_lib/`:
-- `libnng.so` (557KB) - IPC transport
-- `libflatccrt.a` (253KB) - FlatBuffers runtime
-
-You do NOT need to download these unless the directory is missing.
 
 ## Build Output
 
 The Makefile will print dependency detection info:
 
 ```
-[DEPS] Using local nng from nng_lib/
+[DEPS] Using local nng from dependencies/
 [DEPS] Using system SDL2 via sdl2-config
 [DEPS] ===== Dependency Summary =====
 [DEPS] SDL2: Found
@@ -110,8 +101,8 @@ SDL2 not found. Solutions:
 Set `LD_LIBRARY_PATH`:
 
 ```bash
-# If using local nng_lib
-export LD_LIBRARY_PATH=$PWD/nng_lib:$LD_LIBRARY_PATH
+# If using local dependencies
+export LD_LIBRARY_PATH=$PWD/dependencies/lib:$LD_LIBRARY_PATH
 ./ironwail -headless -pluq +map start
 
 # Or use wrapper script
@@ -188,7 +179,7 @@ cd Quake
 | `DEBUG=1` | Build with debug symbols | `make DEBUG=1` |
 | `USE_SDL2=1` | Use SDL2 (default) | Already set in Makefile |
 | `USE_CURL=1` | Enable curl support | Set in Makefile (can disable if libcurl missing) |
-| `LD_LIBRARY_PATH` | Runtime library path | `export LD_LIBRARY_PATH=nng_lib:dependencies/lib` |
+| `LD_LIBRARY_PATH` | Runtime library path | `export LD_LIBRARY_PATH=dependencies/lib` |
 
 ## Summary
 

@@ -113,64 +113,54 @@ fi
 
 echo ""
 echo "[5/6] Downloading nng (nanomsg-next-generation) 2.0.0-dev..."
-echo "  NOTE: nng may already exist in $SCRIPT_DIR/nng_lib/"
-if [ -f "$SCRIPT_DIR/nng_lib/libnng.so" ]; then
-    echo "  ✓ Found existing nng libraries in nng_lib/ - skipping download"
-else
-    NNG_URL="https://github.com/nanomsg/nng/archive/refs/tags/v2.0.0-dev.tar.gz"
-    if command -v wget > /dev/null; then
-        wget -q -O nng-2.0.0-dev.tar.gz "$NNG_URL" || echo "  WARNING: Failed"
-    elif command -v curl > /dev/null; then
-        curl -L -o nng-2.0.0-dev.tar.gz "$NNG_URL" || echo "  WARNING: Failed"
-    fi
+NNG_URL="https://github.com/nanomsg/nng/archive/refs/tags/v2.0.0-dev.tar.gz"
+if command -v wget > /dev/null; then
+    wget -q -O nng-2.0.0-dev.tar.gz "$NNG_URL" || echo "  WARNING: Failed"
+elif command -v curl > /dev/null; then
+    curl -L -o nng-2.0.0-dev.tar.gz "$NNG_URL" || echo "  WARNING: Failed"
+fi
 
-    if [ -f nng-2.0.0-dev.tar.gz ]; then
-        tar xzf nng-2.0.0-dev.tar.gz
-        cd nng-2.0.0-dev
-        mkdir -p build && cd build
-        cmake -DCMAKE_INSTALL_PREFIX="$DEPS_DIR" \
-              -DBUILD_SHARED_LIBS=ON \
-              -DNNG_TESTS=OFF \
-              -DNNG_TOOLS=OFF \
-              .. 2>&1 | tail -10
-        make -j4 2>&1 | tail -10
-        make install
-        cd ../..
-        echo "  ✓ nng installed to $DEPS_DIR"
-    else
-        echo "  ✗ Failed to download nng"
-        echo "  ERROR: nng is required for PluQ IPC"
-    fi
+if [ -f nng-2.0.0-dev.tar.gz ]; then
+    tar xzf nng-2.0.0-dev.tar.gz
+    cd nng-2.0.0-dev
+    mkdir -p build && cd build
+    cmake -DCMAKE_INSTALL_PREFIX="$DEPS_DIR" \
+          -DBUILD_SHARED_LIBS=ON \
+          -DNNG_TESTS=OFF \
+          -DNNG_TOOLS=OFF \
+          .. 2>&1 | tail -10
+    make -j4 2>&1 | tail -10
+    make install
+    cd ../..
+    echo "  ✓ nng installed to $DEPS_DIR"
+else
+    echo "  ✗ Failed to download nng"
+    echo "  ERROR: nng is required for PluQ IPC"
 fi
 
 echo ""
 echo "[6/6] Downloading flatcc (FlatBuffers compiler) 0.6.2..."
-echo "  NOTE: flatcc runtime may already exist in $SCRIPT_DIR/nng_lib/libflatccrt.a"
-if [ -f "$SCRIPT_DIR/nng_lib/libflatccrt.a" ]; then
-    echo "  ✓ Found existing flatcc runtime in nng_lib/ - skipping download"
-else
-    FLATCC_URL="https://github.com/dvidelabs/flatcc/archive/refs/tags/v0.6.2.tar.gz"
-    if command -v wget > /dev/null; then
-        wget -q -O flatcc-0.6.2.tar.gz "$FLATCC_URL" || echo "  WARNING: Failed"
-    elif command -v curl > /dev/null; then
-        curl -L -o flatcc-0.6.2.tar.gz "$FLATCC_URL" || echo "  WARNING: Failed"
-    fi
+FLATCC_URL="https://github.com/dvidelabs/flatcc/archive/refs/tags/v0.6.2.tar.gz"
+if command -v wget > /dev/null; then
+    wget -q -O flatcc-0.6.2.tar.gz "$FLATCC_URL" || echo "  WARNING: Failed"
+elif command -v curl > /dev/null; then
+    curl -L -o flatcc-0.6.2.tar.gz "$FLATCC_URL" || echo "  WARNING: Failed"
+fi
 
-    if [ -f flatcc-0.6.2.tar.gz ]; then
-        tar xzf flatcc-0.6.2.tar.gz
-        cd flatcc-0.6.2
-        mkdir -p build && cd build
-        cmake -DCMAKE_INSTALL_PREFIX="$DEPS_DIR" \
-              -DFLATCC_RTONLY=ON \
-              .. 2>&1 | tail -10
-        make -j4 2>&1 | tail -10
-        make install
-        cd ../..
-        echo "  ✓ flatcc runtime installed to $DEPS_DIR"
-    else
-        echo "  ✗ Failed to download flatcc"
-        echo "  ERROR: flatcc is required for PluQ FlatBuffers serialization"
-    fi
+if [ -f flatcc-0.6.2.tar.gz ]; then
+    tar xzf flatcc-0.6.2.tar.gz
+    cd flatcc-0.6.2
+    mkdir -p build && cd build
+    cmake -DCMAKE_INSTALL_PREFIX="$DEPS_DIR" \
+          -DFLATCC_RTONLY=ON \
+          .. 2>&1 | tail -10
+    make -j4 2>&1 | tail -10
+    make install
+    cd ../..
+    echo "  ✓ flatcc runtime installed to $DEPS_DIR"
+else
+    echo "  ✗ Failed to download flatcc"
+    echo "  ERROR: flatcc is required for PluQ FlatBuffers serialization"
 fi
 
 # Cleanup
@@ -183,20 +173,16 @@ echo "  Installation Summary"
 echo "=========================================="
 echo ""
 echo "Downloaded libraries: $DEPS_DIR"
-echo "Existing PluQ libraries: $SCRIPT_DIR/nng_lib/"
 echo ""
-echo "Downloaded:"
+echo "Contents:"
 ls -lh "$DEPS_DIR/lib/" 2>/dev/null || echo "  (none)"
-echo ""
-echo "Existing PluQ libs:"
-ls -lh "$SCRIPT_DIR/nng_lib/" 2>/dev/null || echo "  (missing - please build nng and flatcc)"
 echo ""
 echo "=========================================="
 echo "  How to Use"
 echo "=========================================="
 echo ""
 echo "Method 1: Manual LD_LIBRARY_PATH"
-echo "  export LD_LIBRARY_PATH=\"$DEPS_DIR/lib:$SCRIPT_DIR/nng_lib:\$LD_LIBRARY_PATH\""
+echo "  export LD_LIBRARY_PATH=\"$DEPS_DIR/lib:\$LD_LIBRARY_PATH\""
 echo "  ./ironwail -headless -pluq +map start"
 echo ""
 echo "Method 2: Use wrapper script (RECOMMENDED)"
@@ -206,23 +192,12 @@ echo ""
 # Create wrapper script
 cat > "$SCRIPT_DIR/run-with-downloaded-libs.sh" << 'EOFWRAPPER'
 #!/bin/bash
-# Run Ironwail with downloaded dependencies + existing nng/flatcc
+# Run Ironwail with downloaded dependencies
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-export LD_LIBRARY_PATH="$SCRIPT_DIR/dependencies/lib:$SCRIPT_DIR/nng_lib:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="$SCRIPT_DIR/dependencies/lib:$LD_LIBRARY_PATH"
 exec "$SCRIPT_DIR/ironwail" "$@"
 EOFWRAPPER
 chmod +x "$SCRIPT_DIR/run-with-downloaded-libs.sh"
 
 echo "Wrapper script created: run-with-downloaded-libs.sh"
-echo ""
-echo "=========================================="
-echo ""
-echo "IMPORTANT: PluQ IPC Dependencies"
-echo ""
-echo "The PluQ system requires:"
-echo "  - nng 2.0.0-dev (in nng_lib/libnng.so)"
-echo "  - flatcc 0.6.2 runtime (in nng_lib/libflatccrt.a)"
-echo ""
-echo "These are ALREADY included in the repository in Quake/nng_lib/"
-echo "You do NOT need to download them unless the directory is missing."
 echo ""

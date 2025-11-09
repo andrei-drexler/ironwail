@@ -14,23 +14,21 @@ This document provides step-by-step instructions for testing the headless backen
 
 ### PluQ Dependencies (nng + flatcc)
 
-**IMPORTANT**: The PluQ system uses nng and flatcc for IPC communication. These libraries are:
-- **Already included** in the repository at `Quake/nng_lib/`
-- Pre-built and ready to use
-- Required for ALL PluQ functionality (backend and frontend)
+**IMPORTANT**: The PluQ system uses nng and flatcc for IPC communication. These libraries:
+- Must be installed via system packages or downloaded locally
+- Are required for ALL PluQ functionality (backend and frontend)
+- Will be installed to `dependencies/lib/` if using download script
 
 ```bash
-# Check if PluQ libraries exist
-ls -lh /home/user/PluQuake/Quake/nng_lib/
+# Download nng + flatcc (and other dependencies)
+cd /home/user/PluQuake/Quake
+./download-dependencies.sh
+
+# Check if libraries were installed
+ls -lh dependencies/lib/
 # Should show:
 #   libnng.so, libnng.so.1, libnng.so.2.0.0-dev
 #   libflatccrt.a
-```
-
-If `nng_lib/` is missing, run:
-```bash
-cd /home/user/PluQuake/Quake
-./download-dependencies.sh  # Will download and build nng + flatcc
 ```
 
 ### Install Other Dependencies
@@ -59,8 +57,8 @@ This will download and build from source:
 - SDL2 2.30.0
 - libvorbis 1.3.7 + libogg 1.3.5
 - mpg123 1.32.3
-- nng 2.0.0-dev (if not in nng_lib/)
-- flatcc 0.6.2 (if not in nng_lib/)
+- nng 2.0.0-dev
+- flatcc 0.6.2
 
 Libraries are installed to `dependencies/`.
 
@@ -120,7 +118,7 @@ cd /home/user/PluQuake/Quake
 ./run-with-downloaded-libs.sh -headless -pluq +map start
 
 # Method 2: With system libraries (if apt-get install worked)
-LD_LIBRARY_PATH=nng_lib:$LD_LIBRARY_PATH ./ironwail -headless -pluq +map start
+LD_LIBRARY_PATH=dependencies/lib:$LD_LIBRARY_PATH ./ironwail -headless -pluq +map start
 
 # Method 3: Use deployment test script
 cd /home/user/PluQuake/pluq-deployment
@@ -153,8 +151,8 @@ Headless mode active - skipping video/audio/input
 ### Common Errors
 
 **"libnng.so: cannot open shared object file"**
-→ nng library missing. Check `Quake/nng_lib/libnng.so` exists
-→ Run `./download-dependencies.sh` if nng_lib/ is empty
+→ nng library missing. Check `Quake/dependencies/lib/libnng.so` exists
+→ Run `./download-dependencies.sh` to download dependencies
 
 **"libSDL2-2.0.so.0: cannot open shared object file"**
 → Install SDL2 runtime: `sudo apt-get install libsdl2-2.0-0`
@@ -197,17 +195,17 @@ make -f Makefile.pluq_test_frontend -j4
 1. Backend MUST be running first (see Test 1 above)
 2. Backend must be in `-headless -pluq` mode
 3. Backend should have a map loaded
-4. **nng and flatcc libraries must be available** (in nng_lib/)
+4. **nng and flatcc libraries must be available** (in dependencies/lib/ or system-installed)
 
 ### Manual Test
 ```bash
 # Terminal 1: Start backend
 cd /home/user/PluQuake/Quake
-LD_LIBRARY_PATH=nng_lib ./ironwail -headless -pluq +map e1m1
+LD_LIBRARY_PATH=dependencies/lib ./ironwail -headless -pluq +map e1m1
 
 # Terminal 2: Start test frontend
 cd /home/user/PluQuake/Quake
-LD_LIBRARY_PATH=nng_lib ./ironwail-pluq-test-frontend
+LD_LIBRARY_PATH=dependencies/lib ./ironwail-pluq-test-frontend
 ```
 
 ### Expected Frontend Output
@@ -249,7 +247,7 @@ quit               (exit both frontend and backend)
 → Backend not in PluQ mode. Use `-pluq` flag
 
 **"libnng.so: cannot open shared object file"**
-→ Set LD_LIBRARY_PATH: `export LD_LIBRARY_PATH=nng_lib:$LD_LIBRARY_PATH`
+→ Set LD_LIBRARY_PATH: `export LD_LIBRARY_PATH=dependencies/lib:$LD_LIBRARY_PATH`
 
 **"SDL.h: No such file or directory" (build error)**
 → Install SDL2 dev files: `sudo apt-get install libsdl2-dev`
@@ -274,11 +272,11 @@ cd /home/user/PluQuake/pluq-deployment
 ```bash
 # Terminal 1: Backend
 cd /home/user/PluQuake/Quake
-LD_LIBRARY_PATH=nng_lib ./ironwail -headless -pluq +map start 2>&1 | tee backend.log
+LD_LIBRARY_PATH=dependencies/lib ./ironwail -headless -pluq +map start 2>&1 | tee backend.log
 
 # Terminal 2: Test Frontend
 cd /home/user/PluQuake/Quake
-echo "map e1m1" | LD_LIBRARY_PATH=nng_lib ./ironwail-pluq-test-frontend
+echo "map e1m1" | LD_LIBRARY_PATH=dependencies/lib ./ironwail-pluq-test-frontend
 ```
 
 ### Expected Behavior
@@ -316,10 +314,10 @@ make -f Makefile.pluq_frontend -j4
 ### Manual Test
 ```bash
 # Terminal 1: Backend
-LD_LIBRARY_PATH=nng_lib ./ironwail -headless -pluq +map start
+LD_LIBRARY_PATH=dependencies/lib ./ironwail -headless -pluq +map start
 
 # Terminal 2: Frontend (requires X11/Wayland display)
-LD_LIBRARY_PATH=nng_lib ./ironwail-pluq-frontend
+LD_LIBRARY_PATH=dependencies/lib ./ironwail-pluq-frontend
 ```
 
 ### Expected Behavior
@@ -338,15 +336,15 @@ LD_LIBRARY_PATH=nng_lib ./ironwail-pluq-frontend
 ### Check nng/flatcc Libraries
 ```bash
 # Verify nng library exists
-ls -lh Quake/nng_lib/libnng.so*
+ls -lh Quake/dependencies/lib/libnng.so*
 # Expected: libnng.so, libnng.so.1, libnng.so.2.0.0-dev
 
 # Verify flatcc runtime exists
-ls -lh Quake/nng_lib/libflatccrt.a
+ls -lh Quake/dependencies/lib/libflatccrt.a
 # Expected: libflatccrt.a (static library, ~253KB)
 
 # Check nng version in binary
-strings Quake/nng_lib/libnng.so | grep "2.0.0"
+strings Quake/dependencies/lib/libnng.so | grep "2.0.0"
 ```
 
 ### Check IPC Connections
@@ -363,13 +361,13 @@ ss -tlnp | grep ironwail
 ### Monitor IPC Traffic
 ```bash
 cd /home/user/PluQuake/pluq-deployment
-LD_LIBRARY_PATH=../Quake/nng_lib ./test-monitor     # Shows live nng message flow
+LD_LIBRARY_PATH=../Quake/dependencies/lib ./test-monitor     # Shows live nng message flow
 ```
 
 ### View Backend Console Output
 ```bash
 # Run backend with output to file
-LD_LIBRARY_PATH=nng_lib ./ironwail -headless -pluq +map start 2>&1 | tee backend.log
+LD_LIBRARY_PATH=dependencies/lib ./ironwail -headless -pluq +map start 2>&1 | tee backend.log
 
 # In another terminal, watch output
 tail -f backend.log
@@ -378,7 +376,7 @@ tail -f backend.log
 ### Check for Memory Leaks
 ```bash
 # Run under valgrind (slow but thorough)
-LD_LIBRARY_PATH=nng_lib valgrind --leak-check=full ./ironwail -headless -pluq +map start
+LD_LIBRARY_PATH=dependencies/lib valgrind --leak-check=full ./ironwail -headless -pluq +map start
 
 # Let it run for 60 seconds, then quit
 # Check for "definitely lost" or "indirectly lost" bytes
@@ -422,7 +420,7 @@ This means headless backend REQUIRES `libSDL2-2.0.so.0` even though no window ap
 
 - **nng 2.0.0-dev**: Latest nng with improved performance, smaller library size
 - **flatcc 0.6.2**: Lightweight FlatBuffers implementation in pure C (no C++ dependency)
-- Both libraries are **self-contained** in `nng_lib/` (no system installation needed)
+- Both libraries can be installed locally to `dependencies/lib/` or system-wide
 
 ### Files Modified for Headless Support
 
@@ -466,19 +464,19 @@ make -f Makefile.pluq_test_frontend -j4               # Test frontend
 ./download-dependencies.sh
 
 # Test headless backend (nng + flatcc required)
-LD_LIBRARY_PATH=nng_lib ./ironwail -headless -pluq +map start
+LD_LIBRARY_PATH=dependencies/lib ./ironwail -headless -pluq +map start
 
 # Test with test frontend
 # Terminal 1:
-LD_LIBRARY_PATH=nng_lib ./ironwail -headless -pluq +map e1m1
+LD_LIBRARY_PATH=dependencies/lib ./ironwail -headless -pluq +map e1m1
 # Terminal 2:
-LD_LIBRARY_PATH=nng_lib ./ironwail-pluq-test-frontend
+LD_LIBRARY_PATH=dependencies/lib ./ironwail-pluq-test-frontend
 
 # Test with production frontend
 # Terminal 1:
-LD_LIBRARY_PATH=nng_lib ./ironwail -headless -pluq +map e1m1
+LD_LIBRARY_PATH=dependencies/lib ./ironwail -headless -pluq +map e1m1
 # Terminal 2:
-LD_LIBRARY_PATH=nng_lib ./ironwail-pluq-frontend
+LD_LIBRARY_PATH=dependencies/lib ./ironwail-pluq-frontend
 
 # Use wrapper script (automatically sets LD_LIBRARY_PATH)
 ./run-with-downloaded-libs.sh -headless -pluq +map start
@@ -487,8 +485,8 @@ LD_LIBRARY_PATH=nng_lib ./ironwail-pluq-frontend
 ## Library Locations
 
 **PluQ IPC libraries** (REQUIRED, already in repo):
-- `/home/user/PluQuake/Quake/nng_lib/libnng.so*`
-- `/home/user/PluQuake/Quake/nng_lib/libflatccrt.a`
+- `/home/user/PluQuake/Quake/dependencies/lib/libnng.so*`
+- `/home/user/PluQuake/Quake/dependencies/lib/libflatccrt.a`
 
 **Downloaded dependencies** (optional, built by download-dependencies.sh):
 - `/home/user/PluQuake/Quake/dependencies/lib/libSDL2*.so*`

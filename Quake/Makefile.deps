@@ -4,7 +4,6 @@
 
 # Detect if we have local dependencies
 LOCAL_DEPS_DIR := $(wildcard dependencies)
-LOCAL_NNG_DIR := $(wildcard nng_lib)
 
 # SDL2 Configuration
 # Priority: 1) Local deps, 2) System via sdl2-config, 3) System via pkg-config
@@ -68,17 +67,10 @@ ifneq ($(LOCAL_DEPS_DIR),)
 endif
 
 # nng + flatcc configuration (PluQ IPC) - handle like other libraries
-# Priority: 1) Local nng_lib/, 2) Local dependencies/, 3) System
+# Priority: 1) Local dependencies/, 2) System
 PLUQ_LIBS :=
 
-ifneq ($(LOCAL_NNG_DIR),)
-    ifneq ($(wildcard nng_lib/libnng.so*),)
-        $(info [DEPS] Using local nng from nng_lib/)
-        # Add include paths to main CFLAGS (like other libs)
-        CFLAGS += -Inng -Iflatcc
-        PLUQ_LIBS := -Lnng_lib -lnng -lflatccrt -Wl,-rpath,nng_lib
-    endif
-else ifneq ($(LOCAL_DEPS_DIR),)
+ifneq ($(LOCAL_DEPS_DIR),)
     ifneq ($(wildcard dependencies/lib/libnng*),)
         $(info [DEPS] Using local nng from dependencies/)
         CFLAGS += -Idependencies/include
@@ -96,7 +88,7 @@ ifeq ($(PLUQ_LIBS),)
             PLUQ_LIBS := $(shell $(PKG_CONFIG) --libs nng) -lflatccrt
         else
             $(warning *** nng not found! PluQ IPC will not work.)
-            $(warning *** nng libraries should be in nng_lib/ or run ./download-dependencies.sh)
+            $(warning *** Install nng/flatcc or run ./download-dependencies.sh)
         endif
     else
         $(warning *** pkg-config not found, cannot detect system nng)
@@ -107,7 +99,7 @@ endif
 
 # Combined library path for LD_LIBRARY_PATH runtime
 # This helps when running binaries
-export LD_LIBRARY_PATH := $(shell pwd)/nng_lib:$(shell pwd)/dependencies/lib:$(LD_LIBRARY_PATH)
+export LD_LIBRARY_PATH := $(shell pwd)/dependencies/lib:$(LD_LIBRARY_PATH)
 
 # Export all for use in main Makefile
 export SDL_CFLAGS SDL_LIBS
