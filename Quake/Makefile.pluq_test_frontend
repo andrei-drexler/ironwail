@@ -68,11 +68,20 @@ ifeq ($(DO_USERDIRS),1)
 CFLAGS += -DDO_USERDIRS=1
 endif
 
+# SDL2 configuration (headers only, minimal linking)
+ifeq ($(USE_SDL2),1)
+SDL_CONFIG ?= sdl2-config
+else
+SDL_CONFIG ?= sdl-config
+endif
+SDL_CFLAGS = $(shell $(SDL_CONFIG) --cflags)
+SDL_LIBS   = $(shell $(SDL_CONFIG) --libs)
+
 # nng and FlatCC libraries
 NNG_LIBS = -Lnng_lib -lnng -lflatccrt
 COMMON_LIBS = -ldl -lm -lpthread
 
-LIBS = $(COMMON_LIBS) $(NNG_LIBS)
+LIBS = $(COMMON_LIBS) $(NNG_LIBS) $(SDL_LIBS)
 
 # name of this makefile
 MAKEFILE := Makefile.pluq_test_frontend
@@ -117,10 +126,10 @@ all: $(DEFAULT_TARGET)
 
 %.d:	%.c $(MAKEFILE)
 	@echo "Generating dependencies for $<" && \
-	$(CC) $(DFLAGS) -c $(CFLAGS) -MM $< -MF $@ -MT $@
+	$(CC) $(DFLAGS) -c $(CFLAGS) $(SDL_CFLAGS) -MM $< -MF $@ -MT $@
 %.o:	%.c %.d $(MAKEFILE)
 	@echo "Compiling $<" && \
-	$(CC) $(DFLAGS) -c $(CFLAGS) -o $@ $<
+	$(CC) $(DFLAGS) -c $(CFLAGS) $(SDL_CFLAGS) -o $@ $<
 
 ironwail-pluq-test-frontend:	$(OBJS) $(MAKEFILE)
 	@echo "Linking $@" && \
