@@ -44,6 +44,9 @@ qboolean PluQ_Frontend_SendInput(const void *flatbuf, size_t size);
 // FRONTEND HIGH-LEVEL API
 // ============================================================================
 
+// Send console command string to backend
+void PluQ_Frontend_SendCommand(const char *cmd_text);
+
 // Receive and parse world state from backend
 qboolean PluQ_Frontend_ReceiveWorldState(void);
 

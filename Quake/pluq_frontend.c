@@ -201,6 +201,36 @@ qboolean PluQ_Frontend_SendInput(const void *flatbuf, size_t size)
 // FRONTEND HIGH-LEVEL API
 // ============================================================================
 
+void PluQ_Frontend_SendCommand(const char *cmd_text)
+{
+	if (!frontend_initialized || !cmd_text || !cmd_text[0])
+		return;
+
+	// Build InputCommand FlatBuffer
+	flatcc_builder_t builder;
+	flatcc_builder_init(&builder);
+
+	// Create InputCommand with just the command text
+	flatbuffers_string_ref_t cmd_str = flatbuffers_string_create_str(&builder, cmd_text);
+
+	PluQ_InputCommand_start(&builder);
+	PluQ_InputCommand_cmd_text_add(&builder, cmd_str);
+	PluQ_InputCommand_end_as_root(&builder);
+
+	// Finalize buffer
+	size_t size;
+	void *buf = flatcc_builder_finalize_buffer(&builder, &size);
+
+	if (buf)
+	{
+		// Send to backend
+		PluQ_Frontend_SendInput(buf, size);
+		flatcc_builder_aligned_free(buf);
+	}
+
+	flatcc_builder_clear(&builder);
+}
+
 qboolean PluQ_Frontend_ReceiveWorldState(void)
 {
 	void *buf;

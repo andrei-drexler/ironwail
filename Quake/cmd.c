@@ -873,6 +873,15 @@ qboolean Cmd_ExecuteString (const char *text, cmd_source_t src)
 	cmd_source = src;
 	Cmd_TokenizeString (text);
 
+#ifdef PLUQ_FRONTEND
+	// PluQ Frontend: Forward all console commands to backend via IPC
+	// Commands are also executed locally for frontend-specific settings
+	// (sensitivity, volume, video settings, etc.)
+	extern void PluQ_Frontend_SendCommand(const char *cmd_text);
+	if (src == src_command && text && text[0])
+		PluQ_Frontend_SendCommand(text);
+#endif
+
 // execute the command line
 	if (!Cmd_Argc())
 		return true;		// no tokens
