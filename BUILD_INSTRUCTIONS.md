@@ -74,6 +74,37 @@ The `Makefile.deps` file (included by main `Makefile`) detects dependencies in t
 1. Check `dependencies/lib/` (local)
 2. Use system libraries (via existing Makefile logic)
 
+## Web Sources for Dependencies
+
+If you need to manually download dependencies (no internet in build environment):
+
+### Core Dependencies
+
+- **SDL2 2.30.0**: https://github.com/libsdl-org/SDL/releases/download/release-2.30.0/SDL2-2.30.0.tar.gz
+- **libvorbis 1.3.7**: https://downloads.xiph.org/releases/vorbis/libvorbis-1.3.7.tar.xz
+- **libogg 1.3.5**: https://downloads.xiph.org/releases/ogg/libogg-1.3.5.tar.xz
+- **mpg123 1.32.3**: https://www.mpg123.de/download/mpg123-1.32.3.tar.bz2
+
+### PluQ IPC Dependencies (Required)
+
+**nng (nanomsg-next-generation) 2.0.0-dev**
+- GitHub: https://github.com/nanomsg/nng
+- Download: https://github.com/nanomsg/nng/archive/refs/tags/v2.0.0-dev.tar.gz
+- Git: `git clone --branch v2.0.0-dev https://github.com/nanomsg/nng.git`
+- Purpose: Lightweight IPC transport layer (3 channels: Resources, Gameplay, Input)
+- License: MIT
+- Size: ~557KB shared library
+
+**flatcc (FlatBuffers for C) 0.6.2**
+- GitHub: https://github.com/dvidelabs/flatcc
+- Download: https://github.com/dvidelabs/flatcc/archive/refs/tags/v0.6.2.tar.gz
+- Git: `git clone --branch v0.6.2 https://github.com/dvidelabs/flatcc.git`
+- Purpose: Zero-copy serialization for game state (no C++ dependency)
+- License: Apache 2.0
+- Size: ~253KB static library
+
+These are automatically downloaded by `./download-dependencies.sh`.
+
 ## Build Output
 
 The Makefile will print dependency detection info:
