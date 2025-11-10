@@ -37,11 +37,12 @@ echo ""
 # Build nng (nanomsg-next-generation)
 # =============================================================================
 
-echo "Building nng (nanomsg-next-generation) v2.0.0-alpha.6..."
+echo "Building nng (nanomsg-next-generation) v2.0.0-alpha.6 (static library)..."
 echo "  Why build from source:"
 echo "    - apt provides nng 1.7.2, but we need 2.0.x API"
 echo "    - PluQ code uses 2.0 API: nng_init(), nng_listener_create()"
 echo "    - No pre-built 2.0.x binaries available"
+echo "    - Built as static library for single-binary deployment"
 echo ""
 
 NNG_SUCCESS=0
@@ -78,7 +79,7 @@ if [ -d nng-build ]; then
     echo "  Configuring with cmake..."
     cmake -DCMAKE_INSTALL_PREFIX="$DEPS_DIR" \
           -DCMAKE_BUILD_TYPE=Release \
-          -DBUILD_SHARED_LIBS=ON \
+          -DBUILD_SHARED_LIBS=OFF \
           -DNNG_TESTS=OFF \
           -DNNG_TOOLS=OFF \
           -DNNG_ENABLE_TLS=OFF \
@@ -97,7 +98,7 @@ if [ -d nng-build ]; then
                 echo "  ✓ nng built successfully (source: $NNG_SOURCE)"
                 echo ""
                 echo "Files installed:"
-                ls -lh "$DEPS_DIR/lib/libnng.so"* 2>/dev/null | awk '{print "  " $9 " (" $5 ")"}'
+                ls -lh "$DEPS_DIR/lib/libnng.a" 2>/dev/null | awk '{print "  " $9 " (" $5 ")"}'
             fi
         fi
     fi
@@ -132,8 +133,7 @@ echo ""
 echo "Installation directory: $DEPS_DIR"
 echo ""
 echo "Library built:"
-echo "  ✓ nng v2.0.0-alpha.6 (557KB)"
+echo "  ✓ nng v2.0.0-alpha.6 (static library)"
 echo ""
-echo "To use this library:"
-echo "  export LD_LIBRARY_PATH=$DEPS_DIR/lib:\$LD_LIBRARY_PATH"
+echo "This static library will be linked directly into ironwail binary."
 echo ""
