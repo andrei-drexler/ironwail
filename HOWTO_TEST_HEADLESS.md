@@ -57,8 +57,10 @@ This will download and build from source:
 - SDL2 2.30.0
 - libvorbis 1.3.7 + libogg 1.3.5
 - mpg123 1.32.3
-- nng 2.0.0-dev
-- flatcc 0.6.2
+- nng v2.0.0-alpha.6 (built from source - NO pre-built binaries)
+- flatcc v0.6.1 (built from source - NO pre-built binaries)
+
+**Build requirements**: git, cmake, make, gcc
 
 Libraries are installed to `dependencies/`.
 
@@ -70,10 +72,14 @@ If you have no internet access in the build environment:
 **libvorbis**: https://downloads.xiph.org/releases/vorbis/libvorbis-1.3.7.tar.xz
 **libogg**: https://downloads.xiph.org/releases/ogg/libogg-1.3.5.tar.xz
 **mpg123**: https://www.mpg123.de/download/mpg123-1.32.3.tar.bz2
-**nng**: https://github.com/nanomsg/nng/archive/refs/tags/v2.0.0-dev.tar.gz
-**flatcc**: https://github.com/dvidelabs/flatcc/archive/refs/tags/v0.6.2.tar.gz
 
-Extract, build (`./configure && make && make install`), and set `LD_LIBRARY_PATH`.
+**⚠️ nng and flatcc must be built from source (NO pre-built binaries available):**
+**nng**: https://github.com/nanomsg/nng/archive/refs/tags/v2.0.0-alpha.6.tar.gz
+**flatcc**: https://github.com/dvidelabs/flatcc/archive/refs/tags/v0.6.1.tar.gz
+
+Extract, build with cmake:
+- SDL2/audio libs: `./configure && make && make install`
+- nng/flatcc: `mkdir build && cd build && cmake .. && make && make install`
 
 ### Build Binaries
 ```bash

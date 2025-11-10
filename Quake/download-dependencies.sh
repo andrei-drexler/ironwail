@@ -10,16 +10,19 @@ DEPS_DIR="$SCRIPT_DIR/dependencies"
 WORK_DIR="/tmp/ironwail_deps_$$"
 
 echo "=========================================="
-echo "  Ironwail Dependencies Downloader"
+echo "  Ironwail Dependencies Builder"
 echo "=========================================="
 echo ""
-echo "This script will download and build:"
+echo "This script will download and BUILD from source:"
 echo "  - SDL2 2.30.0 (timing/platform)"
 echo "  - libvorbis 1.3.7 (audio)"
 echo "  - libogg 1.3.5 (audio)"
 echo "  - mpg123 1.32.3 (audio)"
-echo "  - nng 2.0.0-dev (IPC transport)"
-echo "  - flatcc 0.6.2 (FlatBuffers compiler)"
+echo "  - nng v2.0.0-alpha.6 (IPC transport) *built from source*"
+echo "  - flatcc v0.6.1 (FlatBuffers) *built from source*"
+echo ""
+echo "NOTE: nng and flatcc have NO pre-built binaries available."
+echo "      They will be built using cmake and make."
 echo ""
 
 # Create directories
@@ -112,55 +115,97 @@ else
 fi
 
 echo ""
-echo "[5/6] Downloading nng (nanomsg-next-generation) 2.0.0-dev..."
-NNG_URL="https://github.com/nanomsg/nng/archive/refs/tags/v2.0.0-dev.tar.gz"
-if command -v wget > /dev/null; then
-    wget -q -O nng-2.0.0-dev.tar.gz "$NNG_URL" || echo "  WARNING: Failed"
-elif command -v curl > /dev/null; then
-    curl -L -o nng-2.0.0-dev.tar.gz "$NNG_URL" || echo "  WARNING: Failed"
+echo "[5/6] Building nng (nanomsg-next-generation) from source..."
+echo "  Using: v2.0.0-alpha.6 (latest 2.0 pre-release)"
+echo "  NOTE: No pre-built binaries available - building from source"
+
+# Try git clone first (preferred method)
+if command -v git > /dev/null; then
+    echo "  Cloning from GitHub..."
+    git clone --depth 1 --branch v2.0.0-alpha.6 https://github.com/nanomsg/nng.git nng-build 2>&1 | tail -3
+    NNG_SOURCE="git"
+else
+    # Fallback to tarball download
+    echo "  Downloading source tarball..."
+    NNG_URL="https://github.com/nanomsg/nng/archive/refs/tags/v2.0.0-alpha.6.tar.gz"
+    if command -v wget > /dev/null; then
+        wget -q -O nng.tar.gz "$NNG_URL" || echo "  WARNING: Failed"
+    elif command -v curl > /dev/null; then
+        curl -sL -o nng.tar.gz "$NNG_URL" || echo "  WARNING: Failed"
+    fi
+
+    if [ -f nng.tar.gz ]; then
+        tar xzf nng.tar.gz
+        mv nng-2.0.0-alpha.6 nng-build
+        NNG_SOURCE="tarball"
+    fi
 fi
 
-if [ -f nng-2.0.0-dev.tar.gz ]; then
-    tar xzf nng-2.0.0-dev.tar.gz
-    cd nng-2.0.0-dev
+if [ -d nng-build ]; then
+    cd nng-build
     mkdir -p build && cd build
+    echo "  Running cmake..."
     cmake -DCMAKE_INSTALL_PREFIX="$DEPS_DIR" \
           -DBUILD_SHARED_LIBS=ON \
           -DNNG_TESTS=OFF \
           -DNNG_TOOLS=OFF \
-          .. 2>&1 | tail -10
-    make -j4 2>&1 | tail -10
-    make install
+          .. 2>&1 | tail -5
+    echo "  Building with make -j4..."
+    make -j4 2>&1 | tail -5
+    echo "  Installing..."
+    make install 2>&1 | tail -3
     cd ../..
-    echo "  ✓ nng installed to $DEPS_DIR"
+    echo "  ✓ nng built and installed to $DEPS_DIR (source: $NNG_SOURCE)"
 else
-    echo "  ✗ Failed to download nng"
+    echo "  ✗ Failed to obtain nng source code"
     echo "  ERROR: nng is required for PluQ IPC"
+    echo "  Try: sudo apt-get install git cmake build-essential"
 fi
 
 echo ""
-echo "[6/6] Downloading flatcc (FlatBuffers compiler) 0.6.2..."
-FLATCC_URL="https://github.com/dvidelabs/flatcc/archive/refs/tags/v0.6.2.tar.gz"
-if command -v wget > /dev/null; then
-    wget -q -O flatcc-0.6.2.tar.gz "$FLATCC_URL" || echo "  WARNING: Failed"
-elif command -v curl > /dev/null; then
-    curl -L -o flatcc-0.6.2.tar.gz "$FLATCC_URL" || echo "  WARNING: Failed"
+echo "[6/6] Building flatcc (FlatBuffers for C) from source..."
+echo "  Using: v0.6.1 (latest stable release)"
+echo "  NOTE: No pre-built binaries available - building from source"
+
+# Try git clone first (preferred method)
+if command -v git > /dev/null; then
+    echo "  Cloning from GitHub..."
+    git clone --depth 1 --branch v0.6.1 https://github.com/dvidelabs/flatcc.git flatcc-build 2>&1 | tail -3
+    FLATCC_SOURCE="git"
+else
+    # Fallback to tarball download
+    echo "  Downloading source tarball..."
+    FLATCC_URL="https://github.com/dvidelabs/flatcc/archive/refs/tags/v0.6.1.tar.gz"
+    if command -v wget > /dev/null; then
+        wget -q -O flatcc.tar.gz "$FLATCC_URL" || echo "  WARNING: Failed"
+    elif command -v curl > /dev/null; then
+        curl -sL -o flatcc.tar.gz "$FLATCC_URL" || echo "  WARNING: Failed"
+    fi
+
+    if [ -f flatcc.tar.gz ]; then
+        tar xzf flatcc.tar.gz
+        mv flatcc-0.6.1 flatcc-build
+        FLATCC_SOURCE="tarball"
+    fi
 fi
 
-if [ -f flatcc-0.6.2.tar.gz ]; then
-    tar xzf flatcc-0.6.2.tar.gz
-    cd flatcc-0.6.2
+if [ -d flatcc-build ]; then
+    cd flatcc-build
     mkdir -p build && cd build
+    echo "  Running cmake (runtime only)..."
     cmake -DCMAKE_INSTALL_PREFIX="$DEPS_DIR" \
           -DFLATCC_RTONLY=ON \
-          .. 2>&1 | tail -10
-    make -j4 2>&1 | tail -10
-    make install
+          .. 2>&1 | tail -5
+    echo "  Building with make -j4..."
+    make -j4 2>&1 | tail -5
+    echo "  Installing..."
+    make install 2>&1 | tail -3
     cd ../..
-    echo "  ✓ flatcc runtime installed to $DEPS_DIR"
+    echo "  ✓ flatcc built and installed to $DEPS_DIR (source: $FLATCC_SOURCE)"
 else
-    echo "  ✗ Failed to download flatcc"
+    echo "  ✗ Failed to obtain flatcc source code"
     echo "  ERROR: flatcc is required for PluQ FlatBuffers serialization"
+    echo "  Try: sudo apt-get install git cmake build-essential"
 fi
 
 # Cleanup

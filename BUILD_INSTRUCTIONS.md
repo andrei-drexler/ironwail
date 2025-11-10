@@ -85,25 +85,34 @@ If you need to manually download dependencies (no internet in build environment)
 - **libogg 1.3.5**: https://downloads.xiph.org/releases/ogg/libogg-1.3.5.tar.xz
 - **mpg123 1.32.3**: https://www.mpg123.de/download/mpg123-1.32.3.tar.bz2
 
-### PluQ IPC Dependencies (Required)
+### PluQ IPC Dependencies (Required - Built from Source)
 
-**nng (nanomsg-next-generation) 2.0.0-dev**
+**⚠️ IMPORTANT: These libraries have NO pre-built binaries. They must be built from source.**
+
+**nng (nanomsg-next-generation) v2.0.0-alpha.6**
 - GitHub: https://github.com/nanomsg/nng
-- Download: https://github.com/nanomsg/nng/archive/refs/tags/v2.0.0-dev.tar.gz
-- Git: `git clone --branch v2.0.0-dev https://github.com/nanomsg/nng.git`
+- Download: https://github.com/nanomsg/nng/archive/refs/tags/v2.0.0-alpha.6.tar.gz
+- Git: `git clone --branch v2.0.0-alpha.6 https://github.com/nanomsg/nng.git`
 - Purpose: Lightweight IPC transport layer (3 channels: Resources, Gameplay, Input)
 - License: MIT
-- Size: ~557KB shared library
+- Built size: ~557KB shared library
+- Build requires: cmake, make, gcc
 
-**flatcc (FlatBuffers for C) 0.6.2**
+**flatcc (FlatBuffers for C) v0.6.1**
 - GitHub: https://github.com/dvidelabs/flatcc
-- Download: https://github.com/dvidelabs/flatcc/archive/refs/tags/v0.6.2.tar.gz
-- Git: `git clone --branch v0.6.2 https://github.com/dvidelabs/flatcc.git`
+- Download: https://github.com/dvidelabs/flatcc/archive/refs/tags/v0.6.1.tar.gz
+- Git: `git clone --branch v0.6.1 https://github.com/dvidelabs/flatcc.git`
 - Purpose: Zero-copy serialization for game state (no C++ dependency)
 - License: Apache 2.0
-- Size: ~253KB static library
+- Built size: ~253KB static library
+- Build requires: cmake, make, gcc
 
-These are automatically downloaded by `./download-dependencies.sh`.
+**Build Requirements:**
+```bash
+sudo apt-get install git cmake build-essential
+```
+
+These are automatically cloned and built by `./download-dependencies.sh`.
 
 ## Build Output
 
