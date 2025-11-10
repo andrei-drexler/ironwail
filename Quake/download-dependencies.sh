@@ -1,7 +1,9 @@
 #!/bin/bash
-# Download and build ALL dependencies for Ironwail headless mode
-# Includes: SDL2, audio libs (vorbis/ogg/mp3), nng, and flatcc
-# For use in environments without apt/package managers
+# Resolve ALL dependencies for Ironwail/PluQ
+# Strategy:
+#   1. Use apt packages when available (fastest)
+#   2. Download and build from source as fallback
+#   3. Always build nng 2.0 and flatcc from source (special script)
 
 set -e
 
@@ -10,239 +12,316 @@ DEPS_DIR="$SCRIPT_DIR/dependencies"
 WORK_DIR="/tmp/ironwail_deps_$$"
 
 echo "=========================================="
-echo "  Ironwail Dependencies Builder"
+echo "  Ironwail Dependencies Resolver"
 echo "=========================================="
 echo ""
-echo "This script will download and BUILD from source:"
-echo "  - SDL2 2.30.0 (timing/platform)"
-echo "  - libvorbis 1.3.7 (audio)"
-echo "  - libogg 1.3.5 (audio)"
-echo "  - mpg123 1.32.3 (audio)"
-echo "  - nng v2.0.0-alpha.6 (IPC transport) *built from source*"
-echo "  - flatcc v0.6.1 (FlatBuffers) *built from source*"
-echo ""
-echo "NOTE: nng and flatcc have NO pre-built binaries available."
-echo "      They will be built using cmake and make."
+
+# Check if we have apt
+HAS_APT=0
+if command -v apt-get > /dev/null 2>&1; then
+    HAS_APT=1
+    echo "Package manager: apt-get (will prefer system packages)"
+else
+    echo "Package manager: NONE (will build from source)"
+fi
 echo ""
 
 # Create directories
 mkdir -p "$DEPS_DIR/lib" "$DEPS_DIR/include" "$WORK_DIR"
+
+# =============================================================================
+# Step 1: Install available system packages via apt
+# =============================================================================
+
+if [ $HAS_APT -eq 1 ]; then
+    echo "=========================================="
+    echo "  Step 1: Installing system packages"
+    echo "=========================================="
+    echo ""
+
+    # Check if we have sudo
+    SUDO=""
+    if [ "$EUID" -ne 0 ]; then
+        if command -v sudo > /dev/null 2>&1; then
+            SUDO="sudo"
+            echo "Using sudo for package installation..."
+        else
+            echo "WARNING: Not running as root and sudo not available"
+            echo "         System package installation will be skipped"
+            HAS_APT=0
+        fi
+    fi
+
+    if [ $HAS_APT -eq 1 ]; then
+        echo "Installing development packages..."
+        echo ""
+
+        PACKAGES="libsdl2-dev libvorbis-dev libogg-dev libmpg123-dev"
+
+        # Try to install, but don't fail if some packages unavailable
+        echo "Running apt-get update..."
+        $SUDO apt-get update -qq 2>&1 | tail -3 || true
+
+        for pkg in $PACKAGES; do
+            echo -n "  - $pkg ... "
+            if dpkg -l 2>/dev/null | grep -q "^ii  $pkg"; then
+                echo "already installed"
+            elif $SUDO apt-get install -y $pkg > /dev/null 2>&1; then
+                echo "✓ installed"
+            else
+                echo "✗ failed (will build from source)"
+            fi
+        done
+
+        echo ""
+        echo "System packages install complete"
+        echo ""
+    fi
+else
+    echo "Skipping Step 1: No apt available"
+    echo ""
+fi
+
+# =============================================================================
+# Step 2: Build missing dependencies from source
+# =============================================================================
+
+echo "=========================================="
+echo "  Step 2: Building missing dependencies"
+echo "=========================================="
+echo ""
+
 cd "$WORK_DIR"
 
-echo "[1/6] Downloading SDL2 runtime..."
-# Try multiple sources for SDL2
-SDL2_URL="https://github.com/libsdl-org/SDL/releases/download/release-2.30.0/SDL2-2.30.0.tar.gz"
-echo "  Source: GitHub releases"
-echo "  URL: $SDL2_URL"
-if command -v wget > /dev/null; then
-    wget -q "$SDL2_URL" || echo "  WARNING: wget failed, trying curl..."
-fi
-if [ ! -f SDL2-2.30.0.tar.gz ] && command -v curl > /dev/null; then
-    curl -L -o SDL2-2.30.0.tar.gz "$SDL2_URL" || echo "  WARNING: curl failed"
+# Check what's missing
+NEED_SDL2=0
+NEED_VORBIS=0
+NEED_OGG=0
+NEED_MPG123=0
+
+# Check for SDL2
+if ! pkg-config --exists sdl2 2>/dev/null && ! command -v sdl2-config > /dev/null 2>&1; then
+    NEED_SDL2=1
+    echo "SDL2: Not found in system - will build"
+else
+    echo "SDL2: Found in system - using system package"
 fi
 
-if [ -f SDL2-2.30.0.tar.gz ]; then
-    echo "  Extracting..."
-    tar xzf SDL2-2.30.0.tar.gz
-    echo "  Building minimal SDL2..."
-    cd SDL2-2.30.0
-    ./configure --prefix="$DEPS_DIR" --disable-video-x11 --disable-video-wayland \
-        --disable-audio --disable-joystick --disable-haptic 2>&1 | tail -20
-    make -j4 2>&1 | tail -20
-    make install
-    cd ..
-    echo "  ✓ SDL2 installed to $DEPS_DIR"
+# Check for vorbis
+if ! pkg-config --exists vorbisfile 2>/dev/null; then
+    NEED_VORBIS=1
+    echo "libvorbis: Not found in system - will build"
 else
-    echo "  ✗ Failed to download SDL2"
+    echo "libvorbis: Found in system - using system package"
+fi
+
+# Check for ogg
+if ! pkg-config --exists ogg 2>/dev/null; then
+    NEED_OGG=1
+    echo "libogg: Not found in system - will build"
+else
+    echo "libogg: Found in system - using system package"
+fi
+
+# Check for mpg123
+if ! pkg-config --exists libmpg123 2>/dev/null; then
+    NEED_MPG123=1
+    echo "mpg123: Not found in system - will build"
+else
+    echo "mpg123: Found in system - using system package"
+fi
+
+echo ""
+
+# Build SDL2 if needed
+if [ $NEED_SDL2 -eq 1 ]; then
+    echo "[Building SDL2 2.30.0...]"
+    SDL2_URL="https://github.com/libsdl-org/SDL/releases/download/release-2.30.0/SDL2-2.30.0.tar.gz"
+
+    if command -v wget > /dev/null; then
+        wget -q --show-progress -O SDL2.tar.gz "$SDL2_URL" 2>&1 || echo "wget failed"
+    elif command -v curl > /dev/null; then
+        curl -L --progress-bar -o SDL2.tar.gz "$SDL2_URL" || echo "curl failed"
+    fi
+
+    if [ -f SDL2.tar.gz ]; then
+        tar xzf SDL2.tar.gz
+        cd SDL2-2.30.0
+        echo "  Configuring..."
+        ./configure --prefix="$DEPS_DIR" > /dev/null 2>&1
+        echo "  Building..."
+        make -j$(nproc) > /dev/null 2>&1
+        echo "  Installing..."
+        make install > /dev/null 2>&1
+        cd ..
+        echo "  ✓ SDL2 built and installed"
+    else
+        echo "  ✗ SDL2 download failed"
+    fi
     echo ""
-    echo "ALTERNATIVE: Use system packages or manual download"
-    echo "  Ubuntu/Debian: apt-get install libsdl2-2.0-0 libsdl2-dev"
-    echo "  Manual: Download from https://www.libsdl.org/download-2.0.php"
 fi
 
-echo ""
-echo "[2/6] Downloading libvorbis..."
-VORBIS_URL="https://downloads.xiph.org/releases/vorbis/libvorbis-1.3.7.tar.xz"
-if command -v wget > /dev/null; then
-    wget -q "$VORBIS_URL" || echo "  WARNING: Failed"
-fi
-if [ -f libvorbis-1.3.7.tar.xz ]; then
-    tar xf libvorbis-1.3.7.tar.xz
-    cd libvorbis-1.3.7
-    ./configure --prefix="$DEPS_DIR" 2>&1 | tail -10
-    make -j4 2>&1 | tail -10
-    make install
-    cd ..
-    echo "  ✓ libvorbis installed"
-else
-    echo "  ✗ Failed to download libvorbis"
-fi
+# Build libogg if needed (required before vorbis)
+if [ $NEED_OGG -eq 1 ]; then
+    echo "[Building libogg 1.3.5...]"
+    OGG_URL="https://downloads.xiph.org/releases/ogg/libogg-1.3.5.tar.xz"
 
-echo ""
-echo "[3/6] Downloading libogg..."
-OGG_URL="https://downloads.xiph.org/releases/ogg/libogg-1.3.5.tar.xz"
-if command -v wget > /dev/null; then
-    wget -q "$OGG_URL" || echo "  WARNING: Failed"
-fi
-if [ -f libogg-1.3.5.tar.xz ]; then
-    tar xf libogg-1.3.5.tar.xz
-    cd libogg-1.3.5
-    ./configure --prefix="$DEPS_DIR" 2>&1 | tail -10
-    make -j4 2>&1 | tail -10
-    make install
-    cd ..
-    echo "  ✓ libogg installed"
-else
-    echo "  ✗ Failed to download libogg"
-fi
-
-echo ""
-echo "[4/6] Downloading mpg123..."
-MPG123_URL="https://www.mpg123.de/download/mpg123-1.32.3.tar.bz2"
-if command -v wget > /dev/null; then
-    wget -q "$MPG123_URL" || echo "  WARNING: Failed"
-fi
-if [ -f mpg123-1.32.3.tar.bz2 ]; then
-    tar xf mpg123-1.32.3.tar.bz2
-    cd mpg123-1.32.3
-    ./configure --prefix="$DEPS_DIR" 2>&1 | tail -10
-    make -j4 2>&1 | tail -10
-    make install
-    cd ..
-    echo "  ✓ mpg123 installed"
-else
-    echo "  ✗ Failed to download mpg123"
-fi
-
-echo ""
-echo "[5/6] Building nng (nanomsg-next-generation) from source..."
-echo "  Using: v2.0.0-alpha.6 (latest 2.0 pre-release)"
-echo "  NOTE: No pre-built binaries available - building from source"
-
-# Try git clone first (preferred method)
-if command -v git > /dev/null; then
-    echo "  Cloning from GitHub..."
-    git clone --depth 1 --branch v2.0.0-alpha.6 https://github.com/nanomsg/nng.git nng-build 2>&1 | tail -3
-    NNG_SOURCE="git"
-else
-    # Fallback to tarball download
-    echo "  Downloading source tarball..."
-    NNG_URL="https://github.com/nanomsg/nng/archive/refs/tags/v2.0.0-alpha.6.tar.gz"
     if command -v wget > /dev/null; then
-        wget -q -O nng.tar.gz "$NNG_URL" || echo "  WARNING: Failed"
+        wget -q --show-progress -O libogg.tar.xz "$OGG_URL" 2>&1 || echo "wget failed"
     elif command -v curl > /dev/null; then
-        curl -sL -o nng.tar.gz "$NNG_URL" || echo "  WARNING: Failed"
+        curl -L --progress-bar -o libogg.tar.xz "$OGG_URL" || echo "curl failed"
     fi
 
-    if [ -f nng.tar.gz ]; then
-        tar xzf nng.tar.gz
-        mv nng-2.0.0-alpha.6 nng-build
-        NNG_SOURCE="tarball"
+    if [ -f libogg.tar.xz ]; then
+        tar xJf libogg.tar.xz
+        cd libogg-1.3.5
+        echo "  Configuring..."
+        ./configure --prefix="$DEPS_DIR" > /dev/null 2>&1
+        echo "  Building..."
+        make -j$(nproc) > /dev/null 2>&1
+        echo "  Installing..."
+        make install > /dev/null 2>&1
+        cd ..
+        echo "  ✓ libogg built and installed"
+    else
+        echo "  ✗ libogg download failed"
     fi
+    echo ""
 fi
 
-if [ -d nng-build ]; then
-    cd nng-build
-    mkdir -p build && cd build
-    echo "  Running cmake..."
-    cmake -DCMAKE_INSTALL_PREFIX="$DEPS_DIR" \
-          -DBUILD_SHARED_LIBS=ON \
-          -DNNG_TESTS=OFF \
-          -DNNG_TOOLS=OFF \
-          .. 2>&1 | tail -5
-    echo "  Building with make -j4..."
-    make -j4 2>&1 | tail -5
-    echo "  Installing..."
-    make install 2>&1 | tail -3
-    cd ../..
-    echo "  ✓ nng built and installed to $DEPS_DIR (source: $NNG_SOURCE)"
-else
-    echo "  ✗ Failed to obtain nng source code"
-    echo "  ERROR: nng is required for PluQ IPC"
-    echo "  Try: sudo apt-get install git cmake build-essential"
-fi
+# Build libvorbis if needed
+if [ $NEED_VORBIS -eq 1 ]; then
+    echo "[Building libvorbis 1.3.7...]"
+    VORBIS_URL="https://downloads.xiph.org/releases/vorbis/libvorbis-1.3.7.tar.xz"
 
-echo ""
-echo "[6/6] Building flatcc (FlatBuffers for C) from source..."
-echo "  Using: v0.6.1 (latest stable release)"
-echo "  NOTE: No pre-built binaries available - building from source"
-
-# Try git clone first (preferred method)
-if command -v git > /dev/null; then
-    echo "  Cloning from GitHub..."
-    git clone --depth 1 --branch v0.6.1 https://github.com/dvidelabs/flatcc.git flatcc-build 2>&1 | tail -3
-    FLATCC_SOURCE="git"
-else
-    # Fallback to tarball download
-    echo "  Downloading source tarball..."
-    FLATCC_URL="https://github.com/dvidelabs/flatcc/archive/refs/tags/v0.6.1.tar.gz"
     if command -v wget > /dev/null; then
-        wget -q -O flatcc.tar.gz "$FLATCC_URL" || echo "  WARNING: Failed"
+        wget -q --show-progress -O libvorbis.tar.xz "$VORBIS_URL" 2>&1 || echo "wget failed"
     elif command -v curl > /dev/null; then
-        curl -sL -o flatcc.tar.gz "$FLATCC_URL" || echo "  WARNING: Failed"
+        curl -L --progress-bar -o libvorbis.tar.xz "$VORBIS_URL" || echo "curl failed"
     fi
 
-    if [ -f flatcc.tar.gz ]; then
-        tar xzf flatcc.tar.gz
-        mv flatcc-0.6.1 flatcc-build
-        FLATCC_SOURCE="tarball"
+    if [ -f libvorbis.tar.xz ]; then
+        tar xJf libvorbis.tar.xz
+        cd libvorbis-1.3.7
+        echo "  Configuring..."
+        PKG_CONFIG_PATH="$DEPS_DIR/lib/pkgconfig:$PKG_CONFIG_PATH" \
+            ./configure --prefix="$DEPS_DIR" > /dev/null 2>&1
+        echo "  Building..."
+        make -j$(nproc) > /dev/null 2>&1
+        echo "  Installing..."
+        make install > /dev/null 2>&1
+        cd ..
+        echo "  ✓ libvorbis built and installed"
+    else
+        echo "  ✗ libvorbis download failed"
     fi
+    echo ""
 fi
 
-if [ -d flatcc-build ]; then
-    cd flatcc-build
-    mkdir -p build && cd build
-    echo "  Running cmake (runtime only)..."
-    cmake -DCMAKE_INSTALL_PREFIX="$DEPS_DIR" \
-          -DFLATCC_RTONLY=ON \
-          .. 2>&1 | tail -5
-    echo "  Building with make -j4..."
-    make -j4 2>&1 | tail -5
-    echo "  Installing..."
-    make install 2>&1 | tail -3
-    cd ../..
-    echo "  ✓ flatcc built and installed to $DEPS_DIR (source: $FLATCC_SOURCE)"
-else
-    echo "  ✗ Failed to obtain flatcc source code"
-    echo "  ERROR: flatcc is required for PluQ FlatBuffers serialization"
-    echo "  Try: sudo apt-get install git cmake build-essential"
+# Build mpg123 if needed
+if [ $NEED_MPG123 -eq 1 ]; then
+    echo "[Building mpg123 1.32.3...]"
+    MPG123_URL="https://www.mpg123.de/download/mpg123-1.32.3.tar.bz2"
+
+    if command -v wget > /dev/null; then
+        wget -q --show-progress -O mpg123.tar.bz2 "$MPG123_URL" 2>&1 || echo "wget failed"
+    elif command -v curl > /dev/null; then
+        curl -L --progress-bar -o mpg123.tar.bz2 "$MPG123_URL" || echo "curl failed"
+    fi
+
+    if [ -f mpg123.tar.bz2 ]; then
+        tar xjf mpg123.tar.bz2
+        cd mpg123-1.32.3
+        echo "  Configuring..."
+        ./configure --prefix="$DEPS_DIR" > /dev/null 2>&1
+        echo "  Building..."
+        make -j$(nproc) > /dev/null 2>&1
+        echo "  Installing..."
+        make install > /dev/null 2>&1
+        cd ..
+        echo "  ✓ mpg123 built and installed"
+    else
+        echo "  ✗ mpg123 download failed"
+    fi
+    echo ""
 fi
 
 # Cleanup
 cd /
 rm -rf "$WORK_DIR"
 
-echo ""
+# =============================================================================
+# Step 3: Build nng 2.0 and flatcc (always from source)
+# =============================================================================
+
 echo "=========================================="
-echo "  Installation Summary"
-echo "=========================================="
-echo ""
-echo "Downloaded libraries: $DEPS_DIR"
-echo ""
-echo "Contents:"
-ls -lh "$DEPS_DIR/lib/" 2>/dev/null || echo "  (none)"
-echo ""
-echo "=========================================="
-echo "  How to Use"
+echo "  Step 3: Building PluQ IPC dependencies"
 echo "=========================================="
 echo ""
-echo "Method 1: Manual LD_LIBRARY_PATH"
-echo "  export LD_LIBRARY_PATH=\"$DEPS_DIR/lib:\$LD_LIBRARY_PATH\""
-echo "  ./ironwail -headless -pluq +map start"
+echo "nng and flatcc are ALWAYS built from source:"
+echo "  - nng: apt has 1.7.2, but PluQ code requires 2.0.x API"
+echo "  - flatcc: not available in apt"
 echo ""
-echo "Method 2: Use wrapper script (RECOMMENDED)"
-echo "  ./run-with-downloaded-libs.sh -headless -pluq +map start"
+
+# Export DEPS_DIR and WORK_DIR for the build script
+export DEPS_DIR
+export WORK_DIR
+
+# Call the specialized build script
+if [ -f "$SCRIPT_DIR/build-nng-flatcc.sh" ]; then
+    "$SCRIPT_DIR/build-nng-flatcc.sh"
+else
+    echo "ERROR: build-nng-flatcc.sh not found"
+    echo "Expected at: $SCRIPT_DIR/build-nng-flatcc.sh"
+    exit 1
+fi
+
+# =============================================================================
+# Final Summary and Wrapper Script
+# =============================================================================
+
+echo ""
+echo "=========================================="
+echo "  Dependency Resolution Complete"
+echo "=========================================="
+echo ""
+echo "Dependencies directory: $DEPS_DIR"
+echo ""
+
+# Check what was installed
+echo "Installed libraries:"
+if [ -d "$DEPS_DIR/lib" ] && [ "$(ls -A $DEPS_DIR/lib 2>/dev/null)" ]; then
+    ls -lh "$DEPS_DIR/lib/" 2>/dev/null | grep -E "\.so|\.a" | awk '{print "  " $9 " (" $5 ")"}'
+else
+    echo "  (using system packages only)"
+fi
 echo ""
 
 # Create wrapper script
 cat > "$SCRIPT_DIR/run-with-downloaded-libs.sh" << 'EOFWRAPPER'
 #!/bin/bash
-# Run Ironwail with downloaded dependencies
+# Run Ironwail with locally-built dependencies
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 export LD_LIBRARY_PATH="$SCRIPT_DIR/dependencies/lib:$LD_LIBRARY_PATH"
+export PKG_CONFIG_PATH="$SCRIPT_DIR/dependencies/lib/pkgconfig:$PKG_CONFIG_PATH"
 exec "$SCRIPT_DIR/ironwail" "$@"
 EOFWRAPPER
 chmod +x "$SCRIPT_DIR/run-with-downloaded-libs.sh"
 
-echo "Wrapper script created: run-with-downloaded-libs.sh"
+echo "Runtime wrapper created: run-with-downloaded-libs.sh"
+echo ""
+echo "=========================================="
+echo "  Next Steps"
+echo "=========================================="
+echo ""
+echo "1. Build Ironwail:"
+echo "   cd $SCRIPT_DIR"
+echo "   make clean && make -j$(nproc)"
+echo ""
+echo "2. Run (if using local dependencies):"
+echo "   ./run-with-downloaded-libs.sh -headless -pluq +map start"
+echo ""
+echo "3. Or set LD_LIBRARY_PATH manually:"
+echo "   export LD_LIBRARY_PATH=$DEPS_DIR/lib:\$LD_LIBRARY_PATH"
+echo "   ./ironwail -headless -pluq +map start"
 echo ""
