@@ -10,7 +10,9 @@ jobs:
         compiler: ["clang", "gcc"]
     steps:
     - uses: actions/checkout@v4
-    - name: Install Dependencies
-      run: sudo apt update && sudo apt install libcurl4-openssl-dev libmpg123-dev libsdl2-dev libvorbis-dev
-    - name: Build
+    - name: Install Build Tools
+      run: sudo apt update && sudo apt install cmake gcc g++ make git libcurl4-openssl-dev libsdl2-dev
+    - name: Build Dependencies (nng, flatcc, audio libs)
+      run: cd Quake && ./download-dependencies.sh
+    - name: Build Ironwail
       run: make --jobs=3 --keep-going --directory=Quake CC=${{ matrix.compiler }}

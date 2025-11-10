@@ -77,8 +77,22 @@ endif
 SDL_CFLAGS = $(shell $(SDL_CONFIG) --cflags)
 SDL_LIBS   = $(shell $(SDL_CONFIG) --libs)
 
-# nng and FlatCC libraries
-NNG_LIBS = -Lnng_lib -lnng -lflatccrt
+# nng and FlatCC libraries (static linking)
+# Check for local dependencies first, then system
+LOCAL_DEPS_DIR := $(wildcard dependencies)
+
+ifneq ($(LOCAL_DEPS_DIR),)
+    ifneq ($(wildcard dependencies/lib/libnng*),)
+        CFLAGS += -Idependencies/include
+        NNG_LIBS = -Ldependencies/lib -lnng -lflatccrt
+    endif
+endif
+
+# Fallback to system if no local deps found
+ifeq ($(NNG_LIBS),)
+    NNG_LIBS = -lnng -lflatccrt
+endif
+
 COMMON_LIBS = -ldl -lm -lpthread
 
 LIBS = $(COMMON_LIBS) $(NNG_LIBS) $(SDL_LIBS)
@@ -91,6 +105,7 @@ MAKEFILE := Makefile.pluq_test_frontend
 # ---------------------------
 
 # Minimal object set - reuses host_pluq_frontend.o for initialization
+# Platform-specific code (pl_linux.o) is stubbed in stubs_pluq_frontend.o for headless mode
 OBJS = strlcat.o \
 	strlcpy.o \
 	cmd.o \
@@ -108,7 +123,6 @@ OBJS = strlcat.o \
 	host_pluq_frontend.o \
 	json.o \
 	miniz.o \
-	pl_linux.o \
 	sys_sdl_unix.o \
 	main_pluq_test_frontend.o \
 	stubs_pluq_frontend.o

@@ -69,7 +69,8 @@ qboolean PluQ_Frontend_Init(void)
 		goto error;
 	}
 	// Subscribe to all topics (empty string = all)
-	if ((rv = nng_socket_set_string(frontend_ctx.gameplay_sub, NNG_OPT_SUB_SUBSCRIBE, "")) != 0)
+	// nng 2.0 API: use nng_sub0_socket_subscribe() instead of nng_socket_set_string()
+	if ((rv = nng_sub0_socket_subscribe(frontend_ctx.gameplay_sub, "", 0)) != 0)
 	{
 		Con_Printf("PluQ Frontend: Failed to subscribe to gameplay channel: %s\n", nng_strerror(rv));
 		goto error;

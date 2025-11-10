@@ -268,3 +268,73 @@ void SaveData_Clear (savedata_t *save) {}
 void SaveData_Init (savedata_t *save) {}
 void SaveData_WriteHeader (savedata_t *save) {}
 void SaveData_Fill (savedata_t *save) {}
+
+// Platform stubs
+void PL_SetWindowIcon (void) {}
+void PL_VID_Shutdown (void) {}
+void PL_ErrorDialog (const char *text) {}
+
+// Input stubs
+void IN_Init (void) {}
+void IN_Shutdown (void) {}
+void IN_Commands (void) {}
+void IN_Move (usercmd_t *cmd) {}
+
+// Texture manager stubs
+void TexMgr_Init (void) {}
+
+// Drawing stubs
+void Draw_Init (void) {}
+
+// Screen stubs
+void SCR_Init (void) {}
+
+// Renderer stubs
+void R_Init (void) {}
+
+// Status bar stubs
+void Sbar_Init (void) {}
+
+// Sound stubs
+void S_Init (void) {}
+void S_Shutdown (void) {}
+
+// CD Audio stubs
+int CDAudio_Init (void) { return 0; }
+
+// Background music stubs
+void BGM_Init (void) {}
+
+// Client stubs (beyond what's already stubbed)
+void CL_Init (void) {}
+
+// Menu stubs
+void M_Init (void) {}
+
+// Video stubs
+void VID_Init (void) {}
+void VID_Shutdown (void) {}
+
+// Chase camera stubs
+void Chase_Init (void) {}
+
+// View stubs
+void V_Init (void) {}
+
+// Client state variables (defined, not declared - declaration is in client.h)
+client_static_t cls;
+client_state_t cl;
+
+// Screen variables (defined, not declared - declaration is elsewhere)
+qboolean scr_disabled_for_loading = false;
+
+// Steam stubs
+qboolean Steam_IsValidPath (const char *path) { return false; }
+const char *Steam_FindGame (int appid) { return NULL; }
+const char *Steam_ResolvePath (const char *path) { return path; }
+
+// Input event stubs
+void IN_SendKeyEvents (void) {}
+
+// Quake flavor selector stub
+int ChooseQuakeFlavor (void) { return 0; }
