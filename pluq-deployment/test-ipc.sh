@@ -14,9 +14,10 @@ echo ""
 # Clean up any existing IPC sockets
 rm -f /tmp/quake_pluq_*
 
-# Set library path (use absolute path)
+# Get script directory for paths
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-export LD_LIBRARY_PATH="$SCRIPT_DIR/../Quake/nng_lib:$LD_LIBRARY_PATH"
+
+# Note: No LD_LIBRARY_PATH needed - nng and flatcc are statically linked
 
 # Start backend in background (it creates the IPC endpoint)
 echo "Starting backend..."
