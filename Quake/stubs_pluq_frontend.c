@@ -338,3 +338,101 @@ void IN_SendKeyEvents (void) {}
 
 // Quake flavor selector stub
 int ChooseQuakeFlavor (void) { return 0; }
+
+// Epic Games Store stubs
+const char *EGS_FindGame (int appid) { return NULL; }
+
+// Additional Steam stubs
+void Steam_Init (void) {}
+
+// Background music stubs (additional)
+void BGM_Stop (void) {}
+
+// Client disconnect stub
+void CL_Disconnect (void) {}
+
+// Model management stubs
+void Mod_ResetAll (void) {}
+
+// Sky management stubs
+void Sky_ClearAll (void) {}
+
+// Menu stubs (additional)
+void M_CheckMods (void) {}
+void M_Menu_Main_f (void) {}
+void M_ToggleMenu_f (void) {}
+qboolean M_WantsConsole (float *alpha) { if (alpha) *alpha = 0.0f; return false; }
+qboolean M_WaitingForKeyBinding (void) { return false; }
+void M_Keydown (int key) {}
+void M_Charinput (int key) {}
+enum textmode_t M_TextEntry (void) { return TEXTMODE_OFF; }
+void M_PrintWhite (int cx, int cy, const char *str) {}
+
+// Video management stubs (additional)
+void VID_Lock (void) {}
+void VID_Toggle (void) {}
+void VID_SetMouseCursor (mousecursor_t cursor) {}
+
+// Texture manager stubs (additional)
+void TexMgr_NewGame (void) {}
+void TexMgr_FreeTexturesForOwner (qmodel_t *owner) {}
+
+// Drawing stubs (additional)
+void Draw_NewGame (void) {}
+void Draw_Character (int x, int y, int num) {}
+void Draw_String (int x, int y, const char *str) {}
+void Draw_Fill (int x, int y, int w, int h, int c, float alpha) {}
+void Draw_Pic (int x, int y, qpic_t *pic) {}
+void Draw_ConsoleBackground (void) {}
+void Draw_GetCanvasTransform (canvastype canvas, drawtransform_t *transform) {}
+
+// Renderer stubs (additional)
+void R_NewGame (void) {}
+
+// Screen stubs (additional)
+void SCR_UpdateScreen (void) {}
+void SCR_EndLoadingPlaque (void) {}
+
+// Sound stubs (additional)
+void S_LocalSound (const char *sound) {}
+
+// OpenGL canvas stubs
+void GL_SetCanvas (canvastype canvas) {}
+void GL_SetCanvasColor (float r, float g, float b, float a) {}
+void GL_PushCanvasColor (float r, float g, float b, float a) {}
+void GL_PopCanvasColor (void) {}
+
+// Input stubs (additional)
+void IN_Activate (void) {}
+void IN_DeactivateForConsole (void) {}
+void IN_UpdateInputMode (void) {}
+qboolean IN_EmulatedCharEvents (void) { return false; }
+gamepadtype_t IN_GetGamepadType (void) { return GAMEPAD_NONE; }
+
+// Platform stubs (additional)
+char *PL_GetClipboardData (void) { return NULL; }
+
+// Config variables (declared in client.h as cvar_t, defined here)
+cvar_t cfg_unbindall = {"cfg_unbindall","1",CVAR_ARCHIVE};
+
+// Global variables - rendering/screen related
+int glwidth = 640;
+int glheight = 480;
+int glx = 0;
+int gly = 0;
+int clearnotify = 0;
+int scr_tileclear_updates = 0;
+
+// Video definition (declared in vid.h, defined here)
+viddef_t vid;
+
+// Renderer definition (declared in render.h/glquake.h, defined here)
+refdef_t r_refdef;
+
+// Pics (qpic_t pointers declared in draw.h, defined here as NULL)
+qpic_t *pic_ins = NULL;
+qpic_t *pic_ovr = NULL;
+
+// SIMD flag
+qboolean use_simd = false;
+
