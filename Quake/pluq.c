@@ -12,6 +12,9 @@ of the License, or (at your option) any later version.
 #include "pluq.h"
 #include <string.h>
 
+#ifdef USE_PLUQ
+// Full implementation follows below
+
 // Console variables
 static cvar_t pluq_headless = {"pluq_headless", "0", CVAR_NONE};
 
@@ -404,3 +407,24 @@ void PluQ_ResetStats(void)
 {
 	memset(&perf_stats, 0, sizeof(perf_stats));
 }
+
+#else // !USE_PLUQ
+
+// Stub implementations when PluQ is disabled
+void PluQ_Init(void) {}
+void PluQ_Shutdown(void) {}
+qboolean PluQ_IsEnabled(void) { return false; }
+void PluQ_Enable(void) {}
+void PluQ_Disable(void) {}
+void PluQ_BroadcastWorldState(void) {}
+qboolean PluQ_HasPendingInput(void) { return false; }
+void PluQ_ProcessInputCommands(void) {}
+void PluQ_Move(usercmd_t *cmd) { (void)cmd; }
+void PluQ_ApplyViewAngles(void) {}
+void PluQ_GetStats(pluq_stats_t *stats) { if (stats) memset(stats, 0, sizeof(*stats)); }
+void PluQ_ResetStats(void) {}
+qboolean PluQ_Backend_SendResource(const void *flatbuf, size_t size) { (void)flatbuf; (void)size; return false; }
+qboolean PluQ_Backend_PublishFrame(const void *flatbuf, size_t size) { (void)flatbuf; (void)size; return false; }
+qboolean PluQ_Backend_ReceiveInput(void **flatbuf_out, size_t *size_out) { (void)flatbuf_out; (void)size_out; return false; }
+
+#endif // USE_PLUQ

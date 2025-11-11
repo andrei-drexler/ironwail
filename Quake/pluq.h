@@ -14,6 +14,8 @@ of the License, or (at your option) any later version.
 // Three-channel architecture: Resources, Gameplay, Input
 
 #include "quakedef.h"
+
+#ifdef USE_PLUQ
 #include <nng/nng.h>
 
 // Include generated FlatBuffers C headers
@@ -46,6 +48,7 @@ typedef struct {
 	nng_dialer resources_dialer, gameplay_dialer, input_dialer;
 	qboolean is_backend, is_frontend, initialized;
 } pluq_context_t;
+#endif // USE_PLUQ
 
 // Input command structure
 typedef struct
@@ -104,6 +107,7 @@ qboolean PluQ_Backend_ReceiveInput(void **flatbuf_out, size_t *size_out);
 // (PluQ_Frontend_RequestResource, PluQ_Frontend_ReceiveResource,
 //  PluQ_Frontend_ReceiveFrame, PluQ_Frontend_SendInput)
 
+#ifdef USE_PLUQ
 // vec3_t conversion helpers
 static inline PluQ_Vec3_t QuakeVec3_To_FB(const vec3_t v)
 {
@@ -116,5 +120,6 @@ static inline void FB_Vec3_To_Quake(const PluQ_Vec3_t *fb_vec, vec3_t v)
 {
 	memcpy(v, fb_vec, sizeof(PluQ_Vec3_t));
 }
+#endif // USE_PLUQ
 
 #endif // _PLUQ_H_
