@@ -6,6 +6,8 @@ Quake/*.d
 Quake/*.res
 Quake/*.exe
 Quake/ironwail
+Quake/dependencies/
+Quake/run-with-downloaded-libs.sh
 build/
 /.vs
 /out/

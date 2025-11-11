@@ -1,0 +1,20 @@
+# Quake game content - not included in repository
+id1/*.PAK
+id1/*.pak
+id1/*.bsp
+id1/*.mdl
+id1/*.spr
+id1/*.wav
+id1/*.mp3
+id1/*.ogg
+
+# User config and saves
+id1/config.cfg
+id1/autoexec.cfg
+id1/saves/
+id1/*.sav
+
+# Temporary files
+*.log
+*.tmp
+core

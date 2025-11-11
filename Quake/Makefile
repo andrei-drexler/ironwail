@@ -11,7 +11,10 @@ DO_USERDIRS=1
 USE_SDL2=1
 
 ### Enable/Disable Curl
-USE_CURL=1
+USE_CURL=0
+
+# Include dependency detection (supports local and system libs)
+-include Makefile.deps
 
 ### Enable/Disable codecs for streaming music support
 USE_CODEC_WAVE=1
@@ -56,6 +59,7 @@ CPUFLAGS=
 LDFLAGS?=
 DFLAGS ?=
 CFLAGS ?= -Wall -Wno-trigraphs
+CFLAGS += -I.  # For flatcc headers
 CFLAGS += -D_FILE_OFFSET_BITS=64
 CFLAGS += $(call check_gcc,-std=gnu11,)
 CFLAGS += $(call check_gcc,-Werror=format,)
@@ -85,13 +89,8 @@ ifeq ($(USE_SDL2),1)
 CFLAGS += -DUSE_SDL2
 endif
 
-ifeq ($(USE_SDL2),1)
-SDL_CONFIG ?= sdl2-config
-else
-SDL_CONFIG ?= sdl-config
-endif
-SDL_CFLAGS = $(shell $(SDL_CONFIG) --cflags)
-SDL_LIBS   = $(shell $(SDL_CONFIG) --libs)
+# SDL configuration now handled by Makefile.deps
+# SDL_CFLAGS and SDL_LIBS are set there
 
 NET_LIBS   =
 ifeq ($(HOST_OS),sunos)
@@ -181,7 +180,11 @@ else
 COMMON_LIBS= -lGL -ldl -lm
 endif
 
-LIBS = $(COMMON_LIBS) $(NET_LIBS) $(CODECLIBS)
+# PluQ and audio libs now handled by Makefile.deps
+# PLUQ_LIBS and AUDIO_LIBS are set there
+# Include paths are added to CFLAGS directly (like other libs)
+
+LIBS = $(COMMON_LIBS) $(NET_LIBS) $(CODECLIBS) $(AUDIO_LIBS) $(PLUQ_LIBS)
 
 # name of this makefile, so we can use it as a dependency
 MAKEFILE := $(lastword $(MAKEFILE_LIST))
@@ -259,6 +262,7 @@ OBJS = strlcat.o \
 	cmd.o \
 	common.o \
 	steam.o \
+	pluq.o \
 	json.o \
 	miniz.o \
 	crc.o \

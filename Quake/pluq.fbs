@@ -1,0 +1,207 @@
+// pluq.fbs - PluQ FlatBuffers Schema
+// Three-channel IPC protocol for Quake game state streaming
+
+namespace PluQ;
+
+// ============================================================================
+// COMMON TYPES
+// ============================================================================
+
+struct Vec3 {
+  x: float;
+  y: float;
+  z: float;
+}
+
+// ============================================================================
+// RESOURCES CHANNEL - On-demand resource data only (REQ/REP)
+// Frontend requests specific resources by ID
+// Backend replies with resource data
+// ============================================================================
+
+enum ResourceType : byte {
+  None = 0,
+  Texture = 1,
+  Model = 2,
+  BSPVertices = 3,
+  BSPFaces = 4,
+  Lightmap = 5
+}
+
+// Frontend → Backend: Request a specific resource
+table ResourceRequest {
+  resource_type: ResourceType;
+  resource_id: uint32;
+  resource_name: string;  // Optional: request by name instead of ID
+}
+
+table Texture {
+  id: uint32;
+  name: string;
+  width: uint16;
+  height: uint16;
+  format: byte;  // 0=RGBA, 1=RGB, 2=Indexed
+  pixels: [ubyte];
+}
+
+table Model {
+  id: uint32;
+  name: string;
+  num_vertices: uint32;
+  num_triangles: uint32;
+  num_frames: uint32;
+  vertices: [float];      // Packed: x,y,z for each vertex
+  triangles: [uint16];    // Triangle indices
+  texcoords: [float];     // UV coordinates
+  normals: [float];       // Normals
+}
+
+table BSPVertices {
+  vertices: [Vec3];
+}
+
+table BSPFace {
+  plane_id: uint32;
+  side: byte;
+  first_edge: uint32;
+  num_edges: uint16;
+  texture_id: uint16;
+  lightmap_offset: uint32;
+  styles: [byte];
+}
+
+table BSPFaces {
+  faces: [BSPFace];
+}
+
+table Lightmap {
+  id: uint32;
+  width: uint16;
+  height: uint16;
+  data: [ubyte];  // RGB lightmap data
+}
+
+// Resource lookup table entry
+table ResourceInfo {
+  id: uint32;
+  type: ResourceType;
+  name: string;
+  size: uint32;  // Size in bytes (for progress bars)
+}
+
+union ResourceData {
+  Texture,
+  Model,
+  BSPVertices,
+  BSPFaces,
+  Lightmap
+}
+
+// Backend → Frontend: Resource response (REP)
+table ResourceResponse {
+  resource_id: uint32;
+  data: ResourceData;
+}
+
+// ============================================================================
+// GAMEPLAY CHANNEL - All game state events (PUB/SUB)
+// Includes: map changes, frame updates, disconnects, etc.
+// ============================================================================
+
+// Map changed event (sent when map loads)
+table MapChanged {
+  mapname: string;
+
+  // Resource lookup table - frontend can use this to decide:
+  // 1. Load locally (if it has pak files)
+  // 2. Request from backend (if it doesn't)
+  resources: [ResourceInfo];
+}
+
+// Disconnect event
+table Disconnected {
+  reason: string;
+}
+
+// Entity in the game world
+table Entity {
+  origin: Vec3;
+  angles: Vec3;
+  model_id: uint16;
+  frame: byte;
+  colormap: byte;
+  skin: byte;
+  effects: uint32;
+  alpha: float;
+}
+
+// Frame update (sent every tick)
+table FrameUpdate {
+  frame_number: uint32;
+  timestamp: double;
+
+  // View state
+  view_origin: Vec3;
+  view_angles: Vec3;
+
+  // Player stats
+  health: int16;
+  armor: int16;
+  weapon: byte;
+  ammo: uint16;
+
+  // Game state
+  paused: bool;
+  in_game: bool;
+
+  // Entities
+  entities: [Entity];
+}
+
+// Union of all gameplay events
+union GameplayEvent {
+  MapChanged,
+  FrameUpdate,
+  Disconnected
+}
+
+// Gameplay message (sent on gameplay channel)
+table GameplayMessage {
+  event: GameplayEvent;
+}
+
+// ============================================================================
+// INPUT CHANNEL - User input (from frontend to backend)
+// ============================================================================
+
+table InputCommand {
+  sequence: uint32;
+  timestamp: double;
+
+  // Movement
+  forward_move: float;
+  side_move: float;
+  up_move: float;
+
+  // View
+  view_angles: Vec3;
+
+  // Buttons (bitfield)
+  buttons: uint32;
+
+  // Impulse
+  impulse: byte;
+
+  // Console command (optional)
+  cmd_text: string;
+}
+
+// ============================================================================
+// ROOT TYPES
+// ============================================================================
+// Note: FlatBuffers only allows one root_type per schema.
+// For multi-channel IPC, we don't use root_type - just access tables directly.
+// Each channel uses specific message types:
+// - Resources channel: ResourceRequest (frontend->backend), ResourceResponse (backend->frontend)
+// - Gameplay channel: GameplayMessage (backend->frontend)
+// - Input channel: InputCommand (frontend->backend)

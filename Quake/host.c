@@ -25,6 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "bgmusic.h"
 #include "steam.h"
+#include "pluq.h"
 #include <setjmp.h>
 
 /*
@@ -41,6 +42,7 @@ Memory is cleared / released when a server or client begins, not when they end.
 quakeparms_t *host_parms;
 
 qboolean	host_initialized;		// true if into command execution
+qboolean	host_headless;			// true if running without video/audio
 
 double		host_frametime;
 double		host_rawframetime;
@@ -1057,38 +1059,42 @@ static void UpdateWindowTitle (void)
 		return;
 	last = current;
 
-	if (current.map[0])
+	// Skip window title updates in headless mode
+	if (!Host_IsHeadless() && cls.state != ca_dedicated)
 	{
-		char cleanname[sizeof (cl.levelname)];
-		char utf8name[4 * sizeof (cl.levelname)];
-		char title[1024];
+		if (current.map[0])
+		{
+			char cleanname[sizeof (cl.levelname)];
+			char utf8name[4 * sizeof (cl.levelname)];
+			char title[1024];
 
-		Mod_SanitizeMapDescription (cleanname, sizeof (cleanname), cl.levelname);
+			Mod_SanitizeMapDescription (cleanname, sizeof (cleanname), cl.levelname);
 
-		UTF8_FromQuake (utf8name, sizeof (utf8name), cleanname);
-		q_snprintf (title, sizeof (title),
-			utf8name[0] ?
-				"%s (%s)  |  skill %d  |  %d/%d kills  |  %d/%d secrets  -  " WINDOW_TITLE_STRING :
-				"%s%s  |  skill %d  |  %d/%d kills  |  %d/%d secrets  -  " WINDOW_TITLE_STRING,
-			utf8name, current.map,
-			current.stats.skill,
-			current.stats.monsters, current.stats.total_monsters,
-			current.stats.secrets, current.stats.total_secrets
-		);
-		VID_SetWindowTitle (title);
+			UTF8_FromQuake (utf8name, sizeof (utf8name), cleanname);
+			q_snprintf (title, sizeof (title),
+				utf8name[0] ?
+					"%s (%s)  |  skill %d  |  %d/%d kills  |  %d/%d secrets  -  " WINDOW_TITLE_STRING :
+					"%s%s  |  skill %d  |  %d/%d kills  |  %d/%d secrets  -  " WINDOW_TITLE_STRING,
+				utf8name, current.map,
+				current.stats.skill,
+				current.stats.monsters, current.stats.total_monsters,
+				current.stats.secrets, current.stats.total_secrets
+			);
+			VID_SetWindowTitle (title);
 
-		if (current.stats.max_players > 1)
-			Steam_SetStatus_Multiplayer (current.stats.players, current.stats.max_players, utf8name[0] ? utf8name : current.map);
+			if (current.stats.max_players > 1)
+				Steam_SetStatus_Multiplayer (current.stats.players, current.stats.max_players, utf8name[0] ? utf8name : current.map);
+			else
+				Steam_SetStatus_SinglePlayer (utf8name[0] ? utf8name : current.map);
+		}
 		else
-			Steam_SetStatus_SinglePlayer (utf8name[0] ? utf8name : current.map);
-	}
-	else
-	{
-		VID_SetWindowTitle (WINDOW_TITLE_STRING);
-		if (cls.state == ca_connected)
-			Steam_ClearStatus ();
-		else
-			Steam_SetStatus_Menu ();
+		{
+			VID_SetWindowTitle (WINDOW_TITLE_STRING);
+			if (cls.state == ca_connected)
+				Steam_ClearStatus ();
+			else
+				Steam_SetStatus_Menu ();
+		}
 	}
 }
 
@@ -1217,16 +1223,22 @@ void _Host_Frame (double time)
 // run async procs
 	AsyncQueue_Drain (&async_queue);
 
-// get new key events
-	Key_UpdateForDest ();
-	IN_UpdateInputMode ();
-	Sys_SendKeyEvents ();
+// get new key events (skip local input in headless mode)
+	if (!Host_IsHeadless())
+	{
+		Key_UpdateForDest ();
+		IN_UpdateInputMode ();
+		Sys_SendKeyEvents ();
 
-// allow mice or other external controllers to add commands
-	IN_Commands ();
+		// allow mice or other external controllers to add commands
+		IN_Commands ();
+	}
 
 //check the stdin for commands (dedicated servers)
 	Host_GetConsoleCommands ();
+
+// PluQ: Process input commands from IPC frontend (backend receives input from frontend)
+	PluQ_ProcessInputCommands();
 
 // process console commands
 	Cbuf_Execute ();
@@ -1260,7 +1272,10 @@ void _Host_Frame (double time)
 		}
 		else
 			accumtime -= host_netinterval;
+
 		CL_SendCmd ();
+
+		// Run server frame (frontend binary doesn't link server code)
 		if (sv.active)
 		{
 			PR_SwitchQCVM(&sv.qcvm);
@@ -1274,31 +1289,43 @@ void _Host_Frame (double time)
 
 // fetch results from server
 	if (cls.state == ca_connected)
+	{
+		// Read from local server/network
+		// (Frontend binary uses different frame loop in main_pluq_frontend.c)
 		CL_ReadFromServer ();
+	}
 
-// update video
+// PluQ: Broadcast world state via IPC (purely additive)
+	PluQ_BroadcastWorldState();
+
+// update video (skip in headless mode)
 	if (host_speeds.value)
 		time2 = Sys_DoubleTime ();
 
-	SCR_UpdateScreen ();
-
-	CL_RunParticles (); //johnfitz -- seperated from rendering
+	if (!Host_IsHeadless())
+	{
+		SCR_UpdateScreen ();
+		CL_RunParticles (); //johnfitz -- seperated from rendering
+	}
 
 	if (host_speeds.value)
 		time3 = Sys_DoubleTime ();
 
-// update audio
-	BGM_Update();	// adds music raw samples and/or advances midi driver
-	if (cls.signon == SIGNONS)
+// update audio (skip in headless mode)
+	if (!Host_IsHeadless())
 	{
-		S_Update (r_origin, vpn, vright, vup);
-		CL_DecayLights ();
-	}
-	else
-		S_Update (vec3_origin, vec3_origin, vec3_origin, vec3_origin);
+		BGM_Update();	// adds music raw samples and/or advances midi driver
+		if (cls.signon == SIGNONS)
+		{
+			S_Update (r_origin, vpn, vright, vup);
+			CL_DecayLights ();
+		}
+		else
+			S_Update (vec3_origin, vec3_origin, vec3_origin, vec3_origin);
 
-	CDAudio_Update();
-	UpdateWindowTitle();
+		CDAudio_Update();
+		UpdateWindowTitle();
+	}
 
 	if (host_speeds.value)
 	{
@@ -1416,6 +1443,11 @@ void Host_Init (void)
 
 	if (cls.state != ca_dedicated)
 	{
+		// Check for headless mode (runs full client without hardware I/O)
+		host_headless = (COM_CheckParm("-headless") != 0);
+		if (host_headless)
+			Con_Printf("Running in headless mode (no video/audio)\n");
+
 		host_colormap = (byte *)COM_LoadHunkFile ("gfx/colormap.lmp", NULL);
 		if (!host_colormap)
 			Sys_Error ("Couldn't load gfx/colormap.lmp");
@@ -1423,17 +1455,23 @@ void Host_Init (void)
 		V_Init ();
 		Chase_Init ();
 		M_Init ();
-		VID_Init ();
-		IN_Init ();
-		TexMgr_Init (); //johnfitz
-		Draw_Init ();
-		SCR_Init ();
-		R_Init ();
-		S_Init ();
-		CDAudio_Init ();
-		BGM_Init();
+
+		// Skip hardware and rendering initialization in headless mode
+		if (!host_headless)
+		{
+			VID_Init ();
+			IN_Init ();
+			TexMgr_Init (); //johnfitz
+			Draw_Init ();
+			SCR_Init ();
+			R_Init ();
+			S_Init ();
+			CDAudio_Init ();
+			BGM_Init();
+		}
+
 		Sbar_Init ();
-		CL_Init ();
+		CL_Init ();  // Client runs even in headless mode
 		ExtraMaps_Init (); //johnfitz
 		DemoList_Init (); //ericw
 		SaveList_Init ();
@@ -1442,6 +1480,8 @@ void Host_Init (void)
 	}
 
 	LOC_Init (); // for 2021 rerelease support.
+
+	PluQ_Init ();
 
 	Hunk_AllocName (0, "-HOST_HUNKLEVEL-");
 	host_hunklevel = Hunk_LowMark ();
@@ -1476,6 +1516,18 @@ void Host_Init (void)
 	}
 }
 
+
+/*
+===============
+Host_IsHeadless
+
+Returns true if running in headless mode (no video/audio)
+===============
+*/
+qboolean Host_IsHeadless(void)
+{
+	return host_headless;
+}
 
 /*
 ===============
@@ -1524,6 +1576,8 @@ void Host_Shutdown(void)
 	}
 
 	LOG_Close ();
+
+	PluQ_Shutdown (); // PluQ: Shutdown IPC subsystem
 
 	LOC_Shutdown ();
 }

@@ -1,0 +1,80 @@
+================================================================================
+  IRONWAIL PLUQ - QUICK SETUP GUIDE
+================================================================================
+
+STEP 1: ADD QUAKE CONTENT
+--------------------------
+Copy your Quake PAK files to the id1/ folder:
+
+  id1/PAK0.PAK  (required - shareware or full game)
+  id1/PAK1.PAK  (optional - registered version only)
+
+Get Quake shareware: https://archive.org/details/quakesharewareversion
+
+STEP 2: CHOOSE RUN MODE
+------------------------
+
+OPTION A: Standard Mode (easiest)
+  ./run-standard.sh
+
+  - Single process, normal Quake
+  - No PluQ features
+  - Just works!
+
+OPTION B: PluQ Split Mode (advanced)
+  Terminal 1: ./run-backend.sh
+  Terminal 2: ./run-frontend.sh
+
+  - Separate frontend/backend processes
+  - Backend runs game logic + physics
+  - Frontend renders graphics only
+  - Connected via shared memory IPC
+
+STEP 3: PLAY!
+-------------
+- Use arrow keys or WASD to move
+- Mouse to look around
+- ESC for menu
+- ` (tilde) for console
+
+================================================================================
+WHAT'S IN THIS FOLDER
+================================================================================
+
+Executables:
+  ironwail                   (1.1 MB) - Full Quake engine with PluQ
+  ironwail-pluq-frontend     (870 KB) - Slim rendering client
+
+Launchers:
+  run-standard.sh            - Run normal Quake
+  run-backend.sh             - Run PluQ backend
+  run-frontend.sh            - Run PluQ frontend
+
+Resources:
+  ironwail.pak               - UI resources
+  id1/                       - PUT QUAKE PAK FILES HERE
+
+Documentation:
+  README.md                  - Full documentation
+  SETUP.txt                  - This file
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+"No such file: id1/PAK0.PAK"
+  → Copy Quake PAK files to id1/ folder
+
+"Failed to initialize PluQ"
+  → Check /dev/shm is writable
+  → Run as regular user (not root if possible)
+
+Frontend shows black screen:
+  → Make sure backend loaded a map
+  → Backend console: "map e1m1" or "map start"
+
+Need help?
+  → Read README.md for full details
+  → Check Ironwail GitHub for updates
+
+================================================================================

@@ -1,8 +1,5 @@
 /*
-Copyright (C) 1996-2001 Id Software, Inc.
-Copyright (C) 2002-2005 John Fitzgibbons and others
-Copyright (C) 2007-2008 Kristian Duske
-Copyright (C) 2010-2014 QuakeSpasm developers
+Copyright (C) 2024 QuakeSpasm/Ironwail developers
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -21,6 +18,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 
+// main_pluq_frontend.c -- PluQ Frontend-specific main entry point
+// Ironwail PluQ Frontend: A slim client that receives world state via PluQ
+
 #include "quakedef.h"
 #if defined(SDL_FRAMEWORK) || defined(NO_SDL_CONFIG)
 #include <SDL2/SDL.h>
@@ -28,6 +28,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "SDL.h"
 #endif
 #include <stdio.h>
+#include "pluq.h"
+#include "pluq_frontend.h"
 
 static void Sys_AtExit (void)
 {
@@ -89,7 +91,7 @@ static double Sys_WaitUntil (double endtime)
 			estimate = q_min (estimate, 2e-3);
 		}
 	}
-	
+
 	while (now < endtime)
 	{
 #ifdef USE_SSE2
@@ -100,7 +102,7 @@ static double Sys_WaitUntil (double endtime)
 #endif
 		now = Sys_DoubleTime ();
 	}
-	
+
 	return now;
 }
 
@@ -113,6 +115,63 @@ static double Sys_Throttle (double oldtime)
 {
 	return Sys_WaitUntil (oldtime + Host_GetFrameInterval ());
 }
+
+/*
+==================
+Host_Frame_PluQ_Frontend
+
+PluQ Frontend-specific frame processing
+Simplified version that only handles PluQ reception and rendering
+==================
+*/
+void Host_Frame_PluQ_Frontend (double time)
+{
+	host_framecount++;
+
+	realtime += time;
+	host_frametime = time;
+
+	// Get new key events
+	Key_UpdateForDest ();
+	IN_UpdateInputMode ();
+	Sys_SendKeyEvents ();
+
+	// Allow mice or other external controllers to add commands
+	IN_Commands ();
+
+	// Process console commands
+	Cbuf_Execute ();
+
+	// PluQ Frontend: Accumulate input
+	CL_AccumulateCmd ();
+
+	// PluQ Frontend: Send input to backend via PluQ
+	CL_SendCmd ();
+
+	// PluQ Frontend: Receive world state from backend via PluQ
+	if (PluQ_Frontend_ReceiveWorldState())
+		PluQ_Frontend_ApplyReceivedState();
+
+	// Update video
+	SCR_UpdateScreen ();
+	CL_RunParticles (); //johnfitz -- separated from rendering
+
+	// Update audio
+	if (cls.signon == SIGNONS)
+	{
+		S_Update (r_origin, vpn, vright, vup);
+		CL_DecayLights ();
+	}
+	else
+		S_Update (vec3_origin, vec3_origin, vec3_origin, vec3_origin);
+
+	CDAudio_Update();
+	BGM_Update();
+}
+
+// Forward declarations
+void Host_Init_PluQ_Frontend (void);
+void Host_Shutdown_PluQ_Frontend (void);
 
 #define DEFAULT_MEMORY (384 * 1024 * 1024) // ericw -- was 72MB (64-bit) / 64MB (32-bit)
 
@@ -139,15 +198,14 @@ int main(int argc, char *argv[])
 
 	COM_InitArgv(parms.argc, parms.argv);
 
-	// isDedicated controls main loop selection (dedicated loop has no VID calls)
-	// -headless uses dedicated loop but runs full client code (not ca_dedicated state)
-	isDedicated = (COM_CheckParm("-dedicated") != 0) || (COM_CheckParm("-headless") != 0);
-
 	Sys_InitSDL ();
 
 	Sys_Init();
 
-	Sys_Printf("Initializing Ironwail v%s\n", IRONWAIL_VER_STRING);
+	Sys_Printf("======================================\n");
+	Sys_Printf("Ironwail PluQ Frontend v%s\n", IRONWAIL_VER_STRING);
+	Sys_Printf("Slim Client for Remote Rendering\n");
+	Sys_Printf("======================================\n");
 
 	parms.memsize = DEFAULT_MEMORY;
 	if (COM_CheckParm("-heapsize"))
@@ -162,32 +220,12 @@ int main(int argc, char *argv[])
 	if (!parms.membase)
 		Sys_Error ("Not enough memory free; check disk space\n");
 
-	Sys_Printf("Host_Init\n");
-	Host_Init();
+	Sys_Printf("Host_Init_PluQ_Frontend\n");
+	Host_Init_PluQ_Frontend();
 
 	oldtime = Sys_DoubleTime();
-	if (isDedicated)
-	{
-		while (1)
-		{
-			newtime = Sys_DoubleTime ();
-			time = newtime - oldtime;
 
-			while (time < sys_ticrate.value )
-			{
-				SDL_Delay(1);
-				newtime = Sys_DoubleTime ();
-				time = newtime - oldtime;
-			}
-
-			newtime = Sys_Throttle (oldtime);
-			time = newtime - oldtime;
-
-			Host_Frame (time);
-			oldtime = newtime;
-		}
-	}
-	else
+	// PluQ Frontend main loop
 	while (1)
 	{
 		/* If we have no input focus at all, sleep a bit */
@@ -209,7 +247,7 @@ int main(int argc, char *argv[])
 		newtime = Sys_Throttle (oldtime);
 		time = newtime - oldtime;
 
-		Host_Frame (time);
+		Host_Frame_PluQ_Frontend (time);
 
 		oldtime = newtime;
 	}

@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 #include "bgmusic.h"
+#include "pluq.h"
 
 // we need to declare some mouse variables here, because the menu system
 // references them even when on a unix system.
@@ -801,6 +802,10 @@ void CL_AccumulateCmd (void)
 
 		//accumulate movement from other devices
 		IN_Move (&cl.pendingcmd);
+
+		//PluQ: Apply IPC input from frontend (if enabled)
+		PluQ_Move (&cl.pendingcmd);
+		PluQ_ApplyViewAngles ();
 	}
 }
 
@@ -826,7 +831,6 @@ void CL_SendCmd (void)
 		cmd.sidemove	+= cl.pendingcmd.sidemove;
 		cmd.upmove		+= cl.pendingcmd.upmove;
 
-	// send the unreliable message
 		CL_SendMove (&cmd);
 	}
 	else
