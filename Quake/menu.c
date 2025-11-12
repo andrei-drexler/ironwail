@@ -66,6 +66,7 @@ extern cvar_t r_alphasort;
 extern cvar_t r_md5;
 extern cvar_t r_lerpmodels;
 extern cvar_t r_lerpmove;
+extern cvar_t r_pixelaspect;
 extern cvar_t snd_waterfx;
 extern cvar_t joy_deadzone_look;
 extern cvar_t joy_deadzone_move;
@@ -3165,6 +3166,7 @@ void M_Menu_Gamepad_f (void)
 	begin_menu (GRAPHICS_OPTIONS, m_graphics, TITLE("Graphics"))		\
 		item (OPT_SOFTEMU,				"8-bit Mode")					\
 		item (OPT_SOFTEMU_MDL,			"Model Warping")				\
+		item (OPT_PIXELASPECT,          "Pixels")                       \
 		item (OPT_MD5,					"Models")						\
 		item (OPT_ANIMLERP,				"Animations")					\
 		item (OPT_TEXFILTER,			"Textures")						\
@@ -3181,7 +3183,7 @@ void M_Menu_Gamepad_f (void)
 	end_menu ()															\
 	begin_menu (INTERFACE_OPTIONS, m_interface, TITLE("Interface"))		\
 		item (OPT_UISCALE,				"Scale")						\
-		item (OPT_PIXELASPECT,			"Pixels")						\
+		item (OPT_PIXELASPECT_GUI,		"Pixels")						\
 		item (OPT_UIMOUSE,				"Mouse")						\
 		item (SPACER,					"")								\
 		item (OPT_HUDSTYLE,				"HUD Layout")					\
@@ -3663,8 +3665,11 @@ void M_AdjustSliders (int dir)
 		else if(f < 100)	f = 100;
 		Cvar_SetValue ("viewsize", f);
 		break;
-	case OPT_PIXELASPECT:	// 2D pixel aspect ratio
+	case OPT_PIXELASPECT_GUI:	// 2D pixel aspect ratio
 		Cvar_Set ("scr_pixelaspect", vid.guipixelaspect == 1.f ? "5:6" : "1");
+		break;
+	case OPT_PIXELASPECT: // 3D pixel aspect ratio
+		Cvar_Set ("r_pixelaspect", vid.pixelaspect == 1.f ? "5:6" : "1");
 		break;
 	case OPT_CROSSHAIR:		// crosshair
 		Cvar_SetValueQuick (&crosshair, ((int) q_max (crosshair.value, 0.f) + 3 + dir) % 3);
@@ -4266,8 +4271,12 @@ static void M_Options_DrawItem (int y, int item)
 		M_DrawSlider (x, y, r, str);
 		break;
 
-	case OPT_PIXELASPECT:
+	case OPT_PIXELASPECT_GUI:
 		M_Print (x, y, vid.guipixelaspect == 1.f ? "Square" : "Stretched");
+		break;
+
+	case OPT_PIXELASPECT:
+		M_Print (x, y, vid.pixelaspect == 1.f ? "Square" : "Stretched");
 		break;
 
 	case OPT_CROSSHAIR:
