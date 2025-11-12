@@ -1290,6 +1290,23 @@ static void TexMgr_LoadImage32 (gltexture_t *glt, unsigned *data)
 	glformat_t internalformat;
 	qboolean compress;
 
+	// HASALPHA detection
+	if (glt->source_format == SRC_RGBA && !(glt->flags & TEXPREF_ALPHAPIXELS))
+	{
+		int num_pixels = glt->width * glt->height;
+		byte* pixel_data = (byte*)data;
+
+		for (int i = 0; i < num_pixels; i++)
+		{
+			if (pixel_data[i * 4 + 3] != 255)
+			{
+				glt->flags |= TEXPREF_ALPHA;
+				glt->flags |= TEXPREF_ALPHAPIXELS;
+				break;
+			}
+		}
+	}
+
 	// mipmap down
 	picmip = (glt->flags & TEXPREF_NOPICMIP) ? 0 : q_max((int)gl_picmip.value, 0);
 	mipwidth = TexMgr_SafeTextureSize (glt->width >> picmip);
@@ -1653,7 +1670,7 @@ invalid:	Con_Printf ("TexMgr_ReloadImage: invalid source for %s\n", glt->name);
 			glt->pants = pants;
 		}
 		else
-			Con_Printf ("TexMgr_ReloadImage: can't colormap a non SRC_INDEXED texture: %s\n", glt->name);
+			Con_DPrintf ("TexMgr_ReloadImage: can't colormap a non SRC_INDEXED texture: %s\n", glt->name);
 	}
 	if (glt->shirt > -1 && glt->pants > -1)
 	{

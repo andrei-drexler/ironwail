@@ -294,29 +294,29 @@ R_FlushAliasInstances
 void R_FlushAliasInstances (qboolean showtris)
 {
 	extern cvar_t r_softemu_mdl_warp;
-	qmodel_t	*model;
-	aliashdr_t	*mainhdr, *hdr;
-	qboolean	alphatest, translucent, oit, md5;
+	qmodel_t* model;
+	aliashdr_t* mainhdr, * hdr;
+	qboolean	alphatest, translucent, oit;
+	int			poseverttype;
 	int			skinnum, anim, mode;
-	unsigned	state;
+	unsigned	state, opaque_state, transparent_state;
 	GLuint		buf;
-	GLbyte		*ofs;
+	GLbyte* ofs;
 	size_t		ibuf_size;
 	GLuint		buffers[2];
 	GLintptr	offsets[2];
 	GLsizeiptr	sizes[2];
-	gltexture_t	*textures[2];
+	gltexture_t* textures[2];
 
 	if (!ibuf.count)
 		return;
 
 	model = ibuf.ent->model;
-	mainhdr = (aliashdr_t *)Mod_Extradata (model);
-	anim = (int)(cl.time*10) & 3;
+	mainhdr = (aliashdr_t*)Mod_Extradata (model);
+	anim = (int)(cl.time * 10) & 3;
 
 	GL_BeginGroup (model->name);
-
-	md5 = mainhdr->poseverttype == PV_IQM;
+	poseverttype = mainhdr->poseverttype;
 
 	alphatest = model->flags & MF_HOLEY ? 1 : 0;
 	translucent = !ENTALPHA_OPAQUE (ibuf.ent->alpha);
@@ -333,110 +333,152 @@ void R_FlushAliasInstances (qboolean showtris)
 		mode = r_softemu_mdl_warp.value > 0.f ? ALIASSHADER_NOPERSP : ALIASSHADER_STANDARD;
 		break;
 	}
-	GL_UseProgram (glprogs.alias[oit][mode][alphatest][md5]);
+	GL_UseProgram (glprogs.alias[oit][mode][alphatest][poseverttype]);
 
-	if (md5)
-		state = GLS_CULL_BACK | GLS_ATTRIBS(5);
+	if (poseverttype == PV_IQM)
+		state = GLS_CULL_BACK | GLS_ATTRIBS (5);
+	else if (poseverttype == PV_MD3)
+		state = GLS_CULL_BACK | GLS_ATTRIBS (2);
 	else
-		state = GLS_CULL_BACK | GLS_ATTRIBS(1);
+		state = GLS_CULL_BACK | GLS_ATTRIBS (1);
 
-	if (!translucent)
-		state |= GLS_BLEND_OPAQUE;
-	else
-		state |= GLS_BLEND_ALPHA_OIT | GLS_NO_ZWRITE;
-	GL_SetState (state);
+	opaque_state = (state | GLS_BLEND_OPAQUE) & ~(GLS_BLEND_ALPHA_OIT | GLS_NO_ZWRITE);
+	transparent_state = (state | GLS_BLEND_ALPHA) & ~(GLS_BLEND_OPAQUE | GLS_CULL_BACK);
+
+	if (translucent)
+	{
+		GL_SetState ((state | GLS_BLEND_ALPHA_OIT | GLS_NO_ZWRITE) & ~GLS_CULL_BACK);
+	}
 
 	memcpy (ibuf.global.matviewproj, r_matviewproj, sizeof (r_matviewproj));
 	memcpy (ibuf.global.eyepos, r_refdef.vieworg, sizeof (r_refdef.vieworg));
 	memcpy (ibuf.global.fog, r_framedata.fogdata, 3 * sizeof (float));
-	// use fog density sign bit as overbright flag
 	ibuf.global.fog[3] =
 		gl_overbright_models.value ?
-			-fabs (r_framedata.fogdata[3]) :
-			 fabs (r_framedata.fogdata[3])
-	;
+		-fabs (r_framedata.fogdata[3]) :
+		fabs (r_framedata.fogdata[3])
+		;
 	ibuf.global.dither = r_framedata.screendither;
 
-	ibuf_size = sizeof(ibuf.global) + sizeof(ibuf.inst[0]) * ibuf.count;
+	ibuf_size = sizeof (ibuf.global) + sizeof (ibuf.inst[0]) * ibuf.count;
 	GL_Upload (GL_SHADER_STORAGE_BUFFER, &ibuf.global, ibuf_size, &buf, &ofs);
 
 	buffers[0] = buf;
-	offsets[0] = (GLintptr) ofs;
+	offsets[0] = (GLintptr)ofs;
 	sizes[0] = ibuf_size;
 
 	GL_BindBuffer (GL_ARRAY_BUFFER, model->meshvbo);
 	GL_BindBuffer (GL_ELEMENT_ARRAY_BUFFER, model->meshindexesvbo);
 
-	for (hdr = mainhdr; hdr; hdr = hdr->nextsurface ? (aliashdr_t *) ((byte *)hdr + hdr->nextsurface) : NULL)
+	if (!translucent)
+		GL_SetState (opaque_state);
+
+	for (hdr = mainhdr; hdr; hdr = hdr->nextsurface ? (aliashdr_t*)((byte*)hdr + hdr->nextsurface) : NULL)
 	{
-		if (md5)
-		{
-			GL_VertexAttribPointerFunc  (0, 3, GL_FLOAT,			GL_FALSE, sizeof (iqmvert_t), (void *) (hdr->vbovertofs + offsetof (iqmvert_t, xyz)));
-			GL_VertexAttribPointerFunc  (1, 4, GL_BYTE,				GL_TRUE,  sizeof (iqmvert_t), (void *) (hdr->vbovertofs + offsetof (iqmvert_t, norm)));
-			GL_VertexAttribPointerFunc  (2, 2, GL_FLOAT,			GL_FALSE, sizeof (iqmvert_t), (void *) (hdr->vbovertofs + offsetof (iqmvert_t, st)));
-			GL_VertexAttribPointerFunc  (3, 4, GL_UNSIGNED_BYTE,	GL_TRUE,  sizeof (iqmvert_t), (void *) (hdr->vbovertofs + offsetof (iqmvert_t, weight)));
-			GL_VertexAttribIPointerFunc (4, 4, GL_UNSIGNED_BYTE,	          sizeof (iqmvert_t), (void *) (hdr->vbovertofs + offsetof (iqmvert_t, idx)));
-
-			buffers[1] = model->meshvbo;
-			offsets[1] = hdr->vboposeofs;
-			sizes[1] = sizeof (bonepose_t) * hdr->numbones * hdr->numboneposes;
-		}
-		else
-		{
-			GL_VertexAttribPointerFunc (0, 2, GL_FLOAT, GL_FALSE, sizeof (meshst_t), (void *) hdr->vbostofs);
-
-			buffers[1] = model->meshvbo;
-			offsets[1] = hdr->vbovertofs;
-			sizes[1] = sizeof (meshxyz_t) * hdr->numverts_vbo * hdr->numposes;
-		}
-
-		GL_BindBuffersRange (GL_SHADER_STORAGE_BUFFER, 1, 2, buffers, offsets, sizes);
-
-		//
-		// set up textures
-		//
 		skinnum = ibuf.ent->skinnum;
-		if ((skinnum >= hdr->numskins) || (skinnum < 0))
-		{
-			Con_DPrintf ("R_DrawAliasModel: no such skin # %d for '%s'\n", skinnum, model->name);
-			// ericw -- display skin 0 for winquake compatibility
-			skinnum = 0;
-		}
-
+		if ((skinnum >= hdr->numskins) || (skinnum < 0)) skinnum = 0;
 		textures[0] = hdr->gltextures[skinnum][anim];
+		if (!textures[0]) continue;
+
+		if (!translucent && (textures[0]->flags & TEXPREF_ALPHAPIXELS))
+		{
+			continue;
+		}
 		textures[1] = hdr->fbtextures[skinnum][anim];
 		if (hdr == mainhdr && ibuf.ent->colormap != vid.colormap && !gl_nocolors.value)
-			if (CL_IsPlayerEnt (ibuf.ent)) /* && !strcmp (ibuf.ent->model->name, "progs/player.mdl") */
-				textures[0] = playertextures[ibuf.ent - cl_entities - 1];
+			if (CL_IsPlayerEnt (ibuf.ent)) textures[0] = playertextures[ibuf.ent - cl_entities - 1];
+		if (!gl_fullbrights.value) textures[1] = blacktexture;
+		if (r_lightmap_cheatsafe) { textures[0] = greytexture; textures[1] = blacktexture; }
+		if (!textures[1]) textures[1] = blacktexture;
+		if (showtris) { textures[0] = blacktexture; textures[1] = whitetexture; }
 
-		if (!gl_fullbrights.value)
-			textures[1] = blacktexture;
-
-		if (r_lightmap_cheatsafe)
-		{
-			textures[0] = greytexture;
-			textures[1] = blacktexture;
+		if (poseverttype == PV_IQM) {
+			GL_VertexAttribPointerFunc (0, 3, GL_FLOAT, GL_FALSE, sizeof (iqmvert_t), (void*)(hdr->vbovertofs + offsetof (iqmvert_t, xyz)));
+			GL_VertexAttribPointerFunc (1, 4, GL_BYTE, GL_TRUE, sizeof (iqmvert_t), (void*)(hdr->vbovertofs + offsetof (iqmvert_t, norm)));
+			GL_VertexAttribPointerFunc (2, 2, GL_FLOAT, GL_FALSE, sizeof (iqmvert_t), (void*)(hdr->vbovertofs + offsetof (iqmvert_t, st)));
+			GL_VertexAttribPointerFunc (3, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof (iqmvert_t), (void*)(hdr->vbovertofs + offsetof (iqmvert_t, weight)));
+			GL_VertexAttribIPointerFunc (4, 4, GL_UNSIGNED_BYTE, sizeof (iqmvert_t), (void*)(hdr->vbovertofs + offsetof (iqmvert_t, idx)));
+			buffers[1] = model->meshvbo; offsets[1] = hdr->vboposeofs; sizes[1] = sizeof (bonepose_t) * hdr->numbones * hdr->numboneposes;
 		}
-
-		if (!textures[1])
-			textures[1] = blacktexture;
-
-		if (showtris)
-		{
-			textures[0] = blacktexture;
-			textures[1] = whitetexture;
+		else if (poseverttype == PV_MD3) {
+			GL_VertexAttribPointerFunc (0, 2, GL_FLOAT, GL_FALSE, sizeof (meshst_t), (void*)(intptr_t)hdr->vbostofs);
+			GL_VertexAttribIPointerFunc (1, 1, GL_UNSIGNED_SHORT, sizeof (meshst_t), (void*)(intptr_t)(hdr->vbostofs + offsetof (meshst_t, vertexID)));
+			buffers[1] = model->meshvbo; offsets[1] = hdr->vbovertofs; sizes[1] = sizeof (md3pose_t) * hdr->numverts_vbo * hdr->numposes;
 		}
+		else {
+			GL_VertexAttribPointerFunc (0, 2, GL_FLOAT, GL_FALSE, sizeof (meshst_t), (void*)hdr->vbostofs);
+			buffers[1] = model->meshvbo; offsets[1] = hdr->vbovertofs; sizes[1] = sizeof (meshxyz_t) * hdr->numverts_vbo * hdr->numposes;
+		}
+		GL_BindBuffersRange (GL_SHADER_STORAGE_BUFFER, 1, 2, buffers, offsets, sizes);
 
+		if (poseverttype == PV_MD3) {
+			GL_Uniform1iFunc (glprogs.alias_numverts_loc, hdr->numverts_vbo);
+			GL_Uniform1iFunc (glprogs.alias_numposes_loc, hdr->numposes);
+		}
 		GL_BindTextures (0, 2, textures);
-
-		GL_DrawElementsInstancedFunc (GL_TRIANGLES, hdr->numindexes, GL_UNSIGNED_SHORT, (void *)hdr->eboofs, ibuf.count);
-
+		GL_DrawElementsInstancedFunc (GL_TRIANGLES, hdr->numindexes, GL_UNSIGNED_SHORT, (void*)hdr->eboofs, ibuf.count);
 		rs_aliaspasses += hdr->numtris * ibuf.count;
 	}
 
-	ibuf.count = 0;
+	if (!translucent)
+	{
+		GL_SetState (transparent_state);
 
-	GL_EndGroup();
+
+		for (hdr = mainhdr; hdr; hdr = hdr->nextsurface ? (aliashdr_t*)((byte*)hdr + hdr->nextsurface) : NULL)
+		{
+			skinnum = ibuf.ent->skinnum;
+			if ((skinnum >= hdr->numskins) || (skinnum < 0)) skinnum = 0;
+			textures[0] = hdr->gltextures[skinnum][anim];
+			if (!textures[0]) continue;
+
+
+			if (!(textures[0]->flags & TEXPREF_ALPHAPIXELS))
+			{ 
+				continue;
+			}
+
+
+			textures[1] = hdr->fbtextures[skinnum][anim];
+			if (hdr == mainhdr && ibuf.ent->colormap != vid.colormap && !gl_nocolors.value)
+				if (CL_IsPlayerEnt (ibuf.ent)) textures[0] = playertextures[ibuf.ent - cl_entities - 1];
+			if (!gl_fullbrights.value) textures[1] = blacktexture;
+			if (r_lightmap_cheatsafe) { textures[0] = greytexture; textures[1] = blacktexture; }
+			if (!textures[1]) textures[1] = blacktexture;
+			if (showtris) { textures[0] = blacktexture; textures[1] = whitetexture; }
+
+			if (poseverttype == PV_IQM) {
+				GL_VertexAttribPointerFunc (0, 3, GL_FLOAT, GL_FALSE, sizeof (iqmvert_t), (void*)(hdr->vbovertofs + offsetof (iqmvert_t, xyz)));
+				GL_VertexAttribPointerFunc (1, 4, GL_BYTE, GL_TRUE, sizeof (iqmvert_t), (void*)(hdr->vbovertofs + offsetof (iqmvert_t, norm)));
+				GL_VertexAttribPointerFunc (2, 2, GL_FLOAT, GL_FALSE, sizeof (iqmvert_t), (void*)(hdr->vbovertofs + offsetof (iqmvert_t, st)));
+				GL_VertexAttribPointerFunc (3, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof (iqmvert_t), (void*)(hdr->vbovertofs + offsetof (iqmvert_t, weight)));
+				GL_VertexAttribIPointerFunc (4, 4, GL_UNSIGNED_BYTE, sizeof (iqmvert_t), (void*)(hdr->vbovertofs + offsetof (iqmvert_t, idx)));
+				buffers[1] = model->meshvbo; offsets[1] = hdr->vboposeofs; sizes[1] = sizeof (bonepose_t) * hdr->numbones * hdr->numboneposes;
+			}
+			else if (poseverttype == PV_MD3) {
+				GL_VertexAttribPointerFunc (0, 2, GL_FLOAT, GL_FALSE, sizeof (meshst_t), (void*)(intptr_t)hdr->vbostofs);
+				GL_VertexAttribIPointerFunc (1, 1, GL_UNSIGNED_SHORT, sizeof (meshst_t), (void*)(intptr_t)(hdr->vbostofs + offsetof (meshst_t, vertexID)));
+				buffers[1] = model->meshvbo; offsets[1] = hdr->vbovertofs; sizes[1] = sizeof (md3pose_t) * hdr->numverts_vbo * hdr->numposes;
+			}
+			else {
+				GL_VertexAttribPointerFunc (0, 2, GL_FLOAT, GL_FALSE, sizeof (meshst_t), (void*)hdr->vbostofs);
+				buffers[1] = model->meshvbo; offsets[1] = hdr->vbovertofs; sizes[1] = sizeof (meshxyz_t) * hdr->numverts_vbo * hdr->numposes;
+			}
+			GL_BindBuffersRange (GL_SHADER_STORAGE_BUFFER, 1, 2, buffers, offsets, sizes);
+
+			if (poseverttype == PV_MD3) {
+				GL_Uniform1iFunc (glprogs.alias_numverts_loc, hdr->numverts_vbo);
+				GL_Uniform1iFunc (glprogs.alias_numposes_loc, hdr->numposes);
+			}
+			GL_BindTextures (0, 2, textures);
+			GL_DrawElementsInstancedFunc (GL_TRIANGLES, hdr->numindexes, GL_UNSIGNED_SHORT, (void*)hdr->eboofs, ibuf.count);
+			rs_aliaspasses += hdr->numtris * ibuf.count;
+		}
+
+	}
+
+	ibuf.count = 0;
+	GL_EndGroup ();
 }
 
 /*
@@ -568,11 +610,12 @@ static void R_DrawAliasModel_Real (entity_t *e, qboolean showtris)
 		instance->pose1 *= paliashdr->numverts_vbo;
 		instance->pose2 *= paliashdr->numverts_vbo;
 	}
-	else
+	else if (paliashdr->poseverttype == PV_IQM)
 	{
 		instance->pose1 *= paliashdr->numbones;
 		instance->pose2 *= paliashdr->numbones;
 	}
+	// md3 handled elsewhere
 }
 
 /*
