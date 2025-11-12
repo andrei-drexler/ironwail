@@ -14,6 +14,7 @@ On most maps performance is indeed not much of a concern on a modern system. In 
 - classic underwater warp effect
 - more options exposed in the UI, most of them taking effect instantly (no vid_restart needed)
 - support for lightmapped liquid surfaces
+- configurable Quake 3-style lightmap overbrightening via `r_overbrightbits`
 - lightstyle interpolation (e.g. smoothly pulsating lighting in [ad_tears](https://www.moddb.com/mods/arcane-dimensions))
 - reduced heap usage (e.g. you can play [tershib/shib1_drake](https://www.quaddicted.com/reviews/ter_shibboleth_drake_redux.html) and [peril/tavistock](https://www.quaddicted.com/forum/viewtopic.php?id=1171) without using -heapsize on the command line)
 - reduced loading time for jumbo maps
@@ -21,6 +22,20 @@ On most maps performance is indeed not much of a concern on a modern system. In 
 - a more precise ~hack~work-around for the z-fighting issues present in the original levels
 - capped framerate when no map is loaded
 - ability to run the game from a folder containing Unicode characters
+
+## Tuning & Troubleshooting
+
+Soft shadow quality can be adjusted at runtime using the following console variables:
+
+- `r_shadow_soft` toggles a simple 3×3 percentage-closer filter. Set to `0` for hard edges, or `1` to smooth the result.
+- `r_shadow_pcf_size` scales the filter radius in texels (range `1`–`3`). Larger values blur the edge more at the cost of extra overblur.
+- `r_shadow_normal_offset` applies a receiver offset along the surface normal based on `N·L`. Increase it slightly if shadow acne appears, but lower it if peter-panning becomes visible.
+- `r_shadow_bias` and `r_shadow_slope_bias` remain available for fine-tuning depth bias values.
+- `r_shadow_map_size` can be changed on the fly to recreate the shadow atlas at a different resolution. Consider dropping to `1024` on weaker GPUs.
+
+An optional variance shadow map path is provided via `r_shadow_vsm`. When enabled, the engine switches the shadow pass to a floating-point moment texture (`RG32F`) and the forward shader evaluates a min-variance filter. Use `r_shadow_vsm_bleed_reduce` (range `0`–`0.99`) to clamp light bleeding when VSM is active.
+
+When tuning, start with soft shadows disabled to verify bias settings, then re-enable PCF or VSM once acne and peter-panning are under control.
 
 ## System requirements
 

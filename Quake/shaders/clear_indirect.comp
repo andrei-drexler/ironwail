@@ -1,0 +1,22 @@
+layout(local_size_x=64) in;
+
+struct DrawElementsIndirectCommand
+{
+	uint	count;
+	uint	instanceCount;
+	uint	firstIndex;
+	uint	baseVertex;
+	uint	baseInstance;
+};
+
+layout(std430, binding=1) buffer DrawIndirectBuffer
+{
+	DrawElementsIndirectCommand cmds[];
+};
+
+void main()
+{
+	uint thread_id = gl_GlobalInvocationID.x;
+	if (thread_id < cmds.length())
+		cmds[thread_id].count = 0u;
+}

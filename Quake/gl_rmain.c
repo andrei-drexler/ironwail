@@ -27,6 +27,12 @@ qboolean	r_cache_thrash;		// compatability
 
 gpuframedata_t r_framedata;
 
+COMPILE_TIME_ASSERT (shadowviewproj_alignment, (offsetof (gpuframedata_t, shadowviewproj) & 15) == 0);
+COMPILE_TIME_ASSERT (shadow_params_alignment, (offsetof (gpuframedata_t, shadow_params) & 15) == 0);
+COMPILE_TIME_ASSERT (shadow_filter_alignment, (offsetof (gpuframedata_t, shadow_filter) & 15) == 0);
+COMPILE_TIME_ASSERT (shadow_vsm_alignment, (offsetof (gpuframedata_t, shadow_vsm) & 15) == 0);
+COMPILE_TIME_ASSERT (shadow_block_size_alignment, (sizeof (gpuframedata_t) & 15) == 0);
+
 vec3_t		*r_pointfile;
 
 int			r_visframecount;	// bumped when going to a new PVS
@@ -68,6 +74,22 @@ int		d_lightstylevalue[256];	// 8.8 fraction of base light value
 
 cvar_t	r_norefresh = {"r_norefresh","0",CVAR_NONE};
 cvar_t	r_drawentities = {"r_drawentities","1",CVAR_NONE};
+cvar_t	r_shadows = {"r_shadows", "0", CVAR_ARCHIVE};
+cvar_t	r_shadow_map_size = {"r_shadow_map_size", "2048", CVAR_ARCHIVE};
+cvar_t	r_shadow_bias = {"r_shadow_bias", "0.0005", CVAR_ARCHIVE};
+cvar_t	r_shadow_slope_bias = {"r_shadow_slope_bias", "2.0", CVAR_ARCHIVE};
+cvar_t	r_shadow_soft = {"r_shadow_soft", "1", CVAR_ARCHIVE};
+cvar_t	r_shadow_pcf_size = {"r_shadow_pcf_size", "1", CVAR_ARCHIVE};
+cvar_t	r_shadow_normal_offset = {"r_shadow_normal_offset", "1.0", CVAR_ARCHIVE};
+cvar_t	r_shadow_vsm = {"r_shadow_vsm", "0", CVAR_ARCHIVE};
+cvar_t	r_shadow_vsm_bleed_reduce = {"r_shadow_vsm_bleed_reduce", "0.2", CVAR_ARCHIVE};
+cvar_t	r_shadow_csm = {"r_shadow_csm", "1", CVAR_ARCHIVE};
+cvar_t	r_shadow_csm_splits = {"r_shadow_csm_splits", "3", CVAR_ARCHIVE};
+cvar_t	r_shadow_csm_stable = {"r_shadow_csm_stable", "1", CVAR_ARCHIVE};
+cvar_t	r_shadow_csm_fade = {"r_shadow_csm_fade", "0.15", CVAR_ARCHIVE};
+cvar_t	r_shadow_showcsm = {"r_shadow_showcsm", "0", CVAR_NONE};
+cvar_t	r_shadow_showmap = {"r_shadow_showmap", "0", CVAR_NONE};
+cvar_t	r_shadow_quality = {"r_shadow_quality", "2", CVAR_ARCHIVE};
 cvar_t	r_drawviewmodel = {"r_drawviewmodel","1",CVAR_NONE};
 cvar_t	r_speeds = {"r_speeds","0",CVAR_NONE};
 cvar_t	r_pos = {"r_pos","0",CVAR_NONE};
@@ -83,6 +105,8 @@ cvar_t	r_simd = {"r_simd","1",CVAR_ARCHIVE};
 cvar_t	r_alphasort = {"r_alphasort","1",CVAR_ARCHIVE};
 cvar_t	r_oit = {"r_oit","1",CVAR_ARCHIVE};
 cvar_t	r_dither = {"r_dither", "1.0", CVAR_ARCHIVE};
+
+cvar_t	r_overbrightbits = {"r_overbrightbits", "1", CVAR_ARCHIVE};
 
 cvar_t	gl_finish = {"gl_finish","0",CVAR_NONE};
 cvar_t	gl_clear = {"gl_clear","1",CVAR_NONE};
@@ -130,6 +154,57 @@ float	map_fallbackalpha;
 qboolean r_fullbright_cheatsafe, r_lightmap_cheatsafe, r_drawworld_cheatsafe; //johnfitz
 
 cvar_t	r_scale = {"r_scale", "1", CVAR_ARCHIVE};
+
+static const vec3_t shadow_default_direction = {-0.57735027f, -0.57735027f, -0.57735027f};
+
+#define MAX_SHADOW_CASCADES 4
+
+typedef struct shadow_cascade_s {
+	float	viewproj[16];
+	vec3_t	center;
+	vec3_t	right;
+	vec3_t	up;
+	vec3_t	forward;
+	float	radius;
+	float	min_z;
+	float	max_z;
+	float	texel_size;
+} shadow_cascade_t;
+
+typedef struct shadow_state_s {
+	GLuint	fbo;
+	GLuint	depth_texture;
+	GLuint	moments_texture;
+	int		size;
+	int		layers;
+	qboolean	ready;
+	qboolean	enabled;
+	qboolean	use_vsm;
+	qboolean	stable;
+	vec3_t	direction;
+	vec3_t	color;
+	float	intensity;
+	shadow_cascade_t	cascades[MAX_SHADOW_CASCADES];
+	mplane_t	cascade_planes[MAX_SHADOW_CASCADES][6];
+	float	split_distances[MAX_SHADOW_CASCADES + 1];
+	float	cascade_fade;
+	int		cascade_count;
+	int		stats_draws[MAX_SHADOW_CASCADES];
+	int		stats_culled[MAX_SHADOW_CASCADES];
+} shadow_state_t;
+
+static shadow_state_t shadow_state;
+static int shadow_active_cascade = -1;
+static vec3_t shadow_pending_angles;
+static qboolean shadow_has_angles;
+static vec3_t shadow_pending_color;
+static qboolean shadow_has_color;
+static float shadow_pending_intensity;
+static qboolean shadow_has_intensity;
+static float shadow_view_znear;
+static float shadow_view_zfar;
+
+static void ExtractFrustumPlane (float mvp[16], int axis, float ndcval, qboolean flip, mplane_t *out);
 
 //==============================================================================
 //
@@ -293,23 +368,878 @@ GL_DeleteFrameBuffers
 */
 void GL_DeleteFrameBuffers (void)
 {
-	GL_DeleteFramebuffersFunc (1, &framebufs.resolved_scene.fbo);
-	GL_DeleteFramebuffersFunc (1, &framebufs.oit.fbo_composite);
-	GL_DeleteFramebuffersFunc (1, &framebufs.oit.fbo_scene);
-	GL_DeleteFramebuffersFunc (1, &framebufs.scene.fbo);
-	GL_DeleteFramebuffersFunc (1, &framebufs.composite.fbo);
-	GL_BindFramebufferFunc (GL_FRAMEBUFFER, 0);
+        GL_DeleteFramebuffersFunc (1, &framebufs.resolved_scene.fbo);
+        GL_DeleteFramebuffersFunc (1, &framebufs.oit.fbo_composite);
+        GL_DeleteFramebuffersFunc (1, &framebufs.oit.fbo_scene);
+        GL_DeleteFramebuffersFunc (1, &framebufs.scene.fbo);
+        GL_DeleteFramebuffersFunc (1, &framebufs.composite.fbo);
+        GL_BindFramebufferFunc (GL_FRAMEBUFFER, 0);
 
-	GL_DeleteNativeTexture (framebufs.resolved_scene.color_tex);
-	GL_DeleteNativeTexture (framebufs.oit.revealage_tex);
-	GL_DeleteNativeTexture (framebufs.oit.accum_tex);
-	GL_DeleteNativeTexture (framebufs.scene.depth_stencil_tex);
-	GL_DeleteNativeTexture (framebufs.scene.color_tex);
-	GL_DeleteNativeTexture (framebufs.composite.depth_stencil_tex);
-	GL_DeleteNativeTexture (framebufs.composite.color_tex);
+        GL_DeleteNativeTexture (framebufs.resolved_scene.color_tex);
+        GL_DeleteNativeTexture (framebufs.oit.revealage_tex);
+        GL_DeleteNativeTexture (framebufs.oit.accum_tex);
+        GL_DeleteNativeTexture (framebufs.scene.depth_stencil_tex);
+        GL_DeleteNativeTexture (framebufs.scene.color_tex);
+        GL_DeleteNativeTexture (framebufs.composite.depth_stencil_tex);
+        GL_DeleteNativeTexture (framebufs.composite.color_tex);
 
-	memset (&framebufs, 0, sizeof (framebufs));
+        memset (&framebufs, 0, sizeof (framebufs));
 }
+
+static void GL_OrthoMatrix (float matrix[16], float left, float right, float bottom, float top, float n, float f)
+{
+        float rl = right - left;
+        float tb = top - bottom;
+        float fn = f - n;
+
+        memset (matrix, 0, 16 * sizeof (float));
+
+        if (rl == 0.f || tb == 0.f || fn == 0.f)
+        {
+                IdentityMatrix (matrix);
+                return;
+        }
+
+        matrix[0*4 + 0] = 2.f / rl;
+        matrix[1*4 + 1] = 2.f / tb;
+        if (gl_clipcontrol_able)
+        {
+                matrix[2*4 + 2] = 1.f / (n - f);
+                matrix[3*4 + 2] = n / (n - f);
+        }
+        else
+        {
+                matrix[2*4 + 2] = -2.f / fn;
+                matrix[3*4 + 2] = -(f + n) / fn;
+        }
+        matrix[3*4 + 0] = -(right + left) / rl;
+        matrix[3*4 + 1] = -(top + bottom) / tb;
+        matrix[3*4 + 3] = 1.f;
+}
+
+static int R_ShadowClampSize (int size)
+{
+        if (size <= 1024)
+                return 1024;
+        if (size <= 2048)
+                return 2048;
+        return 4096;
+}
+
+static int R_ShadowDesiredCascadeCount (void)
+{
+        if (r_shadow_csm.value <= 0.f)
+                return 1;
+        return CLAMP (1, (int) Q_rint (r_shadow_csm_splits.value), MAX_SHADOW_CASCADES);
+}
+
+static void R_ShadowApplyQualityPreset (int preset)
+{
+        preset = CLAMP (0, preset, 2);
+        switch (preset)
+        {
+        default:
+        case 0:
+                Cvar_SetValueQuick (&r_shadow_map_size, 1024.f);
+                Cvar_SetValueQuick (&r_shadow_csm_splits, 2.f);
+                Cvar_SetValueQuick (&r_shadow_soft, 0.f);
+                break;
+        case 1:
+                Cvar_SetValueQuick (&r_shadow_map_size, 1536.f);
+                Cvar_SetValueQuick (&r_shadow_csm_splits, 3.f);
+                Cvar_SetValueQuick (&r_shadow_soft, 1.f);
+                break;
+        case 2:
+                Cvar_SetValueQuick (&r_shadow_map_size, 2048.f);
+                Cvar_SetValueQuick (&r_shadow_csm_splits, 4.f);
+                Cvar_SetValueQuick (&r_shadow_soft, 1.f);
+                break;
+        }
+}
+
+static void R_ShadowDestroyResources (void)
+{
+        if (shadow_state.fbo)
+        {
+                GL_DeleteFramebuffersFunc (1, &shadow_state.fbo);
+                shadow_state.fbo = 0;
+        }
+        if (shadow_state.depth_texture)
+        {
+                GL_DeleteNativeTexture (shadow_state.depth_texture);
+                shadow_state.depth_texture = 0;
+        }
+        if (shadow_state.moments_texture)
+        {
+                GL_DeleteNativeTexture (shadow_state.moments_texture);
+                shadow_state.moments_texture = 0;
+        }
+        shadow_state.ready = false;
+        shadow_state.enabled = false;
+        shadow_state.use_vsm = false;
+        shadow_state.size = 0;
+        shadow_state.layers = 0;
+        shadow_state.cascade_count = 0;
+}
+
+void R_InitShadow (void)
+{
+        memset (&shadow_state, 0, sizeof (shadow_state));
+        VectorCopy (shadow_default_direction, shadow_state.direction);
+        shadow_state.color[0] = shadow_state.color[1] = shadow_state.color[2] = 1.f;
+        shadow_state.intensity = 1.f;
+        shadow_state.stable = (r_shadow_csm_stable.value != 0.f);
+        R_ShadowNewMap ();
+        R_ResizeShadowMapIfNeeded ();
+}
+
+void R_ShutdownShadow (void)
+{
+        R_ShadowDestroyResources ();
+}
+
+static entity_t *cl_sorted_visedicts[MAX_VISEDICTS + 1]; // +1 for worldspawn
+static int cl_modtype_ofs[mod_numtypes*2 + 1]; // x2: opaque/translucent; +1: total in last slot
+
+void R_ResizeShadowMapIfNeeded (void)
+{
+        int desired;
+        int desired_layers;
+        qboolean want_vsm;
+
+        desired = R_ShadowClampSize ((int) Q_rint (r_shadow_map_size.value));
+        if (desired != (int) r_shadow_map_size.value)
+                Cvar_SetValueQuick (&r_shadow_map_size, (float) desired);
+
+        desired_layers = R_ShadowDesiredCascadeCount ();
+        if (desired_layers < 1)
+                desired_layers = 1;
+
+        want_vsm = (r_shadow_vsm.value != 0.f);
+
+        if (shadow_state.ready && shadow_state.size == desired && shadow_state.use_vsm == want_vsm && shadow_state.layers == desired_layers)
+                return;
+
+        R_ShadowDestroyResources ();
+        shadow_state.size = desired;
+        shadow_state.use_vsm = want_vsm;
+        shadow_state.layers = desired_layers;
+
+        if (!desired || !desired_layers)
+                return;
+
+        glGenTextures (1, &shadow_state.depth_texture);
+        if (!shadow_state.depth_texture)
+                return;
+
+        GL_BindNative (GL_TEXTURE0, GL_TEXTURE_2D_ARRAY, shadow_state.depth_texture);
+        GL_ObjectLabelFunc (GL_TEXTURE, shadow_state.depth_texture, -1, "shadow depth");
+        GL_TexImage3DFunc (GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH_COMPONENT24, desired, desired, desired_layers, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+        glTexParameteri (GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri (GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri (GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+        glTexParameteri (GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+        glTexParameteri (GL_TEXTURE_2D_ARRAY, GL_TEXTURE_BASE_LEVEL, 0);
+        glTexParameteri (GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_LEVEL, 0);
+        glTexParameteri (GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_MODE, GL_NONE);
+        {
+                const float border[4] = {1.f, 1.f, 1.f, 1.f};
+                glTexParameterfv (GL_TEXTURE_2D_ARRAY, GL_TEXTURE_BORDER_COLOR, border);
+        }
+        GL_BindNative (GL_TEXTURE0, GL_TEXTURE_2D_ARRAY, 0);
+
+        if (shadow_state.use_vsm)
+        {
+                glGenTextures (1, &shadow_state.moments_texture);
+                if (!shadow_state.moments_texture)
+                {
+                        R_ShadowDestroyResources ();
+                        shadow_state.size = 0;
+                        return;
+                }
+
+                GL_BindNative (GL_TEXTURE0, GL_TEXTURE_2D_ARRAY, shadow_state.moments_texture);
+                GL_ObjectLabelFunc (GL_TEXTURE, shadow_state.moments_texture, -1, "shadow moments");
+                GL_TexImage3DFunc (GL_TEXTURE_2D_ARRAY, 0, GL_RG32F, desired, desired, desired_layers, 0, GL_RG, GL_FLOAT, NULL);
+                glTexParameteri (GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                glTexParameteri (GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                glTexParameteri (GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+                glTexParameteri (GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+                glTexParameteri (GL_TEXTURE_2D_ARRAY, GL_TEXTURE_BASE_LEVEL, 0);
+                glTexParameteri (GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_LEVEL, 0);
+                {
+                        const float border[4] = {1.f, 1.f, 1.f, 1.f};
+                        glTexParameterfv (GL_TEXTURE_2D_ARRAY, GL_TEXTURE_BORDER_COLOR, border);
+                }
+                GL_BindNative (GL_TEXTURE0, GL_TEXTURE_2D_ARRAY, 0);
+        }
+        else
+        {
+                shadow_state.moments_texture = 0;
+        }
+
+        GL_GenFramebuffersFunc (1, &shadow_state.fbo);
+        GL_BindFramebufferFunc (GL_FRAMEBUFFER, shadow_state.fbo);
+        GL_ObjectLabelFunc (GL_FRAMEBUFFER, shadow_state.fbo, -1, "shadow fbo");
+        GL_FramebufferTextureLayerFunc (GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, shadow_state.depth_texture, 0, 0);
+        if (shadow_state.use_vsm)
+        {
+                GL_FramebufferTextureLayerFunc (GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, shadow_state.moments_texture, 0, 0);
+                glDrawBuffer (GL_COLOR_ATTACHMENT0);
+                glReadBuffer (GL_COLOR_ATTACHMENT0);
+        }
+        else
+        {
+                glDrawBuffer (GL_NONE);
+                glReadBuffer (GL_NONE);
+        }
+
+        if (GL_CheckFramebufferStatusFunc (GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        {
+                Con_Printf ("Failed to create shadow framebuffer\n");
+                GL_BindFramebufferFunc (GL_FRAMEBUFFER, 0);
+                glDrawBuffer (GL_BACK);
+                glReadBuffer (GL_BACK);
+                R_ShadowDestroyResources ();
+                shadow_state.size = 0;
+                return;
+        }
+
+        GL_BindFramebufferFunc (GL_FRAMEBUFFER, 0);
+        glDrawBuffer (GL_BACK);
+        glReadBuffer (GL_BACK);
+
+        shadow_state.ready = true;
+}
+
+void R_ShadowNewMap (void)
+{
+        shadow_has_angles = false;
+        shadow_has_color = false;
+        shadow_has_intensity = false;
+        VectorCopy (shadow_default_direction, shadow_state.direction);
+        shadow_state.color[0] = shadow_state.color[1] = shadow_state.color[2] = 1.f;
+        shadow_state.intensity = 1.f;
+        VectorClear (shadow_pending_angles);
+        VectorClear (shadow_pending_color);
+        shadow_pending_intensity = 1.f;
+        shadow_state.enabled = false;
+        shadow_state.cascade_fade = q_max (0.f, r_shadow_csm_fade.value);
+        memset (shadow_state.stats_draws, 0, sizeof (shadow_state.stats_draws));
+        memset (shadow_state.stats_culled, 0, sizeof (shadow_state.stats_culled));
+        shadow_state.stable = (r_shadow_csm_stable.value != 0.f);
+}
+
+void R_ShadowParseWorldspawnKey (const char *key, const char *value)
+{
+        if (!strcmp (key, "sun_mangle") || !strcmp (key, "_sun_mangle"))
+        {
+                float pitch, yaw, roll;
+                if (sscanf (value, "%f %f %f", &pitch, &yaw, &roll) == 3)
+                {
+                        shadow_pending_angles[0] = pitch;
+                        shadow_pending_angles[1] = yaw;
+                        shadow_pending_angles[2] = roll;
+                        shadow_has_angles = true;
+                }
+        }
+        else if (!strcmp (key, "sunlight") || !strcmp (key, "_sunlight"))
+        {
+                shadow_pending_intensity = (float) atof (value);
+                shadow_has_intensity = true;
+        }
+        else if (!strcmp (key, "sunlight_color") || !strcmp (key, "_sunlight_color"))
+        {
+                float r, g, b;
+                if (sscanf (value, "%f %f %f", &r, &g, &b) == 3)
+                {
+                        shadow_pending_color[0] = r;
+                        shadow_pending_color[1] = g;
+                        shadow_pending_color[2] = b;
+                        shadow_has_color = true;
+                }
+        }
+}
+
+void R_ShadowFinalizeWorldspawn (void)
+{
+        vec3_t dir;
+
+        if (shadow_has_angles)
+        {
+                AngleVectors (shadow_pending_angles, dir, NULL, NULL);
+                if (VectorNormalize (dir) == 0.f)
+                        VectorCopy (shadow_default_direction, dir);
+        }
+        else
+        {
+                VectorCopy (shadow_default_direction, dir);
+        }
+        VectorCopy (dir, shadow_state.direction);
+
+        if (shadow_has_color)
+        {
+                vec3_t color;
+                VectorCopy (shadow_pending_color, color);
+                if (color[0] > 1.f || color[1] > 1.f || color[2] > 1.f)
+                {
+                        color[0] *= (1.f / 255.f);
+                        color[1] *= (1.f / 255.f);
+                        color[2] *= (1.f / 255.f);
+                }
+                shadow_state.color[0] = CLAMP (0.f, color[0], 1.f);
+                shadow_state.color[1] = CLAMP (0.f, color[1], 1.f);
+                shadow_state.color[2] = CLAMP (0.f, color[2], 1.f);
+        }
+        else
+        {
+                shadow_state.color[0] = shadow_state.color[1] = shadow_state.color[2] = 1.f;
+        }
+
+        if (shadow_has_intensity)
+                shadow_state.intensity = shadow_pending_intensity;
+        else
+                shadow_state.intensity = 1.f;
+}
+
+void R_ShadowCvarChanged (cvar_t *var)
+{
+        if (var == &r_shadow_map_size)
+        {
+                int desired = R_ShadowClampSize ((int) Q_rint (var->value));
+                if (desired != (int) var->value)
+                        Cvar_SetValueQuick (var, (float) desired);
+                if (host_initialized)
+                        R_ResizeShadowMapIfNeeded ();
+        }
+        else if (var == &r_shadow_bias)
+        {
+                if (var->value < 0.f)
+                        Cvar_SetValueQuick (var, 0.f);
+        }
+        else if (var == &r_shadow_slope_bias)
+        {
+                if (var->value < 0.f)
+                        Cvar_SetValueQuick (var, 0.f);
+        }
+        else if (var == &r_shadow_soft)
+        {
+                float value = var->value ? 1.f : 0.f;
+                if (value != var->value)
+                        Cvar_SetValueQuick (var, value);
+        }
+        else if (var == &r_shadow_pcf_size)
+        {
+                int size = CLAMP (1, (int) Q_rint (var->value), 3);
+                if ((float) size != var->value)
+                        Cvar_SetValueQuick (var, (float) size);
+        }
+        else if (var == &r_shadow_normal_offset)
+        {
+                if (var->value < 0.f)
+                        Cvar_SetValueQuick (var, 0.f);
+        }
+        else if (var == &r_shadow_vsm)
+        {
+                float value = var->value ? 1.f : 0.f;
+                if (value != var->value)
+                        Cvar_SetValueQuick (var, value);
+                if (host_initialized)
+                        R_ResizeShadowMapIfNeeded ();
+        }
+        else if (var == &r_shadow_vsm_bleed_reduce)
+        {
+                float value = CLAMP (0.f, var->value, 0.99f);
+                if (value != var->value)
+                        Cvar_SetValueQuick (var, value);
+        }
+        else if (var == &r_shadow_csm)
+        {
+                float value = var->value ? 1.f : 0.f;
+                if (value != var->value)
+                        Cvar_SetValueQuick (var, value);
+                if (host_initialized)
+                        R_ResizeShadowMapIfNeeded ();
+        }
+        else if (var == &r_shadow_csm_splits)
+        {
+                int splits = CLAMP (1, (int) Q_rint (var->value), MAX_SHADOW_CASCADES);
+                if ((float) splits != var->value)
+                        Cvar_SetValueQuick (var, (float) splits);
+                if (host_initialized)
+                        R_ResizeShadowMapIfNeeded ();
+        }
+        else if (var == &r_shadow_csm_stable)
+        {
+                float value = var->value ? 1.f : 0.f;
+                if (value != var->value)
+                        Cvar_SetValueQuick (var, value);
+                shadow_state.stable = (value != 0.f);
+        }
+        else if (var == &r_shadow_csm_fade)
+        {
+                float value = q_max (0.f, var->value);
+                if (value != var->value)
+                        Cvar_SetValueQuick (var, value);
+                shadow_state.cascade_fade = value;
+        }
+        else if (var == &r_shadow_showmap)
+        {
+                int index = CLAMP (0, (int) Q_rint (var->value), MAX_SHADOW_CASCADES);
+                if ((float) index != var->value)
+                        Cvar_SetValueQuick (var, (float) index);
+        }
+        else if (var == &r_shadow_showcsm)
+        {
+                float value = var->value ? 1.f : 0.f;
+                if (value != var->value)
+                        Cvar_SetValueQuick (var, value);
+        }
+        else if (var == &r_shadow_quality)
+        {
+                int preset = CLAMP (0, (int) Q_rint (var->value), 2);
+                if ((float) preset != var->value)
+                        Cvar_SetValueQuick (var, (float) preset);
+                R_ShadowApplyQualityPreset (preset);
+                if (host_initialized)
+                        R_ResizeShadowMapIfNeeded ();
+        }
+}
+
+GLuint R_ShadowTexture (void)
+{
+        if (shadow_state.use_vsm)
+                return shadow_state.moments_texture;
+        return shadow_state.depth_texture;
+}
+
+GLenum R_ShadowTextureTarget (void)
+{
+        return GL_TEXTURE_2D_ARRAY;
+}
+
+void R_ShadowRecordDraw (void)
+{
+        if (shadow_active_cascade >= 0 && shadow_active_cascade < shadow_state.cascade_count)
+                shadow_state.stats_draws[shadow_active_cascade]++;
+}
+
+void R_ShadowRecordCull (void)
+{
+        if (shadow_active_cascade >= 0 && shadow_active_cascade < shadow_state.cascade_count)
+                shadow_state.stats_culled[shadow_active_cascade]++;
+}
+
+qboolean R_ShadowUsesVSM (void)
+{
+        return shadow_state.use_vsm && shadow_state.ready;
+}
+
+static void R_ShadowComputeFrustumCorners (float near_dist, float far_dist, vec3_t corners[8])
+{
+        float tan_fov_x = tanf (DEG2RAD (r_fovx) * 0.5f);
+        float tan_fov_y = tanf (DEG2RAD (r_fovy) * 0.5f);
+        vec3_t center_near, center_far;
+        vec3_t up_near, right_near, up_far, right_far;
+
+        VectorMA (r_refdef.vieworg, near_dist, vpn, center_near);
+        VectorMA (r_refdef.vieworg, far_dist, vpn, center_far);
+        VectorScale (vup, near_dist * tan_fov_y, up_near);
+        VectorScale (vright, near_dist * tan_fov_x, right_near);
+        VectorScale (vup, far_dist * tan_fov_y, up_far);
+        VectorScale (vright, far_dist * tan_fov_x, right_far);
+
+        VectorAdd (center_near, up_near, corners[0]);
+        VectorSubtract (corners[0], right_near, corners[0]);
+        VectorAdd (center_near, up_near, corners[1]);
+        VectorAdd (corners[1], right_near, corners[1]);
+        VectorSubtract (center_near, up_near, corners[2]);
+        VectorAdd (corners[2], right_near, corners[2]);
+        VectorSubtract (center_near, up_near, corners[3]);
+        VectorSubtract (corners[3], right_near, corners[3]);
+
+        VectorAdd (center_far, up_far, corners[4]);
+        VectorSubtract (corners[4], right_far, corners[4]);
+        VectorAdd (center_far, up_far, corners[5]);
+        VectorAdd (corners[5], right_far, corners[5]);
+        VectorSubtract (center_far, up_far, corners[6]);
+        VectorAdd (corners[6], right_far, corners[6]);
+        VectorSubtract (center_far, up_far, corners[7]);
+        VectorSubtract (corners[7], right_far, corners[7]);
+}
+
+static void R_ShadowUpdateCascadePlanes (int cascade_index)
+{
+        float *mvp = shadow_state.cascades[cascade_index].viewproj;
+        mplane_t *planes = shadow_state.cascade_planes[cascade_index];
+
+        ExtractFrustumPlane (mvp, 0,  1.f, true,  &planes[0]);
+        ExtractFrustumPlane (mvp, 0, -1.f, false, &planes[1]);
+        ExtractFrustumPlane (mvp, 1, -1.f, false, &planes[2]);
+        ExtractFrustumPlane (mvp, 1,  1.f, true,  &planes[3]);
+        ExtractFrustumPlane (mvp, 2, -1.f, false, &planes[4]);
+        ExtractFrustumPlane (mvp, 2,  1.f, true,  &planes[5]);
+}
+
+static qboolean R_ShadowBuildCascade (int cascade_index, float split_near, float split_far, const vec3_t right, const vec3_t up, const vec3_t forward)
+{
+        vec3_t corners[8];
+        vec3_t center_world = {0.f, 0.f, 0.f};
+        vec3_t center_light;
+        vec3_t center_world_snapped;
+        float radius = 0.f;
+        float min_z = 1e30f;
+        float max_z = -1e30f;
+        float texel_size;
+        float near_plane, far_plane;
+        float rot[16];
+        float trans[16];
+        float view[16];
+        float proj[16];
+        shadow_cascade_t *cascade = &shadow_state.cascades[cascade_index];
+        int i;
+
+        R_ShadowComputeFrustumCorners (split_near, split_far, corners);
+
+        for (i = 0; i < 8; i++)
+                VectorAdd (center_world, corners[i], center_world);
+        VectorScale (center_world, 1.f / 8.f, center_world);
+
+        center_light[0] = DotProduct (center_world, right);
+        center_light[1] = DotProduct (center_world, up);
+        center_light[2] = DotProduct (center_world, forward);
+
+        for (i = 0; i < 8; i++)
+        {
+                float rx = DotProduct (corners[i], right);
+                float ry = DotProduct (corners[i], up);
+                float rz = DotProduct (corners[i], forward);
+                float dx = rx - center_light[0];
+                float dy = ry - center_light[1];
+                float dist = sqrtf (dx * dx + dy * dy);
+                if (dist > radius)
+                        radius = dist;
+                if (rz < min_z)
+                        min_z = rz;
+                if (rz > max_z)
+                        max_z = rz;
+        }
+
+        if (radius <= 0.f)
+                radius = 1.f;
+
+        texel_size = (radius * 2.f) / (float) shadow_state.size;
+        if (shadow_state.stable && texel_size > 0.f)
+        {
+                center_light[0] = floorf (center_light[0] / texel_size + 0.5f) * texel_size;
+                center_light[1] = floorf (center_light[1] / texel_size + 0.5f) * texel_size;
+
+                /*
+                ** Snap the cascade extent to texel-sized increments as well when
+                ** running in stable mode. Without quantizing the radius the
+                ** orthographic projection would slightly expand/contract each
+                ** frame which manifests as shimmering or misaligned cascades.
+                */
+                radius = ceilf (radius / texel_size) * texel_size;
+                texel_size = (radius * 2.f) / (float) shadow_state.size;
+        }
+
+        for (i = 0; i < 3; i++)
+                center_world_snapped[i] = right[i] * center_light[0] + up[i] * center_light[1] + forward[i] * center_light[2];
+
+        min_z -= center_light[2];
+        max_z -= center_light[2];
+        near_plane = min_z - 128.f;
+        far_plane = max_z + 128.f;
+        if (far_plane <= near_plane + 1.f)
+                far_plane = near_plane + 1.f;
+
+        IdentityMatrix (rot);
+        rot[0] = right[0];
+        rot[1] = right[1];
+        rot[2] = right[2];
+        rot[4] = up[0];
+        rot[5] = up[1];
+        rot[6] = up[2];
+        rot[8] = -forward[0];
+        rot[9] = -forward[1];
+        rot[10] = -forward[2];
+        rot[15] = 1.f;
+
+        TranslationMatrix (trans, -center_world_snapped[0], -center_world_snapped[1], -center_world_snapped[2]);
+        memcpy (view, rot, sizeof (rot));
+        MatrixMultiply (view, trans);
+
+        GL_OrthoMatrix (proj, -radius, radius, -radius, radius, near_plane, far_plane);
+        memcpy (cascade->viewproj, proj, sizeof (proj));
+        MatrixMultiply (cascade->viewproj, view);
+
+        VectorCopy (center_world_snapped, cascade->center);
+        VectorCopy (right, cascade->right);
+        VectorCopy (up, cascade->up);
+        VectorCopy (forward, cascade->forward);
+        cascade->radius = radius;
+        cascade->min_z = near_plane;
+        cascade->max_z = far_plane;
+        cascade->texel_size = texel_size;
+
+        R_ShadowUpdateCascadePlanes (cascade_index);
+        return true;
+}
+
+static qboolean R_ShadowComputeCascades (int cascade_count)
+{
+        vec3_t forward, right, up;
+        vec3_t up_candidate;
+        float lambda = 0.6f;
+        float znear, zfar;
+        int i;
+
+        shadow_state.cascade_count = 0;
+        if (cascade_count < 1)
+                return false;
+        if (cascade_count > shadow_state.layers)
+                cascade_count = shadow_state.layers;
+        if (cascade_count < 1)
+                return false;
+
+        if (!shadow_state.size)
+                return false;
+
+        VectorCopy (shadow_state.direction, forward);
+        if (VectorNormalize (forward) == 0.f)
+                return false;
+
+        VectorSet (up_candidate, 0.f, 0.f, 1.f);
+        if (fabs (DotProduct (forward, up_candidate)) > 0.95f)
+                VectorSet (up_candidate, 0.f, 1.f, 0.f);
+        CrossProduct (forward, up_candidate, right);
+        if (VectorNormalize (right) == 0.f)
+                return false;
+        CrossProduct (right, forward, up);
+
+        if (shadow_view_znear <= 0.f || shadow_view_zfar <= shadow_view_znear)
+                return false;
+
+        znear = shadow_view_znear;
+        zfar = shadow_view_zfar;
+        shadow_state.split_distances[0] = znear;
+        shadow_state.split_distances[cascade_count] = zfar;
+        for (i = 1; i < cascade_count; ++i)
+        {
+                float si = (float) i / (float) cascade_count;
+                float uniform = znear + (zfar - znear) * si;
+                float logarithmic = znear * powf (zfar / znear, si);
+                shadow_state.split_distances[i] = logarithmic * lambda + uniform * (1.f - lambda);
+        }
+
+        for (i = 0; i < cascade_count; ++i)
+        {
+                if (!R_ShadowBuildCascade (i, shadow_state.split_distances[i], shadow_state.split_distances[i + 1], right, up, forward))
+                        return false;
+        }
+
+        shadow_state.cascade_count = cascade_count;
+        return true;
+}
+
+qboolean R_ShadowCascadeCull (const vec3_t mins, const vec3_t maxs)
+{
+        int cascade = shadow_active_cascade;
+        const mplane_t *planes;
+        int i;
+
+        if (cascade < 0 || cascade >= shadow_state.cascade_count)
+                return false;
+
+        planes = shadow_state.cascade_planes[cascade];
+        for (i = 0; i < 6; ++i)
+        {
+                const mplane_t *p = &planes[i];
+                byte signbits = p->signbits;
+                vec3_t corner;
+                corner[0] = ((signbits & 1) ? mins : maxs)[0];
+                corner[1] = ((signbits & 2) ? mins : maxs)[1];
+                corner[2] = ((signbits & 4) ? mins : maxs)[2];
+                if (DotProduct (p->normal, corner) < p->dist)
+                        return true;
+        }
+        return false;
+}
+
+void R_BuildShadowMap (void)
+{
+        entity_t **entlist;
+        int *ofs;
+	vec3_t sun_dir;
+	int cascade_count;
+	int cascade;
+	float far_dist;
+
+	shadow_state.enabled = false;
+	shadow_active_cascade = -1;
+	shadow_state.cascade_count = 0;
+	memset (shadow_state.stats_draws, 0, sizeof (shadow_state.stats_draws));
+	memset (shadow_state.stats_culled, 0, sizeof (shadow_state.stats_culled));
+
+	r_framedata.shadow_params[0] = q_max (0.f, r_shadow_bias.value);
+	r_framedata.shadow_params[1] = q_max (0.f, r_shadow_slope_bias.value);
+	r_framedata.shadow_params[2] = shadow_state.size ? 1.f / (float) shadow_state.size : 0.f;
+	r_framedata.shadow_params[3] = 0.f;
+	memset (r_framedata.shadowviewproj, 0, sizeof (r_framedata.shadowviewproj));
+	memset (r_framedata.shadow_sundir, 0, sizeof (r_framedata.shadow_sundir));
+	memset (r_framedata.shadow_suncolor, 0, sizeof (r_framedata.shadow_suncolor));
+	memset (r_framedata.shadow_cascade_splits, 0, sizeof (r_framedata.shadow_cascade_splits));
+	memset (r_framedata.shadow_cascade_starts, 0, sizeof (r_framedata.shadow_cascade_starts));
+	memset (r_framedata.shadow_cascade_fade, 0, sizeof (r_framedata.shadow_cascade_fade));
+	memset (r_framedata.shadow_cascade_texel_size, 0, sizeof (r_framedata.shadow_cascade_texel_size));
+	memset (r_framedata.shadow_debug, 0, sizeof (r_framedata.shadow_debug));
+	{
+		int kernel = CLAMP (1, (int) Q_rint (r_shadow_pcf_size.value), 3);
+		float soft = r_shadow_soft.value ? 1.f : 0.f;
+		r_framedata.shadow_filter[0] = (float) kernel;
+		r_framedata.shadow_filter[1] = soft;
+		r_framedata.shadow_filter[2] = q_max (0.f, r_shadow_normal_offset.value);
+		r_framedata.shadow_filter[3] = 0.f;
+	}
+	r_framedata.shadow_vsm[0] = shadow_state.use_vsm ? 1.f : 0.f;
+	r_framedata.shadow_vsm[1] = CLAMP (0.f, r_shadow_vsm_bleed_reduce.value, 0.99f);
+	r_framedata.shadow_vsm[2] = 1e-5f;
+	r_framedata.shadow_vsm[3] = 0.f;
+
+	if (!r_shadows.value || !shadow_state.ready || !cl.worldmodel)
+		return;
+	if (shadow_state.intensity <= 0.f)
+		return;
+	VectorCopy (shadow_state.direction, sun_dir);
+	if (VectorNormalize (sun_dir) == 0.f)
+		return;
+
+	if (shadow_state.use_vsm)
+	{
+		if (!glprogs.shadow_depth_vsm)
+			return;
+	}
+	else
+	{
+		if (!glprogs.shadow_depth)
+			return;
+	}
+
+	cascade_count = q_min (shadow_state.layers, MAX_SHADOW_CASCADES);
+	if (cascade_count <= 0)
+		return;
+	if (!R_ShadowComputeCascades (cascade_count))
+		return;
+	cascade_count = shadow_state.cascade_count;
+	if (cascade_count <= 0)
+		return;
+
+	for (cascade = 0; cascade < cascade_count; ++cascade)
+	{
+		memcpy (r_framedata.shadowviewproj[cascade], shadow_state.cascades[cascade].viewproj, sizeof (shadow_state.cascades[cascade].viewproj));
+		r_framedata.shadow_cascade_splits[cascade] = shadow_state.split_distances[cascade + 1];
+		r_framedata.shadow_cascade_starts[cascade] = shadow_state.split_distances[cascade];
+		r_framedata.shadow_cascade_texel_size[cascade] = shadow_state.cascades[cascade].texel_size;
+	}
+	far_dist = shadow_state.split_distances[cascade_count];
+	for (; cascade < MAX_SHADOW_CASCADES; ++cascade)
+	{
+		memset (r_framedata.shadowviewproj[cascade], 0, sizeof (r_framedata.shadowviewproj[cascade]));
+		r_framedata.shadow_cascade_splits[cascade] = far_dist;
+		r_framedata.shadow_cascade_starts[cascade] = far_dist;
+		r_framedata.shadow_cascade_texel_size[cascade] = (cascade_count > 0) ? shadow_state.cascades[cascade_count - 1].texel_size : 0.f;
+	}
+
+	r_framedata.shadow_params[3] = (float) cascade_count;
+	r_framedata.shadow_cascade_fade[0] = shadow_state.cascade_fade;
+	r_framedata.shadow_cascade_fade[1] = (shadow_state.cascade_fade > 0.f && cascade_count > 1) ? 1.f : 0.f;
+	r_framedata.shadow_cascade_fade[2] = 0.f;
+	r_framedata.shadow_cascade_fade[3] = 0.f;
+	r_framedata.shadow_debug[0] = r_shadow_showcsm.value ? 1.f : 0.f;
+	r_framedata.shadow_debug[1] = r_shadow_showmap.value;
+	r_framedata.shadow_debug[2] = (float) shadow_state.size;
+	r_framedata.shadow_debug[3] = (float) cascade_count;
+	{
+		float sun_intensity = shadow_state.intensity;
+		if (sun_intensity > 1.f)
+			sun_intensity *= (1.f / 255.f);
+		r_framedata.shadow_sundir[0] = -sun_dir[0];
+		r_framedata.shadow_sundir[1] = -sun_dir[1];
+		r_framedata.shadow_sundir[2] = -sun_dir[2];
+		r_framedata.shadow_sundir[3] = sun_intensity;
+	}
+	r_framedata.shadow_suncolor[0] = shadow_state.color[0];
+	r_framedata.shadow_suncolor[1] = shadow_state.color[1];
+	r_framedata.shadow_suncolor[2] = shadow_state.color[2];
+	r_framedata.shadow_suncolor[3] = 0.f;
+
+	shadow_state.enabled = true;
+
+	GL_BeginGroup ("Shadow map");
+	GL_BindFramebufferFunc (GL_FRAMEBUFFER, shadow_state.fbo);
+	glViewport (0, 0, shadow_state.size, shadow_state.size);
+	glDepthMask (GL_TRUE);
+	if (shadow_state.use_vsm)
+	glColorMask (GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+	else
+	glColorMask (GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+	glEnable (GL_POLYGON_OFFSET_FILL);
+	glEnable (GL_POLYGON_OFFSET_LINE);
+	{
+		float slope_bias = r_shadow_slope_bias.value;
+		float const_bias = r_shadow_bias.value;
+		if (gl_clipcontrol_able)
+		{
+			slope_bias = -slope_bias;
+			const_bias = -const_bias;
+		}
+		glPolygonOffset (slope_bias, const_bias);
+	}
+
+	GL_UseProgram (shadow_state.use_vsm ? glprogs.shadow_depth_vsm : glprogs.shadow_depth);
+
+	for (cascade = 0; cascade < cascade_count; ++cascade)
+	{
+		GL_FramebufferTextureLayerFunc (GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, shadow_state.depth_texture, 0, cascade);
+		if (shadow_state.use_vsm)
+			GL_FramebufferTextureLayerFunc (GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, shadow_state.moments_texture, 0, cascade);
+
+		if (shadow_state.use_vsm)
+			glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		else
+			glClear (GL_DEPTH_BUFFER_BIT);
+
+		shadow_active_cascade = cascade;
+		r_framedata.shadow_cascade_fade[3] = (float) cascade;
+		r_framedata.numlights = 0;
+		R_UploadFrameData ();
+
+		GL_SetState (GLS_BLEND_OPAQUE | GLS_CULL_FRONT | GLS_ATTRIBS(4));
+
+		entlist = cl_sorted_visedicts;
+		ofs = cl_modtype_ofs;
+		if (ofs[2 * mod_brush + 1] - ofs[2 * mod_brush] > 0)
+			R_DrawBrushModels_Shadow (entlist + ofs[2 * mod_brush], ofs[2 * mod_brush + 1] - ofs[2 * mod_brush], false);
+		ofs = cl_modtype_ofs + 1;
+		if (ofs[2 * mod_brush + 1] - ofs[2 * mod_brush] > 0)
+			R_DrawBrushModels_Shadow (entlist + ofs[2 * mod_brush], ofs[2 * mod_brush + 1] - ofs[2 * mod_brush], true);
+	}
+
+	shadow_active_cascade = -1;
+	r_framedata.shadow_cascade_fade[3] = 0.f;
+
+	GL_SetState (GLS_DEFAULT_STATE);
+	glDisable (GL_POLYGON_OFFSET_FILL);
+	glDisable (GL_POLYGON_OFFSET_LINE);
+	glColorMask (GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+	GL_BindFramebufferFunc (GL_FRAMEBUFFER, 0);
+	glDrawBuffer (GL_BACK);
+	glReadBuffer (GL_BACK);
+	GL_EndGroup ();
+}
+
+
 
 //==============================================================================
 //
@@ -616,8 +1546,6 @@ void R_SetAlphaMode (alphamode_t mode)
 
 static uint32_t visedict_keys[MAX_VISEDICTS];
 static uint16_t visedict_order[2][MAX_VISEDICTS];
-static entity_t *cl_sorted_visedicts[MAX_VISEDICTS + 1]; // +1 for worldspawn
-static int cl_modtype_ofs[mod_numtypes*2 + 1]; // x2: opaque/translucent; +1: total in last slot
 
 typedef struct framesetup_s
 {
@@ -802,7 +1730,7 @@ Extracts the normalized frustum plane from the given view-projection matrix
 that corresponds to a value of 'ndcval' on the 'axis' axis in NDC space.
 ===============
 */
-void ExtractFrustumPlane (float mvp[16], int axis, float ndcval, qboolean flip, mplane_t *out)
+static void ExtractFrustumPlane (float mvp[16], int axis, float ndcval, qboolean flip, mplane_t *out)
 {
 	float scale;
 	out->normal[0] =  (mvp[0*4 + axis] - ndcval * mvp[0*4 + 3]);
@@ -827,9 +1755,9 @@ R_SetFrustum
 */
 void R_SetFrustum (void)
 {
-	float w, h, d;
-	float znear, zfar;
-	float logznear, logzfar;
+        float w, h, d;
+        float znear, zfar;
+        float logznear, logzfar;
 	float translation[16];
 	float rotation[16];
 
@@ -837,10 +1765,13 @@ void R_SetFrustum (void)
 	w = 1.f / tanf (DEG2RAD (r_fovx) * 0.5f);
 	h = 1.f / tanf (DEG2RAD (r_fovy) * 0.5f);
 	d = 12.f * q_min (w, h);
-	znear = CLAMP (0.5f, d, 4.f);
-	zfar = gl_farclip.value;
+        znear = CLAMP (0.5f, d, 4.f);
+        zfar = gl_farclip.value;
 
-	GL_FrustumMatrix(r_matproj, DEG2RAD(r_fovx), DEG2RAD(r_fovy), znear, zfar);
+        shadow_view_znear = znear;
+        shadow_view_zfar = zfar;
+
+        GL_FrustumMatrix(r_matproj, DEG2RAD(r_fovx), DEG2RAD(r_fovy), znear, zfar);
 
 	// View matrix
 	RotationMatrix(r_matview, DEG2RAD(-r_refdef.viewangles[ROLL]), 0);
@@ -895,20 +1826,34 @@ R_SetupGL
 */
 void R_SetupGL (void)
 {
-	if (!GL_NeedsSceneEffects ())
-	{
-		GL_BindFramebufferFunc (GL_FRAMEBUFFER, GL_NeedsPostprocess () ? framebufs.composite.fbo : 0u);
-		framesetup.scene_fbo = framebufs.composite.fbo;
-		framesetup.oit_fbo = framebufs.oit.fbo_composite;
-		glViewport (glx + r_refdef.vrect.x, gly + glheight - r_refdef.vrect.y - r_refdef.vrect.height, r_refdef.vrect.width, r_refdef.vrect.height);
-	}
-	else
-	{
-		GL_BindFramebufferFunc (GL_FRAMEBUFFER, framebufs.scene.fbo);
-		framesetup.scene_fbo = framebufs.scene.fbo;
-		framesetup.oit_fbo = framebufs.oit.fbo_scene;
-		glViewport (0, 0, r_refdef.vrect.width / r_refdef.scale, r_refdef.vrect.height / r_refdef.scale);
-	}
+       if (!GL_NeedsSceneEffects ())
+       {
+               GLuint target = GL_NeedsPostprocess () ? framebufs.composite.fbo : 0u;
+
+               GL_BindFramebufferFunc (GL_FRAMEBUFFER, target);
+               framesetup.scene_fbo = framebufs.composite.fbo;
+               framesetup.oit_fbo = framebufs.oit.fbo_composite;
+               if (target)
+               {
+                       glDrawBuffer (GL_COLOR_ATTACHMENT0);
+                       glReadBuffer (GL_COLOR_ATTACHMENT0);
+               }
+               else
+               {
+                       glDrawBuffer (GL_BACK);
+                       glReadBuffer (GL_BACK);
+               }
+               glViewport (glx + r_refdef.vrect.x, gly + glheight - r_refdef.vrect.y - r_refdef.vrect.height, r_refdef.vrect.width, r_refdef.vrect.height);
+       }
+       else
+       {
+               GL_BindFramebufferFunc (GL_FRAMEBUFFER, framebufs.scene.fbo);
+               framesetup.scene_fbo = framebufs.scene.fbo;
+               framesetup.oit_fbo = framebufs.oit.fbo_scene;
+               glDrawBuffer (GL_COLOR_ATTACHMENT0);
+               glReadBuffer (GL_COLOR_ATTACHMENT0);
+               glViewport (0, 0, r_refdef.vrect.width / r_refdef.scale, r_refdef.vrect.height / r_refdef.scale);
+       }
 }
 
 /*
@@ -964,6 +1909,12 @@ R_SetupView -- johnfitz -- this is the stuff that needs to be done once per fram
 void R_SetupView (void)
 {
 	R_AnimateLight ();
+
+	{
+		int overbright_bits = CLAMP (0, (int)Q_rint (r_overbrightbits.value), 3);
+		r_framedata.overbright = (float)(1 << overbright_bits);
+		r_framedata._padding1 = 0.f;
+	}
 
 	r_framecount++;
 	r_framedata.eyepos[0] = r_refdef.vieworg[0];
@@ -1034,11 +1985,13 @@ void R_SetupView (void)
 
 	R_SetFrustum ();
 
-	R_MarkSurfaces (); //johnfitz -- create texture chains from PVS
+        R_MarkSurfaces (); //johnfitz -- create texture chains from PVS
 
-	R_SortEntities ();
+        R_SortEntities ();
 
-	R_PushDlights ();
+        R_BuildShadowMap ();
+
+        R_PushDlights ();
 
 	//johnfitz -- cheat-protect some draw modes
 	r_fullbright_cheatsafe = r_lightmap_cheatsafe = false;
@@ -1953,27 +2906,43 @@ void R_WarpScaleView (void)
 	needwarpscale = r_refdef.scale != 1 || water_warp || (v_blend[3] && gl_polyblend.value && !softemu);
 	fbodest = GL_NeedsPostprocess () ? framebufs.composite.fbo : 0;
 
-	if (msaa)
-	{
-		GL_BeginGroup ("MSAA resolve");
+        if (msaa)
+        {
+                GL_BeginGroup ("MSAA resolve");
 
-		GL_BindFramebufferFunc (GL_READ_FRAMEBUFFER, framebufs.scene.fbo);
-		if (needwarpscale)
-		{
-			GL_BindFramebufferFunc (GL_DRAW_FRAMEBUFFER, framebufs.resolved_scene.fbo);
-			GL_BlitFramebufferFunc (0, 0, srcw, srch, 0, 0, srcw, srch, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-		}
-		else
-		{
-			GL_BindFramebufferFunc (GL_DRAW_FRAMEBUFFER, fbodest);
-			GL_BlitFramebufferFunc (0, 0, srcw, srch, srcx, srcy, srcx + srcw, srcy + srch, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-		}
+                GL_BindFramebufferFunc (GL_READ_FRAMEBUFFER, framebufs.scene.fbo);
+                glReadBuffer (GL_COLOR_ATTACHMENT0);
+                if (needwarpscale)
+                {
+                        GL_BindFramebufferFunc (GL_DRAW_FRAMEBUFFER, framebufs.resolved_scene.fbo);
+                        glDrawBuffer (GL_COLOR_ATTACHMENT0);
+                        GL_BlitFramebufferFunc (0, 0, srcw, srch, 0, 0, srcw, srch, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+                }
+                else
+                {
+                        GL_BindFramebufferFunc (GL_DRAW_FRAMEBUFFER, fbodest);
+                        if (fbodest)
+                                glDrawBuffer (GL_COLOR_ATTACHMENT0);
+                        else
+                                glDrawBuffer (GL_BACK);
+                        GL_BlitFramebufferFunc (0, 0, srcw, srch, srcx, srcy, srcx + srcw, srcy + srch, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+                }
 
-		GL_EndGroup ();
-	}
+                GL_EndGroup ();
+        }
 
-	GL_BindFramebufferFunc (GL_FRAMEBUFFER, fbodest);
-	glViewport (srcx, srcy, r_refdef.vrect.width, r_refdef.vrect.height);
+        GL_BindFramebufferFunc (GL_FRAMEBUFFER, fbodest);
+        if (fbodest)
+        {
+                glDrawBuffer (GL_COLOR_ATTACHMENT0);
+                glReadBuffer (GL_COLOR_ATTACHMENT0);
+        }
+        else
+        {
+                glDrawBuffer (GL_BACK);
+                glReadBuffer (GL_BACK);
+        }
+        glViewport (srcx, srcy, r_refdef.vrect.width, r_refdef.vrect.height);
 
 	if (!needwarpscale)
 		return;

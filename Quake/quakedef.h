@@ -242,6 +242,7 @@ typedef struct
 
 #include "sys.h"
 #include "common.h"
+#include "q3shader.h"
 #include "bspfile.h"
 #include "zone.h"
 #include "mathlib.h"
@@ -287,6 +288,7 @@ typedef struct
 #include "input.h"
 #include "keys.h"
 #include "menu.h"
+#include "sidebar.h"
 #include "cdaudio.h"
 #include "glquake.h"
 

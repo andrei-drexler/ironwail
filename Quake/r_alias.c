@@ -27,6 +27,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern cvar_t gl_overbright_models, gl_fullbrights, r_lerpmodels, r_lerpmove; //johnfitz
 extern cvar_t scr_fov, cl_gun_fovscale, cl_gun_x, cl_gun_y, cl_gun_z;
 extern cvar_t r_oit;
+extern cvar_t r_shadows;
 
 //up to 16 color translated skins
 gltexture_t *playertextures[MAX_SCOREBOARD]; //johnfitz -- changed to an array of pointers
@@ -75,6 +76,42 @@ struct ibuf_s {
 	} global;
 	aliasinstance_t inst[MAX_ALIAS_INSTANCES];
 } ibuf;
+
+#define BLOB_SHADOW_MIN_RADIUS   8.0f
+#define BLOB_SHADOW_SIZE_SCALE   0.9f
+#define BLOB_SHADOW_LIFT         0.2f
+#define BLOB_SHADOW_ALPHA_SCALE  0.55f
+#define BLOB_SHADOW_FADE_START   24.0f
+#define BLOB_SHADOW_FADE_RANGE   160.0f
+
+typedef struct blobshadowinstance_s
+{
+        float           center_radius[4];
+        float           params[4];
+} blobshadowinstance_t;
+
+static struct
+{
+        int                     count;
+        struct {
+                float   matviewproj[16];
+                vec3_t  eyepos;
+                float   _pad;
+                vec4_t  fog;
+                float   dither;
+                float   _padding[3];
+        } global;
+        blobshadowinstance_t inst[MAX_ALIAS_INSTANCES];
+} shadowbuf;
+
+static const float blobshadow_verts[4][2] = {
+        {-1.f, -1.f},
+        { 1.f, -1.f},
+        { 1.f,  1.f},
+        {-1.f,  1.f},
+};
+
+static const uint16_t blobshadow_idx[6] = {0, 1, 2, 0, 2, 3};
 
 /*
 =================
@@ -283,7 +320,160 @@ void R_SetupAliasLighting (entity_t	*e)
 		lightcolor[2] = 256.0f;
 	}
 
-	VectorScale (lightcolor, 1.0f / 200.0f, lightcolor);
+        VectorScale (lightcolor, 1.0f / 200.0f, lightcolor);
+}
+
+void R_BlobShadows_Flush (void)
+{
+        GLuint  buf, vbuf, ibuf_handle;
+        GLbyte  *ofs, *vofs, *iofs;
+        size_t  bufsize;
+
+        if (!shadowbuf.count)
+                return;
+
+        GL_BeginGroup ("blob shadows");
+
+        memcpy (shadowbuf.global.matviewproj, r_matviewproj, sizeof (r_matviewproj));
+        memcpy (shadowbuf.global.eyepos, r_refdef.vieworg, sizeof (r_refdef.vieworg));
+        memcpy (shadowbuf.global.fog, r_framedata.fogdata, 3 * sizeof (float));
+        shadowbuf.global.fog[3] =
+                gl_overbright_models.value ?
+                        -fabs (r_framedata.fogdata[3]) :
+                         fabs (r_framedata.fogdata[3]);
+        shadowbuf.global.dither = r_framedata.screendither;
+
+        bufsize = sizeof (shadowbuf.global) + sizeof (shadowbuf.inst[0]) * shadowbuf.count;
+        GL_Upload (GL_SHADER_STORAGE_BUFFER, &shadowbuf.global, bufsize, &buf, &ofs);
+
+        GL_Upload (GL_ARRAY_BUFFER, blobshadow_verts, sizeof (blobshadow_verts), &vbuf, &vofs);
+        GL_BindBuffer (GL_ARRAY_BUFFER, vbuf);
+        GL_VertexAttribPointerFunc (0, 2, GL_FLOAT, GL_FALSE, sizeof (blobshadow_verts[0]), vofs);
+
+        GL_Upload (GL_ELEMENT_ARRAY_BUFFER, blobshadow_idx, sizeof (blobshadow_idx), &ibuf_handle, &iofs);
+        GL_BindBuffer (GL_ELEMENT_ARRAY_BUFFER, ibuf_handle);
+
+        GLuint buffers[1] = {buf};
+        GLintptr offsets[1] = {(GLintptr) ofs};
+        GLsizeiptr sizes[1] = {bufsize};
+        GL_BindBuffersRange (GL_SHADER_STORAGE_BUFFER, 1, 1, buffers, offsets, sizes);
+
+        GL_UseProgram (glprogs.blobshadow);
+
+        unsigned int state = GLS_NO_ZWRITE | GLS_CULL_NONE | GLS_ATTRIBS(1);
+        if (R_GetEffectiveAlphaMode () == ALPHAMODE_OIT)
+                state |= GLS_BLEND_ALPHA_OIT;
+        else
+                state |= GLS_BLEND_ALPHA;
+        GL_SetState (state);
+
+        GL_DrawElementsInstancedFunc (GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, iofs, shadowbuf.count);
+
+        shadowbuf.count = 0;
+
+        GL_EndGroup ();
+}
+
+void R_BlobShadows_Add (const entity_t *e, const vec3_t mins, const vec3_t maxs, float entalpha, float origin_z)
+{
+        if (!r_shadows.value)
+                return;
+
+        if (!e || e == &cl.viewent)
+                return;
+
+        if (!e->model || (e->model->flags & MOD_NOSHADOW))
+                return;
+
+        if (entalpha <= 0.0f)
+                return;
+
+        if (shadowbuf.count == countof (shadowbuf.inst))
+                R_BlobShadows_Flush ();
+
+        float min_x = q_min (mins[0], maxs[0]);
+        float max_x = q_max (mins[0], maxs[0]);
+        float min_y = q_min (mins[1], maxs[1]);
+        float max_y = q_max (mins[1], maxs[1]);
+        float min_z = q_min (mins[2], maxs[2]);
+
+        float radius_x = 0.5f * (max_x - min_x) * BLOB_SHADOW_SIZE_SCALE;
+        float radius_y = 0.5f * (max_y - min_y) * BLOB_SHADOW_SIZE_SCALE;
+        radius_x = q_max (radius_x, BLOB_SHADOW_MIN_RADIUS);
+        radius_y = q_max (radius_y, BLOB_SHADOW_MIN_RADIUS);
+
+        float shadow_z = min_z + BLOB_SHADOW_LIFT;
+
+        vec3_t center;
+        center[0] = 0.5f * (min_x + max_x);
+        center[1] = 0.5f * (min_y + max_y);
+        center[2] = shadow_z;
+
+        float hover = origin_z - shadow_z - BLOB_SHADOW_FADE_START;
+        if (hover < 0.f)
+                hover = 0.f;
+        float fade = 1.f - CLAMP (0.f, hover / BLOB_SHADOW_FADE_RANGE, 1.f);
+
+        float alpha = entalpha * BLOB_SHADOW_ALPHA_SCALE * fade;
+        if (alpha <= 0.0f)
+                return;
+
+        blobshadowinstance_t *inst = &shadowbuf.inst[shadowbuf.count++];
+        inst->center_radius[0] = center[0];
+        inst->center_radius[1] = center[1];
+        inst->center_radius[2] = center[2];
+        inst->center_radius[3] = radius_x;
+        inst->params[0] = radius_y;
+        inst->params[1] = alpha;
+        inst->params[2] = 0.f;
+        inst->params[3] = 0.f;
+}
+
+static void R_Alias_GetBounds (const entity_t *e, vec3_t mins, vec3_t maxs)
+{
+        const vec3_t *minbounds, *maxbounds;
+        float scalefactor = ENTSCALE_DECODE(e->scale);
+        int i;
+
+        if (e->angles[0] || e->angles[2])
+        {
+                minbounds = &e->model->rmins;
+                maxbounds = &e->model->rmaxs;
+        }
+        else if (e->angles[1])
+        {
+                minbounds = &e->model->ymins;
+                maxbounds = &e->model->ymaxs;
+        }
+        else
+        {
+                minbounds = &e->model->mins;
+                maxbounds = &e->model->maxs;
+        }
+
+        if (scalefactor != 1.0f)
+        {
+                for (i = 0; i < 3; i++)
+                {
+                        mins[i] = e->origin[i] + (*minbounds)[i] * scalefactor;
+                        maxs[i] = e->origin[i] + (*maxbounds)[i] * scalefactor;
+                }
+        }
+        else
+        {
+                for (i = 0; i < 3; i++)
+                {
+                        mins[i] = e->origin[i] + (*minbounds)[i];
+                        maxs[i] = e->origin[i] + (*maxbounds)[i];
+                }
+        }
+}
+
+static void R_AddAliasShadow (const entity_t *e, const lerpdata_t *lerpdata, float entalpha)
+{
+        vec3_t mins, maxs;
+        R_Alias_GetBounds (e, mins, maxs);
+        R_BlobShadows_Add (e, mins, maxs, entalpha, lerpdata->origin[2]);
 }
 
 /*
@@ -521,13 +711,16 @@ static void R_DrawAliasModel_Real (entity_t *e, qboolean showtris)
 	//
 	// set up for alpha blending
 	//
-	if (r_lightmap_cheatsafe) //no alpha in drawflat or lightmap mode
-		entalpha = 1;
-	else
-		entalpha = ENTALPHA_DECODE(e->alpha);
+        if (r_lightmap_cheatsafe) //no alpha in drawflat or lightmap mode
+                entalpha = 1;
+        else
+                entalpha = ENTALPHA_DECODE(e->alpha);
 
-	if (entalpha == 0)
-		return;
+        if (entalpha == 0)
+                return;
+
+        if (!showtris)
+                R_AddAliasShadow (e, &lerpdata, entalpha);
 
 	//
 	// set up lighting
@@ -582,10 +775,11 @@ R_DrawAliasModels
 */
 void R_DrawAliasModels (entity_t **ents, int count)
 {
-	int i;
-	for (i = 0; i < count; i++)
-		R_DrawAliasModel_Real (ents[i], false);
-	R_FlushAliasInstances (false);
+        int i;
+        for (i = 0; i < count; i++)
+                R_DrawAliasModel_Real (ents[i], false);
+        R_FlushAliasInstances (false);
+        R_BlobShadows_Flush ();
 }
 
 /*
@@ -595,8 +789,9 @@ R_DrawAliasModels_ShowTris
 */
 void R_DrawAliasModels_ShowTris (entity_t **ents, int count)
 {
-	int i;
-	for (i = 0; i < count; i++)
-		R_DrawAliasModel_Real (ents[i], true);
-	R_FlushAliasInstances (true);
+        int i;
+        for (i = 0; i < count; i++)
+                R_DrawAliasModel_Real (ents[i], true);
+        R_FlushAliasInstances (true);
+        R_BlobShadows_Flush ();
 }

@@ -31,7 +31,9 @@ extern cvar_t r_lerplightstyles;
 extern cvar_t gl_fullbrights;
 extern cvar_t gl_farclip;
 extern cvar_t gl_overbright_models;
+extern cvar_t r_overbrightbits;
 extern cvar_t r_waterwarp;
+extern cvar_t r_shadows;
 extern cvar_t r_oldskyleaf;
 extern cvar_t r_drawworld;
 extern cvar_t r_showtris;
@@ -218,8 +220,8 @@ R_SetWateralpha_f -- ericw
 */
 static void R_SetWateralpha_f (cvar_t *var)
 {
-	if (cls.signon == SIGNONS && cl.worldmodel && !(cl.worldmodel->contentstransparent&SURF_DRAWWATER) && var->value < 1)
-		Con_Warning("Map does not appear to be water-vised\n");
+		if (cls.signon == SIGNONS && cl.worldmodel && !(cl.worldmodel->contentstransparent&SURF_DRAWWATER) && var->value < 1)
+				Con_Warning("Map does not appear to be water-vised\n");
 	map_wateralpha = var->value;
 	map_fallbackalpha = var->value;
 }
@@ -231,8 +233,8 @@ R_SetLavaalpha_f -- ericw
 */
 static void R_SetLavaalpha_f (cvar_t *var)
 {
-	if (cls.signon == SIGNONS && cl.worldmodel && !(cl.worldmodel->contentstransparent&SURF_DRAWLAVA) && var->value && var->value < 1)
-		Con_Warning("Map does not appear to be lava-vised\n");
+		if (cls.signon == SIGNONS && cl.worldmodel && !(cl.worldmodel->contentstransparent&SURF_DRAWLAVA) && var->value && var->value < 1)
+				Con_Warning("Map does not appear to be lava-vised\n");
 	map_lavaalpha = var->value;
 }
 
@@ -243,8 +245,8 @@ R_SetTelealpha_f -- ericw
 */
 static void R_SetTelealpha_f (cvar_t *var)
 {
-	if (cls.signon == SIGNONS && cl.worldmodel && !(cl.worldmodel->contentstransparent&SURF_DRAWTELE) && var->value && var->value < 1)
-		Con_Warning("Map does not appear to be tele-vised\n");
+		if (cls.signon == SIGNONS && cl.worldmodel && !(cl.worldmodel->contentstransparent&SURF_DRAWTELE) && var->value && var->value < 1)
+				Con_Warning("Map does not appear to be tele-vised\n");
 	map_telealpha = var->value;
 }
 
@@ -258,6 +260,18 @@ static void R_SetSlimealpha_f (cvar_t *var)
 	if (cls.signon == SIGNONS && cl.worldmodel && !(cl.worldmodel->contentstransparent&SURF_DRAWSLIME) && var->value && var->value < 1)
 		Con_Warning("Map does not appear to be slime-vised\n");
 	map_slimealpha = var->value;
+}
+
+/*
+====================
+R_OverbrightBits_f
+====================
+*/
+static void R_OverbrightBits_f (cvar_t *var)
+{
+	int value = CLAMP (0, (int)Q_rint (var->value), 3);
+	if (value != (int)var->value)
+		Cvar_SetValueQuick (var, (float)value);
 }
 
 /*
@@ -294,11 +308,42 @@ void R_Init (void)
 		cmd->completion = R_ShowbboxesFilter_Completion_f;
 	Cmd_AddCommand ("r_showbboxes_filter_clear", R_ShowbboxesFilterClear_f);
 
-	Cvar_RegisterVariable (&r_norefresh);
-	Cvar_RegisterVariable (&r_lightmap);
-	Cvar_RegisterVariable (&r_fullbright);
-	Cvar_RegisterVariable (&r_drawentities);
-	Cvar_RegisterVariable (&r_drawviewmodel);
+        Cvar_RegisterVariable (&r_norefresh);
+        Cvar_RegisterVariable (&r_lightmap);
+        Cvar_RegisterVariable (&r_fullbright);
+        Cvar_RegisterVariable (&r_drawentities);
+        Cvar_RegisterVariable (&r_shadows);
+        Cvar_RegisterVariable (&r_shadow_map_size);
+        Cvar_SetCallback (&r_shadow_map_size, R_ShadowCvarChanged);
+        Cvar_RegisterVariable (&r_shadow_bias);
+        Cvar_SetCallback (&r_shadow_bias, R_ShadowCvarChanged);
+        Cvar_RegisterVariable (&r_shadow_slope_bias);
+        Cvar_SetCallback (&r_shadow_slope_bias, R_ShadowCvarChanged);
+        Cvar_RegisterVariable (&r_shadow_soft);
+        Cvar_SetCallback (&r_shadow_soft, R_ShadowCvarChanged);
+        Cvar_RegisterVariable (&r_shadow_pcf_size);
+        Cvar_SetCallback (&r_shadow_pcf_size, R_ShadowCvarChanged);
+        Cvar_RegisterVariable (&r_shadow_normal_offset);
+        Cvar_SetCallback (&r_shadow_normal_offset, R_ShadowCvarChanged);
+        Cvar_RegisterVariable (&r_shadow_vsm);
+        Cvar_SetCallback (&r_shadow_vsm, R_ShadowCvarChanged);
+        Cvar_RegisterVariable (&r_shadow_vsm_bleed_reduce);
+        Cvar_SetCallback (&r_shadow_vsm_bleed_reduce, R_ShadowCvarChanged);
+        Cvar_RegisterVariable (&r_shadow_csm);
+        Cvar_SetCallback (&r_shadow_csm, R_ShadowCvarChanged);
+        Cvar_RegisterVariable (&r_shadow_csm_splits);
+        Cvar_SetCallback (&r_shadow_csm_splits, R_ShadowCvarChanged);
+        Cvar_RegisterVariable (&r_shadow_csm_stable);
+        Cvar_SetCallback (&r_shadow_csm_stable, R_ShadowCvarChanged);
+        Cvar_RegisterVariable (&r_shadow_csm_fade);
+        Cvar_SetCallback (&r_shadow_csm_fade, R_ShadowCvarChanged);
+        Cvar_RegisterVariable (&r_shadow_showcsm);
+        Cvar_SetCallback (&r_shadow_showcsm, R_ShadowCvarChanged);
+        Cvar_RegisterVariable (&r_shadow_showmap);
+        Cvar_SetCallback (&r_shadow_showmap, R_ShadowCvarChanged);
+        Cvar_RegisterVariable (&r_shadow_quality);
+        Cvar_SetCallback (&r_shadow_quality, R_ShadowCvarChanged);
+        Cvar_RegisterVariable (&r_drawviewmodel);
 	Cvar_RegisterVariable (&r_wateralpha);
 	Cvar_SetCallback (&r_wateralpha, R_SetWateralpha_f);
 	Cvar_RegisterVariable (&r_litwater);
@@ -314,6 +359,8 @@ void R_Init (void)
 	Cvar_RegisterVariable (&r_alphasort);
 	Cvar_RegisterVariable (&r_oit);
 	Cvar_RegisterVariable (&r_dither);
+	Cvar_RegisterVariable (&r_overbrightbits);
+	Cvar_SetCallback (&r_overbrightbits, R_OverbrightBits_f);
 
 	Cvar_RegisterVariable (&gl_finish);
 	Cvar_RegisterVariable (&gl_clear);
@@ -458,7 +505,7 @@ static void R_ParseWorldspawn (void)
 	map_wateralpha = (cl.worldmodel->contentstransparent&SURF_DRAWWATER)?r_wateralpha.value:1;
 	map_lavaalpha = (cl.worldmodel->contentstransparent&SURF_DRAWLAVA)?r_lavaalpha.value:1;
 	map_telealpha = (cl.worldmodel->contentstransparent&SURF_DRAWTELE)?r_telealpha.value:1;
-	map_slimealpha = (cl.worldmodel->contentstransparent&SURF_DRAWSLIME)?r_slimealpha.value:1;
+		map_slimealpha = (cl.worldmodel->contentstransparent&SURF_DRAWSLIME)?r_slimealpha.value:1;
 
 	data = COM_Parse(cl.worldmodel->entities);
 	if (!data)
@@ -482,20 +529,24 @@ static void R_ParseWorldspawn (void)
 		data = COM_ParseEx(data, CPE_ALLOWTRUNC);
 		if (!data)
 			return; // error
-		q_strlcpy(value, com_token, sizeof(value));
+                q_strlcpy(value, com_token, sizeof(value));
 
-		if (!strcmp("wateralpha", key))
-			map_wateralpha = atof(value);
+                if (!strcmp("wateralpha", key))
+                        map_wateralpha = atof(value);
 
-		if (!strcmp("lavaalpha", key))
-			map_lavaalpha = atof(value);
+                if (!strcmp("lavaalpha", key))
+                        map_lavaalpha = atof(value);
 
-		if (!strcmp("telealpha", key))
-			map_telealpha = atof(value);
+                if (!strcmp("telealpha", key))
+                        map_telealpha = atof(value);
 
-		if (!strcmp("slimealpha", key))
-			map_slimealpha = atof(value);
-	}
+                if (!strcmp("slimealpha", key))
+                                map_slimealpha = atof(value);
+
+                R_ShadowParseWorldspawnKey (key, value);
+        }
+
+        R_ShadowFinalizeWorldspawn ();
 }
 
 
@@ -517,16 +568,18 @@ void R_NewMap (void)
 	VEC_CLEAR (r_pointfile);
 
 	GL_BuildLightmaps ();
-	GL_BuildBModelVertexBuffer ();
-	GL_BuildBModelMarkBuffers ();
-	//ericw -- no longer load alias models into a VBO here, it's done in Mod_LoadAliasModel
+        GL_BuildBModelVertexBuffer ();
+        GL_BuildBModelMarkBuffers ();
+        //ericw -- no longer load alias models into a VBO here, it's done in Mod_LoadAliasModel
 
-	r_framecount = 0; //johnfitz -- paranoid?
-	r_visframecount = 0; //johnfitz -- paranoid?
+        r_framecount = 0; //johnfitz -- paranoid?
+        r_visframecount = 0; //johnfitz -- paranoid?
 
-	Sky_NewMap (); //johnfitz -- skybox in worldspawn
-	Fog_NewMap (); //johnfitz -- global fog in worldspawn
-	R_ParseWorldspawn (); //ericw -- wateralpha, lavaalpha, telealpha, slimealpha in worldspawn
+        R_ShadowNewMap ();
+
+        Sky_NewMap (); //johnfitz -- skybox in worldspawn
+        Fog_NewMap (); //johnfitz -- global fog in worldspawn
+        R_ParseWorldspawn (); //ericw -- wateralpha, lavaalpha, telealpha, slimealpha in worldspawn
 
 	// Load pointfile if map has no vis data and either developer mode is on or the game was started from a map editing tool
 	if (developer.value || map_checks.value)
