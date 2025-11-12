@@ -21,9 +21,6 @@
 
 #include "quakedef.h"
 
-
-static fshandle_t		*cfg_file;
-
 /*
 ===================
 CFG_ReadCvars
@@ -35,12 +32,17 @@ the num_vars argument must be the exact number of strings in the
 array, otherwise I have nothing against going out of bounds.
 ===================
 */
-void CFG_ReadCvars (const char **vars, int num_vars)
+void CFG_ReadCvars (const char *cfg_name, const char **vars, int num_vars)
 {
 	char	buff[1024], *tmp;
 	int			i, j;
+	qfshandle_t *cfg_file;
 
-	if (!cfg_file || num_vars < 1)
+	if (num_vars < 1)
+		return;
+	
+	cfg_file = QFS_OpenFile (cfg_name, NULL);
+	if (!cfg_file)
 		return;
 
 	j = 0;
@@ -52,7 +54,7 @@ void CFG_ReadCvars (const char **vars, int num_vars)
 		// writes to the config file. although I'm trying to be as
 		// much cautious as possible, if the user screws it up by
 		// editing it, it's his fault.
-		if (FS_fgets(buff, sizeof(buff), cfg_file))
+		if (QFS_GetLine (cfg_file, buff, sizeof(buff)))
 		{
 			// remove end-of-line characters
 			while (buff[i])
@@ -104,9 +106,7 @@ void CFG_ReadCvars (const char **vars, int num_vars)
 		if (j == num_vars)
 			break;
 
-	} while (!FS_feof(cfg_file) && !FS_ferror(cfg_file));
-
-	FS_rewind (cfg_file);
+	} while (!QFS_Eof (cfg_file));
 }
 
 /*
@@ -139,37 +139,3 @@ void CFG_ReadCvarOverrides (const char **vars, int num_vars)
 		}
 	}
 }
-
-void CFG_CloseConfig (void)
-{
-	if (cfg_file)
-	{
-		FS_fclose(cfg_file);
-		Z_Free(cfg_file);
-		cfg_file = NULL;
-	}
-}
-
-int CFG_OpenConfig (const char *cfg_name)
-{
-	FILE	*f;
-	long		length;
-	qboolean	pak;
-
-	CFG_CloseConfig ();
-
-	length = (long) COM_FOpenFile (cfg_name, &f, NULL);
-	pak = file_from_pak;
-	if (length == -1)
-		return -1;
-
-	cfg_file = (fshandle_t *) Z_Malloc(sizeof(fshandle_t));
-	cfg_file->file = f;
-	cfg_file->start = ftell(f);
-	cfg_file->pos = 0;
-	cfg_file->length = length;
-	cfg_file->pak = pak;
-
-	return 0;
-}
-
