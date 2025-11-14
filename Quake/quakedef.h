@@ -383,6 +383,14 @@ extern filelist_item_t	*demolist;
 extern filelist_item_t	*savelist;
 extern filelist_item_t	*skylist;
 
+typedef enum
+{
+	RA_LAVA_NAILS = 0,
+	RA_MULTI_ROCKETS,
+	RA_PLASMA_AMMO,
+	RA_MAX_COUNT
+} rogueammo_t;
+
 void Host_ClearMemory (void);
 void Host_ServerFrame (void);
 void Host_InitCommands (void);
