@@ -34,7 +34,7 @@ skybox_t		*skybox;
 extern cvar_t gl_farclip;
 cvar_t r_fastsky = {"r_fastsky", "0", CVAR_NONE};
 cvar_t r_skyalpha = {"r_skyalpha", "1", CVAR_NONE};
-cvar_t r_skyfog = {"r_skyfog","0.5",CVAR_NONE};
+cvar_t r_skyfog = {"r_skyfog","0",CVAR_NONE};
 cvar_t r_skywind = {"r_skywind","1",CVAR_ARCHIVE};
 
 static const int skytexorder[6] = {0,2,1,3,4,5}; //for skybox

@@ -2,7 +2,7 @@
 Copyright (C) 1996-2001 Id Software, Inc.
 Copyright (C) 2002-2009 John Fitzgibbons and others
 Copyright (C) 2007-2008 Kristian Duske
-Copyright (C) 2010-2014 QuakeSpasm developers
+Copyright (C) 2010-2014 QuakeSpasm developersc.rgb *= 0.50;
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -62,10 +62,20 @@ static const char gui_fragment_shader[] =
 "\n"
 "layout(location=0) out vec4 out_fragcolor;\n"
 "\n"
+"// --- PSX --- Scanlines ---\nvec4 ApplyScanlines(vec4 c)\n{\n"
+"    // Dim every other scanline instead of full black\n"
+"    if (((int(floor(gl_FragCoord.y)) & 1) == 1))\n"
+"        c.rgb *= 0.50; // 50% brightness on dark lines\n"
+"    return c;\n"
+"}\n\n"
 "void main()\n"
 "{\n"
-"	out_fragcolor = texture(Tex, in_uv) * in_color;\n"
+"    out_fragcolor = texture(Tex, in_uv) * in_color;\n"
+ "#if SCANLINES\n"
+ "  out_fragcolor = ApplyScanlines(out_fragcolor);\n"
+" #endif\n"
 "}\n";
+
 
 ////////////////////////////////////////////////////////////////
 //
@@ -87,10 +97,22 @@ static const char viewblend_fragment_shader[] =
 "\n"
 "layout(location=0) out vec4 out_fragcolor;\n"
 "\n"
-"void main()\n"
+"// --- PSX --- Scanlines ---\n"
+"vec4 ApplyScanlines(vec4 c)\n"
+"{\n"
+"    if (((int(floor(gl_FragCoord.y)) & 1) == 1))\n"
+"        c.rgb *= 0.50;        // darkened lines\n"
+"    else\n"
+"        c.rgb *= 1.5;         // brightened lines\n"
+"    return c;\n"
+"}\n\nvoid main()\n"
 "{\n"
 "	out_fragcolor = Color;\n"
+ "#if SCANLINES\n"
+ "  out_fragcolor = ApplyScanlines(out_fragcolor);\n"
+" #endif\n"
 "}\n";
+
 
 ////////////////////////////////////////////////////////////////
 //
@@ -120,7 +142,15 @@ static const char warpscale_fragment_shader[] =
 "\n"
 "layout(location=0) out vec4 out_fragcolor;\n"
 "\n"
-"void main()\n"
+"// --- PSX --- Scanlines ---\n"
+"vec4 ApplyScanlines(vec4 c)\n"
+"{\n"
+"    if (((int(floor(gl_FragCoord.y)) & 1) == 1))\n"
+"        c.rgb *= 0.50;        // darkened lines\n"
+"    else\n"
+"        c.rgb *= 1.5;         // brightened lines\n"
+"    return c;\n"
+"}\n\nvoid main()\n"
 "{\n"
 "	vec2 uv = in_uv;\n"
 "	vec2 uv_scale = UVScaleWarpTime.xy;\n"
@@ -136,7 +166,11 @@ static const char warpscale_fragment_shader[] =
 "\n"
 "	out_fragcolor = texture(Tex, uv * uv_scale);\n"
 "	out_fragcolor.rgb = mix(out_fragcolor.rgb, BlendColor.rgb, BlendColor.a);\n"
+ "#if SCANLINES\n"
+ "  out_fragcolor = ApplyScanlines(out_fragcolor);\n"
+" #endif\n"
 "}\n";
+
 
 ////////////////////////////////////////////////////////////////
 //
@@ -248,7 +282,7 @@ NOISE_FUNCTIONS
 "\n"
 "layout(location=0) out vec4 out_fragcolor;\n"
 "\n"
-"void main()\n"
+"// --- PSX --- Scanlines ---\nvec4 ApplyScanlines(vec4 c)\n{\n    // Dim every other scanline instead of full black\n    if (((int(floor(gl_FragCoord.y)) & 1) == 1))\n        c.rgb *= 0.70;\n    return c;\n}\n\nvoid main()\n"
 "{\n"
 "	float gamma = Params.x;\n"
 "	float contrast = Params.y;\n"
@@ -270,6 +304,7 @@ NOISE_FUNCTIONS
 "	out_fragcolor = vec4(pow(out_fragcolor.rgb, vec3(gamma)), 1.0);\n"
 "#endif // PALETTIZE\n"
 "}\n";
+
 
 ////////////////////////////////////////////////////////////////
 //
@@ -495,17 +530,22 @@ WORLD_VERTEX_BUFFER
 "layout(location=1) flat out float out_alpha;\n"
 "layout(location=2) out vec3 out_pos;\n"
 "#if MODE == " QS_STRINGIFY (WORLDSHADER_ALPHATEST) "\n"
-"	layout(location=3) centroid out vec2 out_uv;\n"
+"	layout(location=3) noperspective centroid out vec2 out_uv;\n"
 "#else\n"
-"	layout(location=3) out vec2 out_uv;\n"
+"	layout(location=3) noperspective centroid out vec2 out_uv;\n"
 "#endif\n"
-"layout(location=4) centroid out vec2 out_lmuv;\n"
+		"//PSX - Texture Warping\n"
+"layout(location=4) noperspective centroid out vec2 out_lmuv;\n"
 "layout(location=5) out float out_depth;\n"
+		"//PSX - Texture Warping\n"
 "layout(location=6) noperspective out vec2 out_coord;\n"
 "layout(location=7) flat out vec4 out_styles;\n"
 "layout(location=8) flat out float out_lmofs;\n"
 "#if BINDLESS\n"
 "	layout(location=9) flat out uvec4 out_samplers;\n"
+		"//PSX - Texture Warp Correction near camera to avoid subdividing brushes\n"
+"	layout(location=10) centroid out vec2 out_uv_p;\n"
+"	layout(location=11) centroid out vec2 out_lmuv_p;\n"
 "#endif\n"
 "\n"
 "void main()\n"
@@ -514,7 +554,17 @@ WORLD_VERTEX_BUFFER
 "	int instance_id = GET_INSTANCE_ID(call);\n"
 "	Instance instance = instance_data[instance_id];\n"
 "	out_pos = Transform(in_pos, instance);\n"
-"	gl_Position = ViewProj * vec4(out_pos, 1.0);\n"
+"\n"
+"	// regular projection\n"
+"	vec4 clip = ViewProj * vec4(out_pos, 1.0);\n"
+"\n"
+"	// --- PSX-style wobble ---\n"
+"	vec2 grid = vec2(160.0, 120.0);\n"
+"	vec2 ndc  = clip.xy / clip.w;\n"
+"	ndc       = floor(ndc * grid + 0.5) / grid;\n"
+"	clip.xy   = ndc * clip.w;\n"
+"	gl_Position = clip;\n"
+"\n"
 "#if REVERSED_Z\n"
 "	const float ZBIAS = -1./1024;\n"
 "#else\n"
@@ -524,6 +574,10 @@ WORLD_VERTEX_BUFFER
 "		gl_Position.z += ZBIAS;\n"
 "	out_uv = in_uv.xy;\n"
 "	out_lmuv = in_uv.zw;\n"
+"#if BINDLESS\n"
+"	out_uv_p   = out_uv;\n"
+"	out_lmuv_p = out_lmuv;\n"
+"#endif\n"
 "	out_depth = gl_Position.w;\n"
 "	out_coord = (gl_Position.xy / gl_Position.w * 0.5 + 0.5) * vec2(LIGHT_TILES_X, LIGHT_TILES_Y);\n"
 "	out_flags = call.flags;\n"
@@ -538,8 +592,7 @@ WORLD_VERTEX_BUFFER
 "	else if (in_styles.z == 255)\n"
 "		out_styles.yzw = vec3(GetLightStyle(in_styles.y), -1., -1.);\n"
 "	else\n"
-"		out_styles.yzw = vec3\n"
-"		(\n"
+"		out_styles.yzw = vec3(\n"
 "			GetLightStyle(in_styles.y),\n"
 "			GetLightStyle(in_styles.z),\n"
 "			GetLightStyle(in_styles.w)\n"
@@ -580,18 +633,38 @@ NOISE_FUNCTIONS
 "#if MODE == " QS_STRINGIFY (WORLDSHADER_ALPHATEST) "\n"
 "	layout(location=3) centroid in vec2 in_uv;\n"
 "#else\n"
-"	layout(location=3) in vec2 in_uv;\n"
-"#endif\n"
-"layout(location=4) centroid in vec2 in_lmuv;\n"
+		"//PSX - Texture Warping\n"
+"	layout(location=3) noperspective in vec2 in_uv;\n"
+"#endif\n"							 
+"layout(location=4) noperspective centroid in vec2 in_lmuv;\n"
 "layout(location=5) in float in_depth;\n"
+		"//PSX - Texture Warping\n"							 
 "layout(location=6) noperspective in vec2 in_coord;\n"
 "layout(location=7) flat in vec4 in_styles;\n"
 "layout(location=8) flat in float in_lmofs;\n"
 "#if BINDLESS\n"
 "	layout(location=9) flat in uvec4 in_samplers;\n"
+		"//PSX - Texture Warp Correction near camera to avoid subdividing brushes\n"
+"layout(location=10) centroid in vec2 in_uv_p;\n"
+"layout(location=11) centroid in vec2 in_lmuv_p;\n"
 "#endif\n"
 "\n"
 OIT_OUTPUT (out_fragcolor)
+"\n"
+"// --- PSX --- Scanlines ---\n"
+"#if SCANLINES\n"
+"layout(location=15) uniform float u_ScanlineStrength;\n"
+"#endif\n"
+"vec4 ApplyScanlines(vec4 c)\n"
+"{\n"
+"    if (((int(floor(gl_FragCoord.y)) & 1) == 1))\n"
+"#if SCANLINES\n"
+"        c.rgb *= u_ScanlineStrength;\n"
+"#else\n"
+"        c.rgb *= 0.70;\n"
+"#endif\n"
+"    return c;\n"
+"}\n"
 "\n"
 "void main()\n"
 "{\n"
@@ -600,7 +673,8 @@ OIT_OUTPUT (out_fragcolor)
 "	return;\n"
 "#endif\n"
 "	vec3 fullbright = vec3(0.);\n"
-"	vec2 uv = in_uv;\n"
+"float t = clamp( (in_depth - 0.0) / (512.0 - 128.0), 0.0, 1.0 );\n"
+"	vec2 uv   = mix(in_uv_p,   in_uv,   t);\n"
 "#if MODE == " QS_STRINGIFY (WORLDSHADER_WATER) "\n"
 "	uv = uv * 2.0 + 0.125 * sin(uv.yx * (3.14159265 * 2.0) + Time);\n"
 "#endif\n"
@@ -628,7 +702,7 @@ OIT_OUTPUT (out_fragcolor)
 "		discard;\n"
 "#endif\n"
 "\n"
-"	vec2 lmuv = in_lmuv;\n"
+"	vec2 lmuv = mix(in_lmuv_p, in_lmuv, t);\n"
 "#if DITHER\n"
 "	vec2 lmsize = vec2(textureSize(LMTex, 0).xy) * 16.;\n"
 "	lmuv = (floor(lmuv * lmsize) + 0.5) / lmsize;\n"
@@ -733,7 +807,12 @@ OIT_OUTPUT (out_fragcolor)
 "#elif DITHER == 0\n"
 "	out_fragcolor.rgb += SUPPRESS_BANDING() * ScreenDither;\n"
 "#endif\n"
+"#if SCANLINES\n"
+"	out_fragcolor = ApplyScanlines(out_fragcolor);\n"
+"#endif\n"
 "}\n";
+
+
 
 ////////////////////////////////////////////////////////////////
 //
@@ -791,7 +870,7 @@ NOISE_FUNCTIONS
 "\n"
 OIT_OUTPUT (out_fragcolor)
 "\n"
-"void main()\n"
+"// --- PSX --- Scanlines ---\nvec4 ApplyScanlines(vec4 c)\n{\n    // Dim every other scanline instead of full black\n    if (((int(floor(gl_FragCoord.y)) & 1) == 1))\n        c.rgb *= 0.70;\n    return c;\n}\n\nvoid main()\n"
 "{\n"
 "	vec2 uv = in_uv * 2.0 + 0.125 * sin(in_uv.yx * (3.14159265 * 2.0) + Time);\n"
 "#if BINDLESS\n"
@@ -811,7 +890,11 @@ OIT_OUTPUT (out_fragcolor)
 "#else\n"
 "	out_fragcolor.rgb += SUPPRESS_BANDING() * ScreenDither;\n"
 "#endif\n"
+ "#if SCANLINES\n"
+ "  out_fragcolor = ApplyScanlines(out_fragcolor);\n"
+" #endif\n"
 "}\n";
+
 
 ////////////////////////////////////////////////////////////////
 //
@@ -887,7 +970,7 @@ NOISE_FUNCTIONS
 "\n"
 "layout(location=0) out vec4 out_fragcolor;\n"
 "\n"
-"void main()\n"
+"// --- PSX --- Scanlines ---\nvec4 ApplyScanlines(vec4 c)\n{\n    // Dim every other scanline instead of full black\n    if (((int(floor(gl_FragCoord.y)) & 1) == 1))\n        c.rgb *= 0.70;\n    return c;\n}\n\nvoid main()\n"
 "{\n"
 "#if BINDLESS\n"
 "	sampler2D SolidLayer = sampler2D(in_samplers.xy);\n"
@@ -900,7 +983,11 @@ NOISE_FUNCTIONS
 "	result.rgb = mix(result.rgb, SkyFog.rgb, SkyFog.a);\n"
 "	out_fragcolor = result;\n"
 "	out_fragcolor.rgb += SUPPRESS_BANDING() * ScreenDither;\n"
+"#if SCANLINES\n"
+ "  out_fragcolor = ApplyScanlines(out_fragcolor);\n"
+" #endif\n"
 "}\n";
+
 
 ////////////////////////////////////////////////////////////////
 //
@@ -941,7 +1028,7 @@ NOISE_FUNCTIONS
 "\n"
 "layout(location=0) out vec4 out_fragcolor;\n"
 "\n"
-"void main()\n"
+"// --- PSX --- Scanlines ---\nvec4 ApplyScanlines(vec4 c)\n{\n    // Dim every other scanline instead of full black\n    if (((int(floor(gl_FragCoord.y)) & 1) == 1))\n        c.rgb *= 0.70;\n    return c;\n}\n\nvoid main()\n"
 "{\n"
 "#if ANIM\n"
 "	float t1 = WindPhase;\n"
@@ -968,7 +1055,11 @@ NOISE_FUNCTIONS
 "#else\n"
 "	out_fragcolor.rgb += SUPPRESS_BANDING() * ScreenDither;\n"
 "#endif\n"
+ "#if SCANLINES\n"
+ "  out_fragcolor = ApplyScanlines(out_fragcolor);\n"
+" #endif\n"
 "}\n";
+
 
 ////////////////////////////////////////////////////////////////
 //
@@ -1009,7 +1100,7 @@ NOISE_FUNCTIONS
 "\n"
 "layout(location=0) out vec4 out_fragcolor;\n"
 "\n"
-"void main()\n"
+"// --- PSX --- Scanlines ---\nvec4 ApplyScanlines(vec4 c)\n{\n    // Dim every other scanline instead of full black\n    if (((int(floor(gl_FragCoord.y)) & 1) == 1))\n        c.rgb *= 0.70;\n    return c;\n}\n\nvoid main()\n"
 "{\n"
 "	out_fragcolor = texture(Tex, in_uv);\n"
 "	out_fragcolor.rgb = mix(out_fragcolor.rgb, Fog.rgb, Fog.w);\n"
@@ -1020,7 +1111,11 @@ NOISE_FUNCTIONS
 "#else\n"
 "	out_fragcolor.rgb += SUPPRESS_BANDING() * ScreenDither;\n"
 "#endif\n"
+ "#if SCANLINES\n"
+ "  out_fragcolor = ApplyScanlines(out_fragcolor);\n"
+" #endif\n"
 "}\n";
+
 
 ////////////////////////////////////////////////////////////////
 //
@@ -1122,12 +1217,23 @@ ALIAS_INSTANCE_BUFFER
 "{\n"
 "	InstanceData inst = instances[gl_InstanceID];\n"
 "	out_texcoord = in_uv;\n"
-"	PoseVertex pose1 = GetPoseVertex(inst.Pose1);\n"
-"	PoseVertex pose2 = GetPoseVertex(inst.Pose2);\n"
-"	mat4x3 worldmatrix = transpose(mat3x4(inst.WorldMatrix[0], inst.WorldMatrix[1], inst.WorldMatrix[2]));\n"\
-"	vec3 lerpedVert = (worldmatrix * vec4(mix(pose1.pos, pose2.pos, inst.Blend), 1.0)).xyz;\n"
-"	gl_Position = ViewProj * vec4(lerpedVert, 1.0);\n"
-"	out_pos = lerpedVert - EyePos;\n"
+"    PoseVertex pose1 = GetPoseVertex(inst.Pose1);\n"
+"    PoseVertex pose2 = GetPoseVertex(inst.Pose2);\n"
+"    mat4x3 worldmatrix = transpose(mat3x4(inst.WorldMatrix[0], inst.WorldMatrix[1], inst.WorldMatrix[2]));\n"
+"    vec3 lerpedVert = (worldmatrix * vec4(mix(pose1.pos, pose2.pos, inst.Blend), 1.0)).xyz;\n"
+"\n"
+"    // regular projection\n"
+"    vec4 clip = ViewProj * vec4(lerpedVert, 1.0);\n"
+"\n"
+"    // --- PSX-style wobble (match world shader) ---\n"
+"    vec2 grid = vec2(160.0, 120.0);\n"
+"    vec2 ndc  = clip.xy / clip.w;\n"
+"    ndc       = floor(ndc * grid + 0.5) / grid;\n"
+"    clip.xy   = ndc * clip.w;\n"
+"    gl_Position = clip;\n"
+"\n"
+"    out_pos = lerpedVert - EyePos;\n"
+
 "	// transform world X and Z axes to local space\n"
 "	mat3 orientation = mat3(normalize(worldmatrix[0].xyz), normalize(worldmatrix[1].xyz), normalize(worldmatrix[2].xyz));\n"
 "	orientation = transpose(orientation);\n"
@@ -1158,7 +1264,7 @@ NOISE_FUNCTIONS
 "\n"
 OIT_OUTPUT (out_fragcolor)
 "\n"
-"void main()\n"
+"// --- PSX --- Scanlines ---\nvec4 ApplyScanlines(vec4 c)\n{\n    // Dim every other scanline instead of full black\n    if (((int(floor(gl_FragCoord.y)) & 1) == 1))\n        c.rgb *= 0.70;\n    return c;\n}\n\nvoid main()\n"
 "{\n"
 "	vec2 uv = in_texcoord;\n"
 "#if MODE == " QS_STRINGIFY (ALIASSHADER_NOPERSP) "\n"
@@ -1196,7 +1302,11 @@ OIT_OUTPUT (out_fragcolor)
 "#else\n"
 "	out_fragcolor.rgb += SUPPRESS_BANDING() * ScreenDither;\n"
 "#endif\n"
+"#if SCANLINES\n"
+ "  out_fragcolor = ApplyScanlines(out_fragcolor);\n"
+" #endif\n" 
 "}\n";
+
 
 ////////////////////////////////////////////////////////////////
 //
@@ -1233,7 +1343,7 @@ NOISE_FUNCTIONS
 "\n"
 "layout(location=0) out vec4 out_fragcolor;\n"
 "\n"
-"void main()\n"
+"// --- PSX --- Scanlines ---\nvec4 ApplyScanlines(vec4 c)\n{\n    // Dim every other scanline instead of full black\n    if (((int(floor(gl_FragCoord.y)) & 1) == 1))\n        c.rgb *= 0.70;\n    return c;\n}\n\nvoid main()\n"
 "{\n"
 "	vec4 result = texture(Tex, in_uv);\n"
 "	if (result.a < 0.666)\n"
@@ -1250,7 +1360,11 @@ NOISE_FUNCTIONS
 "#else\n"
 "	out_fragcolor.rgb += SUPPRESS_BANDING() * ScreenDither;\n"
 "#endif\n"
+"#if SCANLINES\n"
+ "  out_fragcolor = ApplyScanlines(out_fragcolor);\n"
+" #endif\n" 
 "}\n";
+
 
 ////////////////////////////////////////////////////////////////
 //
@@ -1307,7 +1421,7 @@ NOISE_FUNCTIONS
 "\n"
 OIT_OUTPUT (out_fragcolor)
 "\n"
-"void main()\n"
+"// --- PSX --- Scanlines ---\nvec4 ApplyScanlines(vec4 c)\n{\n    // Dim every other scanline instead of full black\n    if (((int(floor(gl_FragCoord.y)) & 1) == 1))\n        c.rgb *= 0.70;\n    return c;\n}\n\nvoid main()\n"
 "{\n"
 "	out_fragcolor = in_color;\n"
 "	out_fragcolor.rgb = ApplyFog(out_fragcolor.rgb, in_pos);\n"
@@ -1324,7 +1438,11 @@ OIT_OUTPUT (out_fragcolor)
 "#else\n"
 "	out_fragcolor.rgb += SUPPRESS_BANDING() * ScreenDither;\n"
 "#endif\n"
+ "#if SCANLINES\n"
+ "  out_fragcolor = ApplyScanlines(out_fragcolor);\n"
+" #endif\n"
 "}\n";
+
 
 ////////////////////////////////////////////////////////////////
 //
@@ -1354,10 +1472,14 @@ static const char debug3d_fragment_shader[] =
 "\n"
 "layout(location=0) out vec4 out_fragcolor;\n"
 "\n"
-"void main()\n"
+"// --- PSX --- Scanlines ---\nvec4 ApplyScanlines(vec4 c)\n{\n    // Dim every other scanline instead of full black\n    if (((int(floor(gl_FragCoord.y)) & 1) == 1))\n        c.rgb *= 0.70;\n    return c;\n}\n\nvoid main()\n"
 "{\n"
 "	out_fragcolor = in_color;\n"
+"#if SCANLINES\n"
+ "  out_fragcolor = ApplyScanlines(out_fragcolor);\n"
+" #endif\n" 
 "}\n";
+
 
 ////////////////////////////////////////////////////////////////
 //
@@ -1403,7 +1525,7 @@ static const char oit_resove_fragment_shader[] =
 "	return max(max(v.x, v.y), v.z);\n"
 "}\n"
 "\n"
-"void main()\n"
+"// --- PSX --- Scanlines ---\nvec4 ApplyScanlines(vec4 c)\n{\n    // Dim every other scanline instead of full black\n    if (((int(floor(gl_FragCoord.y)) & 1) == 1))\n        c.rgb *= 0.70;\n    return c;\n}\n\nvoid main()\n"
 "{\n"
 "	ivec2 coords = ivec2(gl_FragCoord.xy);\n"
 "	float revealage = FetchSample(TexReveal, coords).r;\n"
@@ -1418,7 +1540,11 @@ static const char oit_resove_fragment_shader[] =
 "\n"
 "	vec3 average_color = accumulation.rgb / max(accumulation.a, 1e-5);\n"
 "	out_fragcolor = vec4(LinearToGamma(average_color), 1.0 - revealage);\n"
+ "#if SCANLINES\n"
+ "  out_fragcolor = ApplyScanlines(out_fragcolor);\n"
+" #endif\n"
 "}\n";
+
 
 ////////////////////////////////////////////////////////////////
 //

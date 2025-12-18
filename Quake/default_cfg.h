@@ -82,7 +82,7 @@ static const char default_cfg[] =
 "bind LTRIGGER +jump\n"
 "bind RTRIGGER +attack\n"
 
-"gamma 0.95\n"
+"gamma 1.2\n"
 "contrast 1.2\n"
 "volume 0.7\n"
 "sensitivity 3\n"

@@ -205,9 +205,6 @@ void M_ConfigureNetSubsystem(void);
 void M_SetSkillMenuMap (const char *name);
 void M_Options_SelectMods (void);
 void M_Options_Init (enum m_state_e state);
-void M_ChooseQuitMessage (void);
-void M_DrawQuitMessage (void);
-qboolean M_ForcedQuitMessage (float *alpha);
 
 #define PREVIEW_FADEIN_TIME				0.125
 #define PREVIEW_FADEOUT_TIME			0.125
@@ -3129,6 +3126,7 @@ void M_Menu_Gamepad_f (void)
 #define SPACER				PP_CONCAT (_SPACER_, __COUNTER__)
 #define TITLE_BAR			"\35\36\37"
 #define TITLE(str)			TITLE_BAR " " str " " TITLE_BAR
+#define CENTER_TITLE(str) "\x1D" TITLE(str)
 
 ////////////////////////////////////////////////////////////////////////
 #define OPTIONS_LIST(begin_menu, item, end_menu)						\
@@ -3164,6 +3162,9 @@ void M_Menu_Gamepad_f (void)
 	end_menu ()															\
 	begin_menu (GRAPHICS_OPTIONS, m_graphics, TITLE("Graphics"))		\
 		item (OPT_SOFTEMU,				"8-bit Mode")					\
+		item (SPACER,					"")								\
+		item (SPACER,                   CENTER_TITLE("PSX Features"))  \
+		item (SPACER,					"")								\
 		item (OPT_SOFTEMU_MDL,			"Model Warping")				\
 		item (OPT_MD5,					"Models")						\
 		item (OPT_ANIMLERP,				"Animations")					\
@@ -3433,7 +3434,12 @@ static qboolean M_Options_IsSelectable (int index)
 	if (!M_Options_IsEnabled (index))
 		return false;
 	index += optionsmenu.first_item;
-	return options_names[index][0] != '\0';
+	if (options_names[index][0] == '\0')
+		return false;	
+	if (!strncmp(options_names[index], TITLE_BAR, strlen(TITLE_BAR)))
+		return false;
+
+	return true;
 }
 
 static qboolean M_Options_Match (int index)
@@ -3486,10 +3492,6 @@ static void M_Options_Preview (int id)
 			case OPT_CONBRIGHTNESS:
 			case OPT_FOV:
 			case OPT_FOVDISTORT:
-				break;
-
-			case OPT_CONFIRMQUIT:
-				M_ChooseQuitMessage ();
 				break;
 
 			case OPT_CENTERPRINTBG:
@@ -3645,6 +3647,8 @@ void M_AdjustSliders (int dir)
 	M_ThrottledSound ("misc/menu3.wav");
 	M_List_ClearSearch (&optionsmenu.list);
 
+	M_Options_Preview (M_Options_GetSelected ());
+
 	switch (M_Options_GetSelected ())
 	{
 	case OPT_UISCALE:	// console and menu scale
@@ -3675,7 +3679,7 @@ void M_AdjustSliders (int dir)
 	case OPT_GAMMA:	// gamma
 		f = vid_gamma.value - dir * 0.05;
 		if (f < 0.5)	f = 0.5;
-		else if (f > 1)	f = 1;
+		else if (f > 1.5f) f = 1.5f;
 		Cvar_SetValue ("gamma", f);
 		break;
 	case OPT_CONTRAST:	// contrast
@@ -3980,8 +3984,6 @@ void M_AdjustSliders (int dir)
 	default:
 		break;
 	}
-
-	M_Options_Preview (M_Options_GetSelected ());
 }
 
 typedef struct
@@ -4075,7 +4077,7 @@ qboolean M_SetSliderValue (int option, float f)
 		Cvar_SetValue ("viewsize", f);
 		return true;
 	case OPT_GAMMA:	// gamma
-		f = 1.f - f * 0.5f;
+		f = 1.5f - f * 1.0f;
 		Cvar_SetValue ("gamma", f);
 		return true;
 	case OPT_CONTRAST:	// contrast
@@ -4322,8 +4324,8 @@ static void M_Options_DrawItem (int y, int item)
 		break;
 
 	case OPT_GAMMA:
-		r = (1.0 - vid_gamma.value) / 0.5;
-		M_DrawSlider (x, y, r, va ("%.0f", 10.f * r));
+		r = (1.5f - vid_gamma.value) / 1.0f;     
+		M_DrawSlider (x, y, r, va ("%.0f", 20.f * r)); 
 		break;
 
 	case OPT_CONTRAST:
@@ -4774,13 +4776,6 @@ void M_Options_Draw (void)
 	}
 
 	GL_PopCanvasColor ();
-
-	if (M_ForcedQuitMessage (&alpha))
-	{
-		GL_PushCanvasColor (1.f, 1.f, 1.f, alpha);
-		M_DrawQuitMessage ();
-		GL_PopCanvasColor ();
-	}
 }
 
 void M_Options_Key (int k)
@@ -5408,11 +5403,6 @@ const char*const quitMessage [] =
   "\xD9\x65s   \xCE\x6F",
 };
 
-void M_ChooseQuitMessage (void)
-{
-	msgNumber = (cl_confirmquit.value >= 2.f) ? (int)(realtime*(5.0*1.61803399))&7 : 8;
-}
-
 void M_Menu_Quit_f (void)
 {
 	if (m_state == m_quit)
@@ -5423,7 +5413,7 @@ void M_Menu_Quit_f (void)
 	m_quit_prevstate = m_state;
 	m_state = m_quit;
 	m_entersound = true;
-	M_ChooseQuitMessage ();
+	msgNumber = (cl_confirmquit.value >= 2.f) ? (int)(realtime*(5.0*1.61803399))&7 : 8;
 }
 
 
@@ -5498,21 +5488,19 @@ textmode_t M_Quit_TextEntry (void)
 	return TEXTMODE_NOPOPUP;
 }
 
-qboolean M_ForcedQuitMessage (float *alpha)
-{
-	qboolean forced = (key_dest == key_menu && M_GetBaseState (m_state) == m_options) ? optionsmenu.preview.id == OPT_CONFIRMQUIT : false;
-	if (alpha)
-		*alpha = forced ? M_Options_PreviewAlpha () : 0.f;
-	return forced;
-}
 
-void M_DrawQuitMessage (void)
+void M_Quit_Draw (void) //johnfitz -- modified for new quit message
 {
 	const char*const *msg = quitMessage + msgNumber*4;
 	int i, boxlen = 0;
 
-	if (!cl_confirmquit.value)
-		return;
+	if (wasInMenus)
+	{
+		m_state = m_quit_prevstate;
+		m_recursiveDraw = true;
+		M_Draw ();
+		m_state = m_quit;
+	}
 
 	//okay, this is kind of fucked up.  M_DrawTextBox will always act as if
 	//width is even. Also, the width and lines values are for the interior of the box,
@@ -5528,20 +5516,6 @@ void M_DrawQuitMessage (void)
 	//now do the text
 	for (i = 0; i < 4; i++)
 		M_Print (160 - 8*((strlen(msg[i])+1)>>1), 88 + i*8, msg[i]);
-}
-
-
-void M_Quit_Draw (void) //johnfitz -- modified for new quit message
-{
-	if (wasInMenus)
-	{
-		m_state = m_quit_prevstate;
-		m_recursiveDraw = true;
-		M_Draw ();
-		m_state = m_quit;
-	}
-
-	M_DrawQuitMessage ();
 }
 
 //=============================================================================

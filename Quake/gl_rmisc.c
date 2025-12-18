@@ -24,6 +24,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
+
+
 //johnfitz -- new cvars
 extern cvar_t r_clearcolor;
 extern cvar_t r_flatlightstyles;
@@ -51,6 +53,10 @@ extern cvar_t gl_zfix; // QuakeSpasm z-fighting fix
 extern cvar_t r_alphasort;
 extern cvar_t r_oit;
 extern cvar_t r_dither;
+
+	// --- PSX ---
+extern cvar_t r_scanlines;
+extern cvar_t r_texturewarp;
 
 #if defined(USE_SIMD)
 extern cvar_t r_simd;
@@ -156,6 +162,32 @@ static void R_ShowbboxesFilterClear_f (void)
 {
 	r_showbboxes_filter_strings[0] = '\0';
 	r_showbboxes_filter_byindex = false;
+}
+
+/*
+====================
+R_TextureWarp --- PSX
+====================
+*/
+
+static void R_SetTexturewarp_f (cvar_t *var)
+{
+    GL_ClearCachedProgram();
+    GL_DeleteShaders();
+    GL_CreateShaders();
+}
+
+/*
+====================
+R_Scanlines --- PSX
+====================
+*/
+
+static void R_SetScanlines_f (cvar_t *var)
+{
+    GL_ClearCachedProgram();
+    GL_DeleteShaders();
+    GL_CreateShaders();
 }
 
 /*
@@ -277,6 +309,8 @@ float GL_WaterAlphaForTextureType (textype_t type)
 		return map_wateralpha;
 }
 
+extern cvar_t	r_softemu;
+
 
 /*
 ===============
@@ -315,6 +349,7 @@ void R_Init (void)
 	Cvar_RegisterVariable (&r_oit);
 	Cvar_RegisterVariable (&r_dither);
 
+
 	Cvar_RegisterVariable (&gl_finish);
 	Cvar_RegisterVariable (&gl_clear);
 	Cvar_RegisterVariable (&gl_polyblend);
@@ -347,7 +382,14 @@ void R_Init (void)
 	Cvar_SetCallback (&r_nolerp_list, R_Model_ExtraFlags_List_f);
 	Cvar_RegisterVariable (&r_noshadow_list);
 	Cvar_SetCallback (&r_noshadow_list, R_Model_ExtraFlags_List_f);
+	Cvar_RegisterVariable(&r_softemu);
 	//johnfitz
+
+		// --- PSX ---
+	Cvar_RegisterVariable(&r_scanlines);
+	Cvar_SetCallback(&r_scanlines, R_SetScanlines_f);
+	Cvar_RegisterVariable(&r_texturewarp);
+	Cvar_SetCallback(&r_texturewarp, R_SetTexturewarp_f);
 
 	Cvar_RegisterVariable (&gl_zfix); // QuakeSpasm z-fighting fix
 	Cvar_RegisterVariable (&r_lavaalpha);
@@ -514,7 +556,6 @@ void R_NewMap (void)
 	R_ClearEfrags ();
 	r_viewleaf = NULL;
 	R_ClearParticles ();
-	VEC_CLEAR (r_pointfile);
 
 	GL_BuildLightmaps ();
 	GL_BuildBModelVertexBuffer ();
@@ -531,7 +572,7 @@ void R_NewMap (void)
 	// Load pointfile if map has no vis data and either developer mode is on or the game was started from a map editing tool
 	if (developer.value || map_checks.value)
 		if (!cl.worldmodel->visdata && COM_FileExists (va ("maps/%s.pts", cl.mapname), NULL))
-			Cbuf_AddText ("pointfile leak\n");
+			Cbuf_AddText ("pointfile\n");
 }
 
 /*
