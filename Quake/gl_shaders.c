@@ -30,6 +30,8 @@ static GLuint gl_programs[128];
 static GLuint gl_current_program;
 static int gl_num_programs;
 
+extern cvar_t r_scanlines;
+
 /*
 =============
 GL_InitError
@@ -244,6 +246,17 @@ static GLuint GL_CreateProgramFromSources (int count, const GLchar **sources, co
 		AppendString (&dst, dstend, "\n", 1);
 	}
 
+ // PSX - Scanlines
+     {
+        char *dst = macros + Q_strlen(macros);
+        char *dstend = macros + sizeof(macros);
+        int sl = (int)(r_scanlines.value != 0.0f);
+        q_snprintf(eval, sizeof(eval), "#define SCANLINES %d\n", sl);
+        if (!AppendString(&dst, dstend, eval, -1))
+            Sys_Error ("GL_CreateProgram: macro overflow while adding SCANLINES");
+    }
+
+
 	name = eval;
 
 	realcount = 0;
@@ -322,6 +335,9 @@ void GL_ClearCachedProgram (void)
 	GL_UseProgramFunc (0);
 }
 
+extern cvar_t r_scanlines;
+extern cvar_t r_texturewarp;
+
 /*
 =============
 GL_CreateShaders
@@ -330,6 +346,8 @@ GL_CreateShaders
 void GL_CreateShaders (void)
 {
 	int palettize, dither, mode, alphatest, warp, oit, md5;
+	int sl = (int)(r_scanlines.value != 0.0f);
+	int texturewarp = (int)(r_texturewarp.value != 0.0f);
 
 	glprogs.gui = GL_CreateProgram (gui_vertex_shader, gui_fragment_shader, "gui");
 	glprogs.viewblend = GL_CreateProgram (viewblend_vertex_shader, viewblend_fragment_shader, "viewblend");
@@ -344,20 +362,20 @@ void GL_CreateShaders (void)
 	for (oit = 0; oit < 2; oit++)
 		for (dither = 0; dither < 3; dither++)
 			for (mode = 0; mode < 3; mode++)
-				glprogs.world[oit][dither][mode] = GL_CreateProgram (world_vertex_shader, world_fragment_shader, "world|OIT %d; DITHER %d; MODE %d", oit, dither, mode);
+				glprogs.world[oit][dither][mode] = GL_CreateProgram (world_vertex_shader, world_fragment_shader, "world|OIT %d; DITHER %d; MODE %d; TEXTUREWARP %d", oit, dither, mode);
 
 	for (dither = 0; dither < 2; dither++)
 	{
 		for (oit = 0; oit < 2; oit++)
 		{
-			glprogs.water[oit][dither] = GL_CreateProgram (water_vertex_shader, water_fragment_shader, "water|OIT %d; DITHER %d", oit, dither);
+			glprogs.water[oit][dither] = GL_CreateProgram (water_vertex_shader, water_fragment_shader, "water|OIT %d; DITHER %d; TEXTUREWARP %d", oit, dither);
 			glprogs.particles[oit][dither] = GL_CreateProgram (particles_vertex_shader, particles_fragment_shader, "particles|OIT %d; DITHER %d", oit, dither);
 		}
 		for (mode = 0; mode < 2; mode++)
-			glprogs.skycubemap[mode][dither] = GL_CreateProgram (sky_cubemap_vertex_shader, sky_cubemap_fragment_shader, "sky cubemap|ANIM %d; DITHER %d", mode, dither);
-		glprogs.skylayers[dither] = GL_CreateProgram (sky_layers_vertex_shader, sky_layers_fragment_shader, "sky layers|DITHER %d", dither);
-		glprogs.skyboxside[dither] = GL_CreateProgram (sky_boxside_vertex_shader, sky_boxside_fragment_shader, "skybox side|DITHER %d", dither);
-		glprogs.sprites[dither] = GL_CreateProgram (sprites_vertex_shader, sprites_fragment_shader, "sprites|DITHER %d", dither);
+			glprogs.skycubemap[mode][dither] = GL_CreateProgram (sky_cubemap_vertex_shader, sky_cubemap_fragment_shader, "sky cubemap|ANIM %d; DITHER %d; TEXTUREWARP %d", mode, dither);
+		glprogs.skylayers[dither] = GL_CreateProgram (sky_layers_vertex_shader, sky_layers_fragment_shader, "sky layers|DITHER %d; SCANLINES %d; TEXTUREWARP %d", dither, sl);
+		glprogs.skyboxside[dither] = GL_CreateProgram (sky_boxside_vertex_shader, sky_boxside_fragment_shader, "skybox side|DITHER %d; TEXTUREWARP %d", dither);
+		glprogs.sprites[dither] = GL_CreateProgram (sprites_vertex_shader, sprites_fragment_shader, "sprites|DITHER %d; TEXTUREWARP %d", dither);
 	}
 	glprogs.skystencil = GL_CreateProgram (skystencil_vertex_shader, NULL, "sky stencil");
 
@@ -375,7 +393,7 @@ void GL_CreateShaders (void)
 	glprogs.cull_mark = GL_CreateComputeProgram (cull_mark_compute_shader, "cull/mark");
 	glprogs.cluster_lights = GL_CreateComputeProgram (cluster_lights_compute_shader, "light cluster");
 	for (mode = 0; mode < 3; mode++)
-		glprogs.palette_init[mode] = GL_CreateComputeProgram (palette_init_compute_shader, "palette init|MODE %d", mode);
+		glprogs.palette_init[mode] = GL_CreateComputeProgram (palette_init_compute_shader, "palette init|MODE %d; TEXTUREWARP %d", mode);
 	glprogs.palette_postprocess = GL_CreateComputeProgram (palette_postprocess_compute_shader, "palette postprocess");
 }
 
