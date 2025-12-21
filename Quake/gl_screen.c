@@ -78,6 +78,7 @@ int			glx, gly, glwidth, glheight;
 
 float		scr_con_current;
 float		scr_conlines;		// lines of console to display
+static float scr_loading_progress = 0.0f; // 0..1 while plaque is up
 
 //johnfitz -- new cvars
 cvar_t		scr_menuscale = {"scr_menuscale", "1", CVAR_ARCHIVE};
@@ -112,6 +113,14 @@ cvar_t		scr_showturtle = {"showturtle","0",CVAR_NONE};
 cvar_t		scr_showpause = {"showpause","1",CVAR_NONE};
 cvar_t		scr_printspeed = {"scr_printspeed","8",CVAR_NONE};
 cvar_t		gl_triplebuffer = {"gl_triplebuffer", "1", CVAR_ARCHIVE};
+
+//psx
+cvar_t scr_loadsound = {"scr_loadsound", "psx/cd_load.wav", CVAR_ARCHIVE};
+cvar_t scr_overlay        = {"scr_overlay", "", CVAR_ARCHIVE};      
+cvar_t scr_overlay_alpha  = {"scr_overlay_alpha", "1", CVAR_ARCHIVE}; 
+cvar_t scr_overlay_mode   = {"scr_overlay_mode", "0", CVAR_ARCHIVE};
+cvar_t scr_loadfake  = {"scr_loadfake", "1", CVAR_ARCHIVE}; 
+cvar_t scr_overlay_enabled = {"scr_overlay_enabled", "1", CVAR_ARCHIVE};
 
 cvar_t		cl_gun_fovscale = {"cl_gun_fovscale","1",CVAR_ARCHIVE}; // Qrack
 cvar_t		cl_gun_x = {"cl_gun_x","0",CVAR_ARCHIVE};
@@ -659,6 +668,16 @@ void SCR_Init (void)
 	Cvar_RegisterVariable (&scr_showpause);
 	Cvar_RegisterVariable (&scr_centertime);
 	Cvar_RegisterVariable (&scr_printspeed);
+
+	//psx
+	Cvar_RegisterVariable (&scr_loadsound);
+	Cvar_RegisterVariable(&scr_overlay);
+	Cvar_RegisterVariable(&scr_overlay_alpha);
+	Cvar_RegisterVariable(&scr_overlay_mode);	
+	Cvar_RegisterVariable(&scr_overlay);
+	Cvar_RegisterVariable (&scr_loadfake);
+	Cvar_RegisterVariable(&scr_overlay_enabled);
+
 	Cvar_RegisterVariable (&gl_triplebuffer);
 	Cvar_RegisterVariable (&cl_gun_fovscale);
 	Cvar_RegisterVariable (&cl_gun_x);
@@ -1107,17 +1126,56 @@ SCR_DrawLoading
 */
 void SCR_DrawLoading (void)
 {
-	qpic_t	*pic;
+    qpic_t *pic;
 
-	if (!scr_drawloading)
-		return;
+    if (!scr_drawloading)
+        return;
 
-	GL_SetCanvas (CANVAS_MENU); //johnfitz
+    Draw_FadeScreen(1.0f);  // full-screen black
 
-	pic = Draw_CachePic ("gfx/loading.lmp");
-	Draw_Pic ( (320 - pic->width)/2, (240 - 48 - pic->height)/2, pic); //johnfitz -- stretched menus
+    GL_SetCanvas (CANVAS_MENU);
 
-	scr_tileclear_updates = 0; //johnfitz
+    pic = Draw_CachePic ("gfx/loading.lmp");
+
+    // --- FULLSCREEN LOADING IMAGE ---
+    {
+        float x = (float)glcanvas.left;
+        float y = (float)glcanvas.bottom;
+        float w = (float)(glcanvas.right  - glcanvas.left);
+        float h = (float)(glcanvas.top    - glcanvas.bottom);
+        Draw_SubPic(x, y, w, h, pic, 0.f, 1.f, 1.f, -1.f, NULL, 1.0f);
+    }
+
+    // --- RED loading bar (on top of the fullscreen image) ---
+    const int bar_w = 128;
+    const int bar_h = 12;
+    const int bar_x = (320 - 1 - bar_w) / 2;
+    const int bar_y = 240 - 40 - bar_h;  // near bottom of screen
+
+    float frac = CLAMP(0.f, scr_loading_progress, 1.f);
+
+    vec3_t red_fg   = {1.0f, 0.0f, 0.0f};
+    vec3_t red_bg   = {0.0f, 0.0f, 0.0f};
+    vec3_t yellow   = {0.8f, 0.6f, 0.4f};
+
+    // --- Background (black box) ---
+    Draw_FillEx(bar_x, bar_y, bar_w, bar_h, red_bg, 0.6f);
+
+    // --- Yellow outline around black box ---
+    const float outline_alpha = 1.0f;
+    // top
+    Draw_FillEx(bar_x - 1, bar_y - 1, bar_w + 2, 1, yellow, outline_alpha);
+    // bottom
+    Draw_FillEx(bar_x - 1, bar_y + bar_h, bar_w + 2, 1, yellow, outline_alpha);
+    // left
+    Draw_FillEx(bar_x - 1, bar_y - 1, 1, bar_h + 2, yellow, outline_alpha);
+    // right
+    Draw_FillEx(bar_x + bar_w, bar_y - 1, 1, bar_h + 2, yellow, outline_alpha);
+
+    // --- Foreground fill (progress bar) ---
+    Draw_FillEx(bar_x + 2, bar_y + 2, (int)((bar_w - 4) * frac), bar_h - 4, red_fg, 1.0f);
+
+    scr_tileclear_updates = 0;
 }
 
 /*
@@ -1884,30 +1942,71 @@ SCR_BeginLoadingPlaque
 */
 void SCR_BeginLoadingPlaque (void)
 {
-	S_StopAllSounds (true);
+    S_StopAllSounds (true);
 
-	if (cls.state != ca_connected)
-		return;
-	if (cls.signon != SIGNONS)
-		return;
+    if (cls.state != ca_connected)
+        return;
+    if (cls.signon != SIGNONS)
+        return;
 
-// redraw with no console and the loading plaque
-	if (key_dest != key_console)
-	{
-		Con_ClearNotify ();
-		// don't reset console when advancing to a new demo while previewing a console option
-		if (!M_WantsConsole (NULL))
-			scr_con_current = 0;
-		scr_drawloading = true;
-	}
+	// play the custom loading sound
+    if (scr_loadsound.string && scr_loadsound.string[0])
+     S_LocalSound(scr_loadsound.string);
 
-	scr_centertime_off = 0;
-	Sbar_Changed ();
-	SCR_UpdateScreen ();
-	scr_drawloading = false;
+    // redraw with no console and the loading plaque
+    if (key_dest != key_console)
+    {
+        Con_ClearNotify ();
+        if (!M_WantsConsole (NULL))
+            scr_con_current = 0;
+        scr_drawloading = true;
+    }
 
-	scr_disabled_for_loading = true;
-	scr_disabled_time = realtime;
+    scr_centertime_off = 0;
+    Sbar_Changed ();
+
+    // Draw once immediately so the plaque appears right away
+    scr_loading_progress = 0.0f;
+    SCR_UpdateScreen ();                                  // draws plaque + bar @ 0%
+                                                          // (existing behavior already draws loading screen) :contentReference[oaicite:2]{index=2}
+
+if (scr_loadfake.value == 1)
+{
+    const double start = Sys_DoubleTime();
+    const double duration = 5.0;
+    const double endtime = start + duration;
+
+    while (true)
+    {
+        double now = Sys_DoubleTime();
+        if (now >= endtime)
+        {
+            scr_loading_progress = 1.0f;
+            SCR_UpdateScreen(); // final full bar frame
+            break;
+        }
+
+        scr_loading_progress = (float)((now - start) / duration);
+
+        // Keep UI responsive and redraw
+        Sys_SendKeyEvents();
+        SCR_UpdateScreen();
+        Sys_Sleep(16); // ~60 Hz
+    }
+}
+else
+{
+    // Instantly finish
+    scr_loading_progress = 1.0f;
+    SCR_UpdateScreen();
+}
+    // -------------------------------------------------------------------
+
+    scr_drawloading = false;
+
+    // existing logic that gates other rendering while loading is finishing up
+    scr_disabled_for_loading = true;
+    scr_disabled_time = realtime;
 }
 
 /*
@@ -2063,6 +2162,57 @@ void SCR_TileClear (void)
 	}
 }
 
+static void SCR_DrawOverlay(void)
+{
+if (!scr_overlay_enabled.value)
+    return;
+	
+    if (!scr_overlay.string || !scr_overlay.string[0])
+        return;
+
+    qpic_t *pic = Draw_CachePic(scr_overlay.string); // or SCR_LoadOverlayPic() if you added it
+    if (!pic)
+        return;
+
+    float a = scr_overlay_alpha.value;
+    if (a <= 0.f) return;
+    if (a > 1.f)  a = 1.f;
+
+
+    if (glwidth * 3 == glheight * 4)
+        return;
+
+if (!(glwidth * 3 > glheight * 4))
+    return;
+
+    if ((int)scr_overlay_mode.value == 0)
+    {
+        GL_SetCanvas(CANVAS_MENU);
+
+        float x = (float)glcanvas.left;
+        float y = (float)glcanvas.bottom;
+        float w = (float)(glcanvas.right  - glcanvas.left);
+        float h = (float)(glcanvas.top    - glcanvas.bottom);
+
+        Draw_SubPic(x, y, w, h, pic, 0.f, 1.f, 1.f, -1.f, NULL, a);
+    }
+    else
+    {
+        GL_SetCanvas(CANVAS_DEFAULT);
+
+        float cw = (float)(glcanvas.right  - glcanvas.left);
+        float ch = (float)(glcanvas.bottom - glcanvas.top);
+
+        float x = glcanvas.left + (r_refdef.vrect.x / (float)glwidth) * cw;
+        float y = glcanvas.bottom - ((glheight - r_refdef.vrect.y - r_refdef.vrect.height) / (float)glheight) * ch;
+        float w = (r_refdef.vrect.width  / (float)glwidth)  * cw;
+        float h = (r_refdef.vrect.height / (float)glheight) * ch;
+
+        // Draw whole texture (UV 0..1)
+        Draw_SubPic(x, y, w, h, pic, 0.f, 1.f, 1.f, -1.f, NULL, a);
+    }
+}
+
 /*
 ==================
 SCR_UpdateScreen
@@ -2126,23 +2276,27 @@ void SCR_UpdateScreen (void)
 			Sbar_Draw ();
 		Draw_FadeScreen (1.f);
 		SCR_DrawNotifyString ();
+		SCR_DrawOverlay();
 	}
 	else if (scr_drawloading) //loading
 	{
 		SCR_DrawLoading ();
 		Sbar_Draw ();
 		M_Draw ();
+		SCR_DrawOverlay();
 	}
 	else if (cl.intermission == 1 && key_dest == key_game) //end of level
 	{
 		Sbar_IntermissionOverlay ();
 		SCR_DrawDemoControls ();
+		SCR_DrawOverlay();
 	}
 	else if (cl.intermission == 2 && key_dest == key_game) //end of episode
 	{
 		Sbar_FinaleOverlay ();
 		SCR_CheckDrawCenterString ();
 		SCR_DrawDemoControls ();
+		SCR_DrawOverlay();
 	}
 	else
 	{
@@ -2157,11 +2311,13 @@ void SCR_UpdateScreen (void)
 		SCR_DrawDemoControls ();
 		SCR_DrawSpeed ();
 		SCR_DrawEdictInfo ();
+		SCR_DrawOverlay();
 		SCR_DrawConsole ();
 		M_Draw ();
 		SCR_DrawFPS (); //johnfitz
 		SCR_DrawSaving ();
 	}
+
 
 	Draw_Flush ();
 
