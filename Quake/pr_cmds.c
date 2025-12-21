@@ -1032,7 +1032,7 @@ static void PF_ftos (void)
 	v = G_FLOAT(OFS_PARM0);
 	s = PR_GetTempString();
 	if (v == (int)v)
-		sprintf (s, "%d",(int)v);
+		sprintf (s, "%g",(int)v);
 	else
 		sprintf (s, "%5.1f",v);
 	G_INT(OFS_RETURN) = PR_SetEngineString(s);

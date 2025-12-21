@@ -22,6 +22,9 @@ On most maps performance is indeed not much of a concern on a modern system. In 
 - capped framerate when no map is loaded
 - ability to run the game from a folder containing Unicode characters
 
+## What is SH-Quake?
+-It's the engine for [Superhot Quake](https://www.moddb.com/mods/superhot-quake/downloads/superhot-quake-030).
+
 ## System requirements
 
 | | Minimum GPU | Recommended GPU |
