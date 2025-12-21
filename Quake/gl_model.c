@@ -39,7 +39,7 @@ static void Mod_Print (void);
 
 static cvar_t	external_ents = {"external_ents", "1", CVAR_ARCHIVE};
 static cvar_t	external_vis = {"external_vis", "1", CVAR_ARCHIVE};
-cvar_t			r_md5 = {"r_md5", "1", CVAR_ARCHIVE};
+cvar_t			r_md5 = {"r_md5", "0", CVAR_ARCHIVE};
 
 static byte	*mod_novis;
 static int	mod_novis_capacity;
@@ -2903,11 +2903,22 @@ static void Mod_FloodFillSkin( byte *skin, int skinwidth, int skinheight )
 	}
 }
 
+
+
 /*
 ===============
 Mod_LoadAllSkins
 ===============
 */
+static qboolean Alias_SkinHasIndex255 (const byte *src, int pixels)
+{
+    const byte *p = src, *e = src + pixels;
+    for (; p < e; ++p)
+        if (*p == 255)
+            return true;
+    return false;
+}
+
 static void *Mod_LoadAllSkins (int numskins, daliasskintype_t *pskintype)
 {
 	int			i, j, k, size, groupskins;
@@ -2919,26 +2930,78 @@ static void *Mod_LoadAllSkins (int numskins, daliasskintype_t *pskintype)
 	src_offset_t		offset; //johnfitz
 	unsigned int		texflags = TEXPREF_PAD;
 
+    {
+        qboolean any_holey_index = false;
+        daliasskintype_t *pscan = pskintype; // keep a scan cursor
+        size = pheader->skinwidth * pheader->skinheight;
+
+        // quick reject if obviously bad input
+        if (numskins < 1 || numskins > MAX_SKINS)
+            Sys_Error ("Mod_LoadAliasModel: Invalid # of skins: %d", numskins);
+
+        // PASS 1: scan
+        for (i = 0; i < numskins && !any_holey_index; ++i)
+        {
+            if (pscan->type == ALIAS_SKIN_SINGLE)
+            {
+                const byte *bytes = (const byte *)(pscan + 1);
+                if (Alias_SkinHasIndex255(bytes, size))
+                    any_holey_index = true;
+
+                // advance: type + pixels
+                pscan = (daliasskintype_t *)((byte *)(pscan + 1) + size);
+            }
+            else
+            {
+                // ALIAS_SKIN_GROUP
+                pscan++;
+                pinskingroup = (daliasskingroup_t *)pscan;
+                groupskins = LittleLong (pinskingroup->numskins);
+                pinskinintervals = (daliasskininterval_t *)(pinskingroup + 1);
+                pscan = (daliasskintype_t *)(pinskinintervals + groupskins);
+
+                for (j = 0; j < groupskins && !any_holey_index; ++j)
+                {
+                    const byte *bytes = (const byte *)(pscan);
+                    if (Alias_SkinHasIndex255(bytes, size))
+                        any_holey_index = true;
+
+                    // advance one frame worth of pixels
+                    pscan = (daliasskintype_t *)((byte *)(pscan) + size);
+                }
+            }
+        }
+
+        if (any_holey_index)
+            loadmodel->flags |= MF_HOLEY;
+
+        // IMPORTANT: decide alpha intent BEFORE uploads begin
+        if (loadmodel->flags & MF_HOLEY)
+            texflags |= TEXPREF_ALPHA;
+    }
+
 	skin = (byte *)(pskintype + 1);
 
 	if (numskins < 1 || numskins > MAX_SKINS)
 		Sys_Error ("Mod_LoadAliasModel: Invalid # of skins: %d", numskins);
 
-	size = pheader->skinwidth * pheader->skinheight;
+	    size = pheader->skinwidth * pheader->skinheight;
 
-	if (loadmodel->flags & MF_HOLEY)
-		texflags |= TEXPREF_ALPHA;
+    // (REMOVED: original conditional texflags |= TEXPREF_ALPHA here, now handled above)
+    // if (loadmodel->flags & MF_HOLEY) texflags |= TEXPREF_ALPHA;
 
-	for (i=0 ; i<numskins ; i++)
-	{
-		if (pskintype->type == ALIAS_SKIN_SINGLE)
-		{
-			Mod_FloodFillSkin( skin, pheader->skinwidth, pheader->skinheight );
+    // PASS 2: your original upload loop (unchanged aside from that one line)
+    for (i = 0; i < numskins; i++)
+    {
+        if (pskintype->type == ALIAS_SKIN_SINGLE)
+        {
+            Mod_FloodFillSkin( skin, pheader->skinwidth, pheader->skinheight );
 
-			// save 8 bit texels for the player model to remap
-			texels = (byte *) Hunk_AllocName(size, loadname);
-			pheader->texels[i] = texels - (byte *)pheader;
-			memcpy (texels, (byte *)(pskintype + 1), size);
+            // save 8 bit texels for the player model to remap
+            texels = (byte *) Hunk_AllocName(size, loadname);
+            pheader->texels[i] = texels - (byte *)pheader;
+            memcpy (texels, (byte *)(pskintype + 1), size);
+
 
 			//johnfitz -- rewritten
 			q_snprintf (name, sizeof(name), "%s:frame%i", loadmodel->name, i);

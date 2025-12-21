@@ -112,6 +112,10 @@ cvar_t	r_lerpmove = {"r_lerpmove", "1", CVAR_ARCHIVE};
 cvar_t	r_nolerp_list = {"r_nolerp_list", "progs/flame.mdl,progs/flame2.mdl,progs/braztall.mdl,progs/brazshrt.mdl,progs/longtrch.mdl,progs/flame_pyre.mdl,progs/v_saw.mdl,progs/v_xfist.mdl,progs/h2stuff/newfire.mdl", CVAR_NONE};
 cvar_t	r_noshadow_list = {"r_noshadow_list", "progs/flame2.mdl,progs/flame.mdl,progs/bolt1.mdl,progs/bolt2.mdl,progs/bolt3.mdl,progs/laser.mdl", CVAR_NONE};
 
+// --- PSX ---
+cvar_t r_scanlines = {"r_scanlines", "1", CVAR_ARCHIVE};
+cvar_t r_texturewarp = { "r_texturewarp", "1", CVAR_ARCHIVE };
+
 extern cvar_t	r_vfog;
 extern cvar_t	vid_fsaa;
 //johnfitz
@@ -129,7 +133,7 @@ float	map_fallbackalpha;
 
 qboolean r_fullbright_cheatsafe, r_lightmap_cheatsafe, r_drawworld_cheatsafe; //johnfitz
 
-cvar_t	r_scale = {"r_scale", "1", CVAR_ARCHIVE};
+cvar_t	r_scale = {"r_scale", "4", CVAR_ARCHIVE};
 
 //==============================================================================
 //
@@ -2062,4 +2066,5 @@ void R_RenderView (void)
 					rs_dynamiclightmaps);
 	//johnfitz
 }
+
 
