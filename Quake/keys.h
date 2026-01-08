@@ -46,10 +46,31 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	def (K_RTRIGGER,	/*auto*/,			"RT",				"R2",						"ZR")				\
 	def (K_MISC1,		/*auto*/,			NULL,				"MUTE",						"CAPTURE")			\
 	def (K_PADDLE1,		/*auto*/,			"P1 PADDLE",		NULL,						NULL)				\
-	def (K_PADDLE2,		/*auto*/,			"P2 PADDLE",		NULL,						NULL)				\
-	def (K_PADDLE3,		/*auto*/,			"P3 PADDLE",		NULL,						NULL)				\
+	def (K_PADDLE2,		/*auto*/,			"P3 PADDLE",		NULL,						NULL)				\
+	def (K_PADDLE3,		/*auto*/,			"P2 PADDLE",		NULL,						NULL)				\
 	def (K_PADDLE4,		/*auto*/,			"P4 PADDLE",		NULL,						NULL)				\
 	def (K_TOUCHPAD,	/*auto*/,			NULL,				"TOUCHPAD",					NULL)				\
+	/*	virtual buttons you get by pressing the alt modifier + the corresponding normal gamepad button	*/		\
+	def (K_LTHUMB_ALT,		/*auto*/,		"LS (alt)",			"L3 (alt)",					"LSB (alt)")		\
+	def (K_RTHUMB_ALT,		/*auto*/,		"RS (alt)",			"R3 (alt)",					"RSB (alt)")		\
+	def (K_LSHOULDER_ALT,	/*auto*/,		"LB (alt)",			"L1 (alt)",					"L (alt)")			\
+	def (K_RSHOULDER_ALT,	/*auto*/,		"RB (alt)",			"R1 (alt)",					"R (alt)")			\
+	def (K_DPAD_UP_ALT,		/*auto*/,		"DPAD UP (alt)",	"DPAD UP (alt)",			"DPAD UP (alt)")	\
+	def (K_DPAD_DOWN_ALT,	/*auto*/,		"DPAD DOWN (alt)",	"DPAD DOWN (alt)",			"DPAD DOWN (alt)")	\
+	def (K_DPAD_LEFT_ALT,	/*auto*/,		"DPAD LEFT (alt)",	"DPAD LEFT (alt)",			"DPAD LEFT (alt)")	\
+	def (K_DPAD_RIGHT_ALT,	/*auto*/,		"DPAD RIGHT (alt)",	"DPAD RIGHT (alt)",			"DPAD RIGHT (alt)")	\
+	def (K_ABUTTON_ALT,		/*auto*/,		"A (alt)",			"X (alt)",					"A (alt)")			\
+	def (K_BBUTTON_ALT,		/*auto*/,		"B (alt)",			"CIRCLE (alt)",				"B (alt)")			\
+	def (K_XBUTTON_ALT,		/*auto*/,		"X (alt)",			"SQUARE (alt)",				"X (alt)")			\
+	def (K_YBUTTON_ALT,		/*auto*/,		"Y (alt)",			"TRIANGLE (alt)",			"Y (alt)")			\
+	def (K_LTRIGGER_ALT,	/*auto*/,		"LT (alt)",			"L2",						"ZL (alt)")			\
+	def (K_RTRIGGER_ALT,	/*auto*/,		"RT (alt)",			"R2",						"ZR (alt)")			\
+	def (K_MISC1_ALT,		/*auto*/,		NULL,				"MUTE (alt)",				"CAPTURE (alt)")	\
+	def (K_PADDLE1_ALT,		/*auto*/,		"P1 PADDLE (alt)",	NULL,						NULL)				\
+	def (K_PADDLE2_ALT,		/*auto*/,		"P3 PADDLE (alt)",	NULL,						NULL)				\
+	def (K_PADDLE3_ALT,		/*auto*/,		"P2 PADDLE (alt)",	NULL,						NULL)				\
+	def (K_PADDLE4_ALT,		/*auto*/,		"P4 PADDLE (alt)",	NULL,						NULL)				\
+	def (K_TOUCHPAD_ALT,	/*auto*/,		NULL,				"TOUCHPAD (alt)",			NULL)				\
 
 
 //
@@ -182,6 +203,8 @@ typedef enum
 
 extern keydest_t	key_dest;
 extern	char	*keybindings[MAX_KEYS];
+
+extern qboolean joy_altmodifier_pressed;
 
 #define		CMDLINES 64
 
