@@ -1416,7 +1416,7 @@ void Host_Init (void)
 
 	if (cls.state != ca_dedicated)
 	{
-		host_colormap = (byte *)COM_LoadHunkFile ("gfx/colormap.lmp", NULL);
+		host_colormap = (byte *)QFS_LoadHunkFile ("gfx/colormap.lmp", NULL, NULL);
 		if (!host_colormap)
 			Sys_Error ("Couldn't load gfx/colormap.lmp");
 
@@ -1510,6 +1510,8 @@ void Host_Shutdown(void)
 	Modlist_ShutDown ();
 
 	NET_Shutdown ();
+
+	QFS_Shutdown();
 
 	if (cls.state != ca_dedicated)
 	{
