@@ -894,8 +894,7 @@ void SCR_DrawDemoControls (void)
 
 	// Approximate the fraction of the demo that's already been played back
 	// based on the current file offset and total demo size
-	// Note: we need to take into account the starting offset for pak files
-	frac = (Sys_ftell (cls.demofile) - cls.demofilestart) / (double)cls.demofilesize;
+	frac = QFS_Tell (cls.inpdemo) / (double)cls.demofilesize;
 	frac = CLAMP (0.f, frac, 1.f);
 
 	if (cl.intermission)
