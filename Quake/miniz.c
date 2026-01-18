@@ -2247,7 +2247,7 @@ mz_bool mz_zip_end(mz_zip_archive *pZip)
 
     return MZ_FALSE;
 }
-
+#endif /* unused */
 mz_uint mz_zip_reader_get_filename(mz_zip_archive *pZip, mz_uint file_index, char *pFilename, mz_uint filename_buf_size)
 {
     mz_uint n;
@@ -2268,7 +2268,6 @@ mz_uint mz_zip_reader_get_filename(mz_zip_archive *pZip, mz_uint file_index, cha
     }
     return n + 1;
 }
-#endif /* unused */
 
 mz_bool mz_zip_reader_file_stat(mz_zip_archive *pZip, mz_uint file_index, mz_zip_archive_file_stat *pStat)
 {
