@@ -295,7 +295,8 @@ int Sys_FileWrite (int handle, const void *data, int count)
 
 qboolean Sys_FileExists (const char *path)
 {
-	return access (path, F_OK) == 0;
+	char exact_path[MAX_OSPATH];
+	return get_exact_path(exact_path, path);
 }
 
 int Sys_FileType (const char *path)
@@ -304,25 +305,37 @@ int Sys_FileType (const char *path)
 	if (access(path, R_OK) == -1)
 		return 0;
 	*/
+	char exact_path[MAX_OSPATH];
 	struct stat	st;
 
-	if (stat(path, &st) != 0)
-		return FS_ENT_NONE;
-	if (S_ISDIR(st.st_mode))
-		return FS_ENT_DIRECTORY;
-	if (S_ISREG(st.st_mode))
-		return FS_ENT_FILE;
+	if (get_exact_path(exact_path, path))
+	{
+		if (stat(exact_path, &st) != 0)
+			return FS_ENT_NONE;
+		if (S_ISDIR(st.st_mode))
+			return FS_ENT_DIRECTORY;
+		if (S_ISREG(st.st_mode))
+			return FS_ENT_FILE;
+	}
 
 	return FS_ENT_NONE;
 }
 
 qboolean Sys_GetFileTime (const char *path, time_t *out)
 {
+	char exact_path[MAX_OSPATH];
 	struct stat st;
-	if (stat (path, &st) != 0)
-		return false;
-	*out = st.st_mtime;
-	return true;
+
+	if (get_exact_path(exact_path, path))
+	{
+		if (stat (exact_path, &st) == 0)
+		{
+			*out = st.st_mtime;
+			return true;
+		}
+	}
+
+	return false;
 }
 
 #if defined(__linux__) || defined(__sun) || defined(sun) || defined(_AIX)
