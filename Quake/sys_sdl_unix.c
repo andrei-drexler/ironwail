@@ -84,7 +84,6 @@ static qboolean get_exact_path(char *exact_path, const char *in_path)
 {
 	char segment[MAX_OSPATH];
 	char path_buf[MAX_OSPATH];
-	struct stat path_buf_stat;
 	char *ch;
 	int segment_start = 0;
 	int segment_end = 0;
@@ -126,7 +125,7 @@ static qboolean get_exact_path(char *exact_path, const char *in_path)
 
 		q_strlcpy(path_buf, exact_path, q_min(segment_end + 1, MAX_OSPATH));
 
-		if (stat(path_buf, &path_buf_stat) == 0)
+		if (access(path_buf, F_OK) == 0)
 		{
 			if (exact_path[segment_end] == 0)
 				break;
