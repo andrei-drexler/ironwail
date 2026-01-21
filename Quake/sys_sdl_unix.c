@@ -127,9 +127,6 @@ static qboolean get_exact_path(char *exact_path, const char *in_path)
 
 		if (access(path_buf, F_OK) == 0)
 		{
-			if (exact_path[segment_end] == 0)
-				break;
-
 			segment_start = segment_end;
 		}
 		else
