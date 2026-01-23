@@ -3932,7 +3932,7 @@ void M_AdjustSliders (int dir)
 		Cvar_SetValueQuick (&joy_invert, !joy_invert.value);
 		break;
 	case GPAD_OPT_SWAP_MOVELOOK:
-		Cvar_SetValueQuick (&joy_swapmovelook, !joy_swapmovelook.value);
+		Cvar_SetValueQuick(&joy_swapmovelook, fmod(joy_swapmovelook.value + 1, 3));
 		break;
 	case GPAD_OPT_EXPONENT_LOOK:
 		Cvar_SetValueQuick (&joy_exponent, CLAMP (MIN_JOY_EXPONENT, joy_exponent.value + dir * 0.5f, MAX_JOY_EXPONENT));
@@ -4556,7 +4556,20 @@ static void M_Options_DrawItem (int y, int item)
 		M_DrawCheckbox (x, y, joy_invert.value);
 		break;
 	case GPAD_OPT_SWAP_MOVELOOK:
-		M_Print (x, y, joy_swapmovelook.value ? "Left" : "Right");
+		switch ((int)joy_swapmovelook.value) {
+			case 0:
+				M_Print(x, y, "Right");
+				break;
+			case 1:
+				M_Print(x, y, "Left");
+				break;
+			case 2:
+				M_Print(x, y, "Legacy");
+				break;
+			default:
+				M_Print(x, y, "Unknown");
+				break;
+			}
 		break;
 	case GPAD_OPT_EXPONENT_LOOK:
 		r = (joy_exponent.value - MIN_JOY_EXPONENT) / (MAX_JOY_EXPONENT - MIN_JOY_EXPONENT);
