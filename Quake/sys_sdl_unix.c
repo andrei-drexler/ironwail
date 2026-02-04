@@ -23,15 +23,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "arch_def.h"
 #include "quakedef.h"
+#include "q_ctype.h"
 #include "steam.h"
 
 #include <sys/types.h>
 #include <errno.h>
 #include <unistd.h>
 #include <string.h>
-#if defined(PLATFORM_OSX) || defined(PLATFORM_HAIKU)
 #include <libgen.h>	/* dirname() and basename() */
-#endif
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <fcntl.h>
@@ -72,8 +71,95 @@ static int findhandle (void)
 	return -1;
 }
 
+/*	Get the case-sensitive form of path for a case-insensitive `in_path`
+ *	while normalizing path separators
+ *
+ *	pre: exact_path allocated with as many bytes as in_path
+ *
+ *	Return true on success
+ *
+ *	`exact_path` may be clobbered regardless of success or failure
+ */
+static qboolean get_exact_path(char *exact_path, const char *in_path)
+{
+	char segment[MAX_OSPATH];
+	char path_buf[MAX_OSPATH];
+	char *ch;
+	int segment_start = 0;
+	int segment_end = 0;
+
+	if (in_path == NULL || in_path[0] == 0) {
+		return	false;
+	}
+	
+	q_strlcpy(exact_path, in_path, MAX_OSPATH);
+
+	// normalize path separators
+	for (ch = exact_path; *ch != 0; ++ch)
+	{
+		if (*ch == '\\')
+			*ch = '/';
+	}
+
+	while (exact_path[segment_start] != 0)
+	{
+		DIR *dir;
+		struct dirent *entry;
+		char *match;
+
+		// check leading slash as filesystem root or redundant slash
+		if (exact_path[segment_start] == '/')
+		{
+			++segment_end;
+			if (segment_start != 0)
+			{
+				++segment_start;
+				continue;
+			}
+		}
+		else
+		{
+			while (exact_path[segment_end] != '/' && exact_path[segment_end] != 0)
+				++segment_end;
+		}
+
+		q_strlcpy(path_buf, exact_path, q_min(segment_end + 1, MAX_OSPATH));
+
+		if (access(path_buf, F_OK) == 0)
+		{
+			segment_start = segment_end;
+		}
+		else
+		{
+			q_strlcpy(segment, exact_path + segment_start, q_min(segment_end - segment_start + 1, MAX_OSPATH - segment_start));
+			// Note: dirname clobbers path_buf
+			dir = opendir(dirname(path_buf));
+			match = NULL;
+
+			do
+			{
+				entry = readdir(dir);
+
+				if (entry && q_strcasecmp(entry->d_name, segment) == 0)
+					match = entry->d_name;
+			} while (entry && !match);
+
+			closedir(dir);
+
+			if (match)
+				memcpy(exact_path + segment_start, match, segment_end - segment_start);
+			else
+				return false;
+		}
+	}
+
+	return true;
+}
+
 FILE *Sys_fopen (const char *path, const char *mode)
 {
+	char exact_path[MAX_OSPATH];
+
 	if (strchr (mode, 'w'))
 	{
 		char dir[MAX_OSPATH];
@@ -96,8 +182,18 @@ FILE *Sys_fopen (const char *path, const char *mode)
 			dir[i] = '/';
 		}
 	}
+	else
+	{
+		if (!get_exact_path(exact_path, path))
+		{
+			errno = ENOENT;
+			return NULL;
+		}
 
-	return fopen (path, mode);
+		path = exact_path;
+	}
+
+	return fopen(path, mode);
 }
 
 COMPILE_TIME_ASSERT (CHECK_LARGE_FILE_SUPPORT, sizeof (off_t) >= sizeof (qfileofs_t));
@@ -141,7 +237,7 @@ qfileofs_t Sys_FileOpenRead (const char *path, int *hndl)
 	qfileofs_t	retval;
 
 	i = findhandle ();
-	f = fopen(path, "rb");
+	f = Sys_fopen(path, "rb");
 
 	if (!f)
 	{
@@ -196,7 +292,8 @@ int Sys_FileWrite (int handle, const void *data, int count)
 
 qboolean Sys_FileExists (const char *path)
 {
-	return access (path, F_OK) == 0;
+	char exact_path[MAX_OSPATH];
+	return get_exact_path(exact_path, path);
 }
 
 int Sys_FileType (const char *path)
@@ -205,25 +302,37 @@ int Sys_FileType (const char *path)
 	if (access(path, R_OK) == -1)
 		return 0;
 	*/
+	char exact_path[MAX_OSPATH];
 	struct stat	st;
 
-	if (stat(path, &st) != 0)
-		return FS_ENT_NONE;
-	if (S_ISDIR(st.st_mode))
-		return FS_ENT_DIRECTORY;
-	if (S_ISREG(st.st_mode))
-		return FS_ENT_FILE;
+	if (get_exact_path(exact_path, path))
+	{
+		if (stat(exact_path, &st) != 0)
+			return FS_ENT_NONE;
+		if (S_ISDIR(st.st_mode))
+			return FS_ENT_DIRECTORY;
+		if (S_ISREG(st.st_mode))
+			return FS_ENT_FILE;
+	}
 
 	return FS_ENT_NONE;
 }
 
 qboolean Sys_GetFileTime (const char *path, time_t *out)
 {
+	char exact_path[MAX_OSPATH];
 	struct stat st;
-	if (stat (path, &st) != 0)
-		return false;
-	*out = st.st_mtime;
-	return true;
+
+	if (get_exact_path(exact_path, path))
+	{
+		if (stat (exact_path, &st) == 0)
+		{
+			*out = st.st_mtime;
+			return true;
+		}
+	}
+
+	return false;
 }
 
 #if defined(__linux__) || defined(__sun) || defined(sun) || defined(_AIX)
