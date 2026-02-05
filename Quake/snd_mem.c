@@ -99,6 +99,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 	wavinfo_t	info;
 	int		len;
 	float	stepscale;
+	size_t	filesize;
 	sfxcache_t	*sc;
 
 // see if still in memory
@@ -114,7 +115,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 
 //	Con_Printf ("loading %s\n",namebuffer);
 
-	data = COM_LoadMallocFile (namebuffer, NULL);
+	data = QFS_LoadMallocFile (namebuffer, NULL, &filesize);
 
 	if (!data)
 	{
@@ -122,7 +123,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 		return NULL;
 	}
 
-	info = GetWavinfo (s->name, data, com_filesize);
+	info = GetWavinfo (s->name, data, filesize);
 	if (info.channels != 1)
 	{
 		free (data);

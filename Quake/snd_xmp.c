@@ -1,4 +1,4 @@
-/* tracker music (module file) decoding support using libxmp >= v4.2.0
+/* tracker music (module file) decoding support using libxmp >= v4.5.0
  * https://sourceforge.net/projects/xmp/
  * https://github.com/libxmp/libxmp.git
  *
@@ -30,8 +30,8 @@
 #define BUILDING_STATIC
 #endif
 #include <xmp.h>
-#if ((XMP_VERCODE+0) < 0x040200)
-#error libxmp version 4.2 or newer is required
+#if ((XMP_VERCODE+0) < 0x040500)
+#error libxmp version 4.5 or newer is required
 #endif
 
 static qboolean S_XMP_CodecInitialize (void)
@@ -43,62 +43,38 @@ static void S_XMP_CodecShutdown (void)
 {
 }
 
-#if (XMP_VERCODE >= 0x040500)
 static unsigned long xmp_fread(void *dest, unsigned long len, unsigned long nmemb, void *f)
 {
-	return FS_fread(dest, len, nmemb, (fshandle_t *)f);
+	return (unsigned long)QFS_ReadFile((qfshandle_t*)f, dest, (size_t)len);
 }
 static int xmp_fseek(void *f, long offset, int whence)
 {
-	return FS_fseek((fshandle_t *)f, offset, whence);
+	return QFS_Seek((qfshandle_t*)f, (qfileofs_t)offset, whence);
 }
 static long xmp_ftell(void *f)
 {
-	return FS_ftell((fshandle_t *)f);
+	return (long)QFS_Tell((qfshandle_t*)f);
 }
-#endif
+
 
 static qboolean S_XMP_CodecOpenStream (snd_stream_t *stream)
 {
-/* need to load the whole file into memory and pass it to libxmp
- * using xmp_load_module_from_memory() which requires libxmp >= 4.2.
- * libxmp-4.0/4.1 only have xmp_load_module() which accepts a file
- * name which isn't good with files in containers like paks, etc.
- * On the other hand, libxmp >= 4.5 introduces file callbacks: use
- * if available. */
+/* libxmp >= 4.5 introduces file callbacks, we now require this feature. */
 	xmp_context c;
-#if (XMP_VERCODE >= 0x040500)
 	struct xmp_callbacks file_callbacks = {
 		xmp_fread, xmp_fseek, xmp_ftell, NULL
 	};
-#else
-	byte *moddata;
-	long len;
-	int mark;
-#endif
+
 	int fmt;
 
 	c = xmp_create_context();
 	if (c == NULL)
 		return false;
 
-#if (XMP_VERCODE >= 0x040500)
-	if (xmp_load_module_from_callbacks(c, &stream->fh, file_callbacks) < 0) {
+	if (xmp_load_module_from_callbacks(c, stream->fh, file_callbacks) < 0) {
 		Con_DPrintf("Could not load module %s\n", stream->name);
 		goto err1;
 	}
-#else
-	len = FS_filelength (&stream->fh);
-	mark = Hunk_LowMark();
-	moddata = (byte *) Hunk_Alloc(len);
-	FS_fread(moddata, 1, len, &stream->fh);
-	if (xmp_load_module_from_memory(c, moddata, len) < 0) {
-		Hunk_FreeToLowMark(mark);
-		Con_DPrintf("Could not load module %s\n", stream->name);
-		goto err1;
-	}
-	Hunk_FreeToLowMark(mark); /* free original file data */
-#endif
 
 	stream->priv = c;
 	if (shm->speed > XMP_MAX_SRATE)

@@ -531,7 +531,7 @@ void R_NewMap (void)
 
 	// Load pointfile if map has no vis data and either developer mode is on or the game was started from a map editing tool
 	if (developer.value || map_checks.value)
-		if (!cl.worldmodel->visdata && COM_FileExists (va ("maps/%s.pts", cl.mapname), NULL))
+		if (!cl.worldmodel->visdata && QFS_FileExists (va ("maps/%s.pts", cl.mapname), NULL))
 			Cbuf_AddText ("pointfile leak\n");
 }
 

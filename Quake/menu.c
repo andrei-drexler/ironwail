@@ -7577,20 +7577,22 @@ void M_ConfigureNetSubsystem(void)
 static qboolean M_CheckCustomGfx (const char *custompath, const char *basepath, int knownlength, const unsigned int *hashes, int numhashes)
 {
 	unsigned int id_custom, id_base;
-	int h, length;
+	qfshandle_t* h;
+	int length;
 	qboolean ret = false;
 
-	if (!COM_FileExists (custompath, &id_custom))
+	if (!QFS_FileExists (custompath, &id_custom))
 		return false;
 
-	length = COM_OpenFile (basepath, &h, &id_base);
+	h = QFS_OpenFile (basepath, &id_base);
+	length = (int)QFS_FileSize (h);
 	if (id_custom >= id_base)
 		ret = true;
 	else if (length == knownlength)
 	{
 		int mark = Hunk_LowMark ();
 		byte* data = (byte*) Hunk_Alloc (length);
-		if (length == Sys_FileRead (h, data, length))
+		if (length == (int)QFS_ReadFile (h, data, length))
 		{
 			unsigned int hash = COM_HashBlock (data, length);
 			while (numhashes-- > 0 && !ret)
@@ -7600,7 +7602,7 @@ static qboolean M_CheckCustomGfx (const char *custompath, const char *basepath, 
 		Hunk_FreeToLowMark (mark);
 	}
 
-	COM_CloseFile (h);
+	QFS_CloseFile (h);
 
 	return ret;
 }

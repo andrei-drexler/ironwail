@@ -736,25 +736,25 @@ void TexMgr_LoadPalette (void)
 {
 	byte *pal, *src, *colormap;
 	int i, j, mark, numfb;
-	FILE *f;
+	qfshandle_t *f;
 
-	COM_FOpenFile ("gfx/palette.lmp", &f, NULL);
+	f = QFS_FOpenFile ("gfx/palette.lmp", NULL);
 	if (!f)
 		Sys_Error ("Couldn't load gfx/palette.lmp");
 
 	mark = Hunk_LowMark ();
 	pal = (byte *) Hunk_AllocNoFill (768);
-	if (fread (pal, 768, 1, f) != 1)
+	if (QFS_ReadFile (f, pal, 768) != 768)
 		Sys_Error ("Failed reading gfx/palette.lmp");
-	fclose(f);
+	QFS_CloseFile(f);
 
-	COM_FOpenFile ("gfx/colormap.lmp", &f, NULL);
+	f = QFS_FOpenFile ("gfx/colormap.lmp", NULL);
 	if (!f)
 		Sys_Error ("Couldn't load gfx/colormap.lmp");
 	colormap = (byte *) Hunk_AllocNoFill (256 * 64);
-	if (fread (colormap, 256 * 64, 1, f) != 1)
+	if (QFS_ReadFile (f, colormap, 256 * 64) != 256 * 64)
 		Sys_Error ("TexMgr_LoadPalette: colormap read error");
-	fclose(f);
+	QFS_CloseFile(f);
 
 	//find fullbright colors
 	memset (is_fullbright, 0, sizeof (is_fullbright));
@@ -1619,11 +1619,11 @@ void TexMgr_ReloadImage (gltexture_t *glt, int shirt, int pants)
 
 	if (glt->source_file[0] && glt->source_offset) {
 		//lump inside file
-		FILE *f;
+		qfshandle_t *f;
 		int sz;
-		COM_FOpenFile(glt->source_file, &f, NULL);
+		f = QFS_FOpenFile(glt->source_file, NULL);
 		if (!f) goto invalid;
-		fseek (f, glt->source_offset, SEEK_CUR);
+		QFS_Seek (f, glt->source_offset, SEEK_CUR);
 		size = glt->source_width * glt->source_height;
 		/* should be SRC_INDEXED, but no harm being paranoid:  */
 		if (glt->source_format == SRC_RGBA) {
@@ -1633,8 +1633,8 @@ void TexMgr_ReloadImage (gltexture_t *glt, int shirt, int pants)
 			size *= lightmap_bytes;
 		}
 		data = (byte *) Hunk_AllocNoFill (size);
-		sz = (int) fread (data, 1, size, f);
-		fclose (f);
+		sz = (int) QFS_ReadFile (f, data, size);
+		QFS_CloseFile (f);
 		if (sz != size) {
 			Hunk_FreeToLowMark(mark);
 			Host_Error("Read error for %s", glt->name);

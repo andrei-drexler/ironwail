@@ -442,7 +442,6 @@ void ExtraMaps_Init (void)
 	char			mapname[32];
 	char			ignorepakdir[32];
 	searchpath_t	*search;
-	pack_t			*pak;
 	int				i;
 
 	// we don't want to list the maps in id1 pakfiles,
@@ -467,15 +466,19 @@ void ExtraMaps_Init (void)
 		}
 		else //pakfile
 		{
-			qboolean isbase = (strstr(search->pack->filename, ignorepakdir) != NULL);
-			for (i = 0, pak = search->pack; i < pak->numfiles; i++)
+			const char* pack_filename = QFS_PackInfoName(search->pack);
+			qboolean isbase = (pack_filename && strstr(pack_filename, ignorepakdir) != NULL);
+			int filecnt = QFS_PackInfoNumFiles(search->pack);
+			for (i = 0; i < filecnt; ++i)
 			{
-				if (pak->files[i].filelen > 32*1024 &&				// don't list files under 32k (ammo boxes etc)
-					!strncmp (pak->files[i].name, "maps/", 5) &&	// don't list files outside of maps/
-					!strchr (pak->files[i].name + 5, '/') &&		// don't list files in subdirectories
-					!strcmp (COM_FileGetExtension (pak->files[i].name), "bsp"))
+				const char* entry_filename = QFS_PackInfoEntryName(search->pack, i);
+				if (entry_filename &&
+					QFS_PackInfoEntrySize(search->pack, i) > 32*1024 &&				// don't list files under 32k (ammo boxes etc)
+					!strncmp (entry_filename, "maps/", 5) &&	// don't list files outside of maps/
+					!strchr (entry_filename + 5, '/') &&		// don't list files in subdirectories
+					!strcmp (COM_FileGetExtension (entry_filename), "bsp"))
 				{
-					COM_StripExtension (pak->files[i].name + 5, mapname, sizeof (mapname));
+					COM_StripExtension (entry_filename + 5, mapname, sizeof (mapname));
 					ExtraMaps_Add (mapname, isbase ? NULL : search);
 				}
 			}
@@ -1134,7 +1137,7 @@ static void Modlist_Add (const char *name)
 	// look for mapdb.json file
 	if (!info->full_name)
 	{
-		char *mapdb = (char *) COM_LoadMallocFile ("mapdb.json", &path_id);
+		char *mapdb = (char *) QFS_LoadMallocFile ("mapdb.json", &path_id, NULL);
 		if (mapdb)
 		{
 			qboolean is_base_mapdb = !com_searchpaths || path_id < com_searchpaths->path_id;
@@ -1200,6 +1203,10 @@ static qboolean Modlist_Check (const char *modname, const char *base)
 	q_snprintf (modpath, sizeof (modpath), "%s/%s", base, modname);
 
 	q_snprintf (itempath, sizeof (itempath), "%s/pak0.pak", modpath);
+	if (Sys_FileExists (itempath))
+		return true;
+	
+	q_snprintf (itempath, sizeof (itempath), "%s/pak0.pk3", modpath);
 	if (Sys_FileExists (itempath))
 		return true;
 
@@ -1344,7 +1351,6 @@ void DemoList_Init (void)
 	char		demname[32];
 	char		ignorepakdir[32];
 	searchpath_t	*search;
-	pack_t		*pak;
 	int		i;
 
 	// we don't want to list the demos in id1 pakfiles,
@@ -1366,13 +1372,16 @@ void DemoList_Init (void)
 		}
 		else //pakfile
 		{
-			if (!strstr(search->pack->filename, ignorepakdir))
+			const char* pack_filename = QFS_PackInfoName(search->pack);
+			if (!strstr(pack_filename, ignorepakdir))
 			{ //don't list standard id demos
-				for (i = 0, pak = search->pack; i < pak->numfiles; i++)
+				int filecnt = QFS_PackInfoNumFiles(search->pack);
+				for (i = 0; i < filecnt; ++i)
 				{
-					if (!strcmp (COM_FileGetExtension (pak->files[i].name), "dem"))
+					const char* entry_filename = QFS_PackInfoEntryName(search->pack, i);
+					if (!strcmp (COM_FileGetExtension (entry_filename), "dem"))
 					{
-						COM_StripExtension (pak->files[i].name, demname, sizeof (demname));
+						COM_StripExtension (entry_filename, demname, sizeof (demname));
 						FileList_Add (demname, &demolist);
 					}
 				}
@@ -1503,7 +1512,6 @@ static void SkyList_AddDirRec (const char *root, const char *relpath)
 void SkyList_Init (void)
 {
 	searchpath_t	*search;
-	pack_t			*pak;
 	int				i;
 
 	for (search = com_searchpaths; search; search = search->next)
@@ -1511,8 +1519,11 @@ void SkyList_Init (void)
 		if (*search->filename) //directory
 			SkyList_AddDirRec (search->filename, "gfx/env");
 		else //pakfile
-			for (i = 0, pak = search->pack; i < pak->numfiles; i++)
-				SkyList_AddFile (pak->files[i].name);
+		{
+			int entry_count = QFS_PackInfoNumFiles(search->pack);
+			for (i = 0; i < entry_count; ++i)
+				SkyList_AddFile (QFS_PackInfoEntryName(search->pack, i));
+		}
 	}
 }
 
@@ -2102,7 +2113,7 @@ static void Host_Changelevel_f (void)
 
 	//johnfitz -- check for client having map before anything else
 	q_snprintf (level, sizeof(level), "maps/%s.bsp", Cmd_Argv(1));
-	if (!COM_FileExists(level, NULL))
+	if (!QFS_FileExists(level, NULL))
 		Host_Error ("cannot find map %s", level);
 	//johnfitz
 

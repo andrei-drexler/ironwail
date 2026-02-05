@@ -84,8 +84,7 @@ static int mp3_inputdata(snd_stream_t *stream)
 	 */
 	memmove(p->mp3_buffer, p->Stream.next_frame, remaining);
 
-	bytes_read = FS_fread(p->mp3_buffer + remaining, 1,
-				MP3_BUFFER_SIZE - remaining, &stream->fh);
+	bytes_read = QFS_ReadFile(stream->fh, p->mp3_buffer + remaining, MP3_BUFFER_SIZE - remaining);
 	if (bytes_read == 0)
 		return -1;
 
@@ -109,8 +108,8 @@ static int mp3_startread(snd_stream_t *stream)
 	 * format.  The decoded frame will be saved off so that it
 	 * can be processed later.
 	 */
-	ReadSize = FS_fread(p->mp3_buffer, 1, MP3_BUFFER_SIZE, &stream->fh);
-	if (!ReadSize || FS_ferror(&stream->fh))
+	ReadSize = QFS_ReadFile(stream->fh, p->mp3_buffer, MP3_BUFFER_SIZE);
+	if (!ReadSize)
 		return -1;
 
 	mad_stream_buffer(&p->Stream, p->mp3_buffer, ReadSize);
@@ -279,7 +278,7 @@ static int mp3_madseek(snd_stream_t *stream, unsigned long offset)
 	unsigned long to_skip_samples = 0;
 
 	/* Reset all */
-	FS_rewind(&stream->fh);
+	QFS_Seek(stream->fh, 0, SEEK_SET);
 	mad_timer_reset(&p->Timer);
 	p->FrameCount = 0;
 
@@ -301,8 +300,8 @@ static int mp3_madseek(snd_stream_t *stream, unsigned long offset)
 		size_t leftover = p->Stream.bufend - p->Stream.next_frame;
 
 		memcpy(p->mp3_buffer, p->Stream.this_frame, leftover);
-		bytes_read = FS_fread(p->mp3_buffer + leftover, (size_t) 1,
-					MP3_BUFFER_SIZE - leftover, &stream->fh);
+		bytes_read = QFS_ReadFile(stream->fh, p->mp3_buffer + leftover,
+					MP3_BUFFER_SIZE - leftover);
 		if (bytes_read <= 0)
 		{
 			Con_DPrintf("seek failure. unexpected EOF (frames=%lu leftover=%lu)\n",
@@ -362,7 +361,7 @@ static int mp3_madseek(snd_stream_t *stream, unsigned long offset)
 			{
 				p->FrameCount = offset / samples;
 				to_skip_samples = offset % samples;
-				if (0 != FS_fseek(&stream->fh, (p->FrameCount * consumed / 64), SEEK_SET))
+				if (0 != QFS_Seek(stream->fh, (p->FrameCount * consumed / 64), SEEK_SET))
 					return -1;
 
 				/* Reset Stream for refilling buffer */

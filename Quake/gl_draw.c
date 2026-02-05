@@ -371,7 +371,7 @@ qpic_t	*Draw_TryCachePic (const char *path, unsigned int texflags)
 //
 // load the pic from disk
 //
-	dat = (qpic_t *)COM_LoadMallocFile (path, NULL);
+	dat = (qpic_t *)QFS_LoadMallocFile (path, NULL, NULL);
 	if (!dat)
 		return NULL;
 	SwapPic (dat);

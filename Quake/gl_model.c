@@ -379,7 +379,7 @@ static qmodel_t *Mod_LoadModel (qmodel_t *mod, qboolean crash)
 //
 // load the file
 //
-	buf = COM_LoadMallocFile (mod->name, &mod->path_id);
+	buf = QFS_LoadMallocFile (mod->name, &mod->path_id, NULL);
 	if (!buf)
 	{
 		if (crash)
@@ -835,6 +835,7 @@ static void Mod_LoadLighting (lump_t *l)
 	byte d, q64_b0, q64_b1;
 	char litfilename[MAX_OSPATH];
 	unsigned int path_id;
+	size_t filesize;
 
 	loadmodel->lightdata = NULL;
 	loadmodel->litfile = false;
@@ -843,7 +844,7 @@ static void Mod_LoadLighting (lump_t *l)
 	COM_StripExtension(litfilename, litfilename, sizeof(litfilename));
 	q_strlcat(litfilename, ".lit", sizeof(litfilename));
 	mark = Hunk_LowMark();
-	data = (byte*) COM_LoadHunkFile (litfilename, &path_id);
+	data = (byte*) QFS_LoadHunkFile (litfilename, &path_id, &filesize);
 	if (data)
 	{
 		// use lit file only from the same gamedir as the map
@@ -859,7 +860,7 @@ static void Mod_LoadLighting (lump_t *l)
 			i = LittleLong(((int *)data)[1]);
 			if (i == 1)
 			{
-				if (8+l->filelen*3 == com_filesize)
+				if (8+l->filelen*3 == (int)filesize)
 				{
 					Con_DPrintf2("%s loaded\n", litfilename);
 					loadmodel->lightdata = data + 8;
@@ -867,7 +868,7 @@ static void Mod_LoadLighting (lump_t *l)
 					return;
 				}
 				Hunk_FreeToLowMark(mark);
-				Con_Printf("Outdated .lit file (%s should be %u bytes, not %" SDL_PRIs64 "\n", litfilename, 8+l->filelen*3, com_filesize);
+				Con_Printf("Outdated .lit file (%s should be %" SDL_PRIs32 " bytes, not %" SDL_PRIu64 "\n", litfilename, 8+l->filelen*3, (uint64_t)filesize);
 			}
 			else
 			{
@@ -966,13 +967,13 @@ static void Mod_LoadEntities (lump_t *l)
 
 	q_snprintf(entfilename, sizeof(entfilename), "%s@%04x.ent", basemapname, crc);
 	Con_DPrintf2("trying to load %s\n", entfilename);
-	ents = (char *) COM_LoadHunkFile (entfilename, &path_id);
+	ents = (char *) QFS_LoadHunkFile (entfilename, &path_id, NULL);
 
 	if (!ents)
 	{
 		q_snprintf(entfilename, sizeof(entfilename), "%s.ent", basemapname);
 		Con_DPrintf2("trying to load %s\n", entfilename);
-		ents = (char *) COM_LoadHunkFile (entfilename, &path_id);
+		ents = (char *) QFS_LoadHunkFile (entfilename, &path_id, NULL);
 	}
 
 	if (ents)
@@ -2282,23 +2283,25 @@ typedef struct vispatch_s
 } vispatch_t;
 #define VISPATCH_HEADER_LEN 36
 
-static FILE *Mod_FindVisibilityExternal(void)
+static qfshandle_t *Mod_FindVisibilityExternal(void)
 {
 	vispatch_t header;
 	char visfilename[MAX_QPATH];
 	const char* shortname;
 	unsigned int path_id;
-	FILE *f;
+	qfshandle_t *f;
 	long pos;
 	size_t r;
 
 	q_snprintf(visfilename, sizeof(visfilename), "maps/%s.vis", loadname);
-	if (COM_FOpenFile(visfilename, &f, &path_id) < 0)
+	f = QFS_FOpenFile(visfilename, &path_id);
+	if (f == NULL)
 	{
 		Con_DPrintf("%s not found, trying ", visfilename);
 		q_snprintf(visfilename, sizeof(visfilename), "%s.vis", COM_SkipPath(com_gamedir));
 		Con_DPrintf("%s\n", visfilename);
-		if (COM_FOpenFile(visfilename, &f, &path_id) < 0)
+		f = QFS_FOpenFile(visfilename, &path_id);
+		if (f == NULL)
 		{
 			Con_DPrintf("external vis not found\n");
 			return NULL;
@@ -2306,7 +2309,7 @@ static FILE *Mod_FindVisibilityExternal(void)
 	}
 	if (path_id < loadmodel->path_id)
 	{
-		fclose(f);
+		QFS_CloseFile(f);
 		Con_DPrintf("ignored %s from a gamedir with lower priority\n", visfilename);
 		return NULL;
 	}
@@ -2315,20 +2318,20 @@ static FILE *Mod_FindVisibilityExternal(void)
 
 	shortname = COM_SkipPath(loadmodel->name);
 	pos = 0;
-	while ((r = fread(&header, 1, VISPATCH_HEADER_LEN, f)) == VISPATCH_HEADER_LEN)
+	while ((r = QFS_ReadFile(f, &header, VISPATCH_HEADER_LEN)) == VISPATCH_HEADER_LEN)
 	{
 		header.filelen = LittleLong(header.filelen);
 		if (header.filelen <= 0) {	/* bad entry -- don't trust the rest. */
-			fclose(f);
+			QFS_CloseFile(f);
 			return NULL;
 		}
 		if (!q_strcasecmp(header.mapname, shortname))
 			break;
 		pos += header.filelen + VISPATCH_HEADER_LEN;
-		fseek(f, pos, SEEK_SET);
+		QFS_Seek(f, pos, SEEK_SET);
 	}
 	if (r != VISPATCH_HEADER_LEN) {
-		fclose(f);
+		QFS_CloseFile(f);
 		Con_DPrintf("%s not found in %s\n", shortname, visfilename);
 		return NULL;
 	}
@@ -2336,20 +2339,20 @@ static FILE *Mod_FindVisibilityExternal(void)
 	return f;
 }
 
-static byte *Mod_LoadVisibilityExternal(FILE* f)
+static byte *Mod_LoadVisibilityExternal(qfshandle_t* f)
 {
-	int		mark, filelen;
+	int32_t	mark, filelen;
 	byte*	visdata;
 
 	filelen = 0;
-	if (fread(&filelen, 4, 1, f) != 1)
+	if (QFS_ReadFile(f, &filelen, 4) != 4)
 		return NULL;
 	filelen = LittleLong(filelen);
 	if (filelen <= 0) return NULL;
-	Con_DPrintf("...%d bytes visibility data\n", filelen);
+	Con_DPrintf("...%" SDL_PRIs32 " bytes visibility data\n", filelen);
 	mark = Hunk_LowMark ();
 	visdata = (byte *) Hunk_AllocNameNoFill (filelen, "EXT_VIS");
-	if (!fread(visdata, filelen, 1, f))
+	if (QFS_ReadFile(f, visdata, filelen) != (size_t)filelen)
 	{
 		Hunk_FreeToLowMark (mark);
 		return NULL;
@@ -2357,23 +2360,23 @@ static byte *Mod_LoadVisibilityExternal(FILE* f)
 	return visdata;
 }
 
-static void Mod_LoadLeafsExternal(FILE* f)
+static void Mod_LoadLeafsExternal(qfshandle_t* f)
 {
-	int		mark, filelen;
+	int32_t	mark, filelen;
 	void*	in;
 
 	filelen = 0;
-	if (fread(&filelen, 4, 1, f) != 1)
+	if (QFS_ReadFile(f, &filelen, 4) != 4)
 	{
 		Con_Warning ("Couldn't read external leaf data length\n");
 		return;
 	}
 	filelen = LittleLong(filelen);
 	if (filelen <= 0) return;
-	Con_DPrintf("...%d bytes leaf data\n", filelen);
+	Con_DPrintf("...%" SDL_PRIs32 " bytes leaf data\n", filelen);
 	mark = Hunk_LowMark ();
 	in = Hunk_AllocNameNoFill (filelen, "EXT_LEAF");
-	if (!fread(in, filelen, 1, f))
+	if (QFS_ReadFile(f, in, filelen) != (size_t)filelen)
 	{
 		Hunk_FreeToLowMark (mark);
 		return;
@@ -2439,7 +2442,7 @@ static void Mod_LoadBrushModel (qmodel_t *mod, void *buffer)
 
 	if (mod->bspversion == BSPVERSION && external_vis.value && sv.modelname[0] && !q_strcasecmp(loadname, sv.name))
 	{
-		FILE* fvis;
+		qfshandle_t* fvis;
 		Con_DPrintf("trying to open external vis file\n");
 		fvis = Mod_FindVisibilityExternal();
 		if (fvis) {
@@ -2451,7 +2454,7 @@ static void Mod_LoadBrushModel (qmodel_t *mod, void *buffer)
 			if (loadmodel->visdata) {
 				Mod_LoadLeafsExternal(fvis);
 			}
-			fclose(fvis);
+			QFS_CloseFile(fvis);
 			if (loadmodel->visdata && loadmodel->leafs && loadmodel->numleafs) {
 				goto visdone;
 			}
@@ -2599,7 +2602,7 @@ qboolean Mod_LoadMapDescription (char *desc, size_t maxchars, const char *map)
 	char		buf[4 * 1024];
 	char		path[MAX_QPATH];
 	const char	*data;
-	FILE		*f;
+	qfshandle_t	*f;
 	lump_t		*entlump;
 	dheader_t	header;
 	int			i, filesize;
@@ -2612,17 +2615,18 @@ qboolean Mod_LoadMapDescription (char *desc, size_t maxchars, const char *map)
 	if ((size_t) q_snprintf (path, sizeof (path), "maps/%s.bsp", map) >= sizeof (path))
 		return false;
 
-	filesize = COM_FOpenFile (path, &f, NULL);
+	f = QFS_FOpenFile(path, NULL);
+	filesize = f ? (int)QFS_FileSize(f) : -1;
 	if (filesize <= (int) sizeof (header))
 	{
 		if (filesize != -1)
-			fclose (f);
+			QFS_CloseFile (f);
 		return false;
 	}
 
-	if (fread (&header, sizeof (header), 1, f) != 1)
+	if (QFS_ReadFile (f, &header, sizeof (header)) != sizeof (header))
 	{
-		fclose (f);
+		QFS_CloseFile (f);
 		return false;
 	}
 
@@ -2636,7 +2640,7 @@ qboolean Mod_LoadMapDescription (char *desc, size_t maxchars, const char *map)
 	case BSPVERSION_QUAKE64:
 		break;
 	default:
-		fclose (f);
+		QFS_CloseFile (f);
 		return false;
 	}
 
@@ -2647,7 +2651,7 @@ qboolean Mod_LoadMapDescription (char *desc, size_t maxchars, const char *map)
 	if (entlump->filelen < 0 || entlump->filelen >= filesize ||
 		entlump->fileofs < 0 || entlump->fileofs + entlump->filelen > filesize)
 	{
-		fclose (f);
+		QFS_CloseFile (f);
 		return false;
 	}
 
@@ -2659,9 +2663,9 @@ qboolean Mod_LoadMapDescription (char *desc, size_t maxchars, const char *map)
 		entlump->filelen = sizeof (buf) - 1;
 	}
 
-	fseek (f, entlump->fileofs - sizeof (header), SEEK_CUR);
-	i = fread (buf, 1, entlump->filelen, f);
-	fclose (f);
+	QFS_Seek (f, entlump->fileofs - sizeof (header), SEEK_CUR);
+	i = (int)QFS_ReadFile (f, buf, entlump->filelen);
+	QFS_CloseFile (f);
 
 	if (i <= 0)
 		return false;
@@ -3218,9 +3222,9 @@ qboolean loadMd5Replacement(qmodel_t* mod, char	*path)
 	COM_StripExtension (mod->name, path, MAX_QPATH);
 	COM_AddExtension (path, ".md5mesh", MAX_QPATH);
 
-	if (COM_FileExists (path, &md5_path_id) && md5_path_id >= mod->path_id)
+	if (QFS_FileExists (path, &md5_path_id) && md5_path_id >= mod->path_id)
 	{
-		char* md5buffer = (char*)COM_LoadMallocFile (path, NULL);
+		char* md5buffer = (char*)QFS_LoadMallocFile (path, NULL, NULL);
 		if (md5buffer)
 		{
 			Mod_LoadMD5MeshModel (mod, md5buffer);
@@ -3238,9 +3242,9 @@ qboolean loadMd3Replacement (qmodel_t* mod, char *path)
 	COM_StripExtension (mod->name, path, MAX_QPATH);
 	COM_AddExtension (path, ".md3", MAX_QPATH);
 
-	if (COM_FileExists (path, &md3_path_id) && md3_path_id >= mod->path_id)
+	if (QFS_FileExists (path, &md3_path_id) && md3_path_id >= mod->path_id)
 	{
-		char* md3buffer = (char*)COM_LoadMallocFile (path, NULL);
+		char* md3buffer = (char*)QFS_LoadMallocFile (path, NULL, NULL);
 		if (md3buffer)
 		{
 			Mod_LoadMD3Model (mod, md3buffer);
@@ -4022,7 +4026,7 @@ static void MD5Anim_Begin(md5animctx_t *ctx, const char *fname)
 	COM_StripExtension(fname, ctx->fname, sizeof(ctx->fname));
 	COM_AddExtension(ctx->fname, ".md5anim", sizeof(ctx->fname));
 	fname = ctx->fname;
-	ctx->animfile = (char *) COM_LoadMallocFile(fname, NULL);
+	ctx->animfile = (char *) QFS_LoadMallocFile(fname, NULL, NULL);
 	ctx->numposes = 0;
 
 	if (ctx->animfile)
@@ -4606,7 +4610,7 @@ static void Mod_LoadMD3_ValidateAndCacheSkinPath (int skinnum, int* valid_skin_p
 		return;
 
 	q_snprintf (skinpath, sizeof (skinpath), "%s_%d.skin", md3path, skinnum);
-	skinbuffer = (char*)COM_LoadMallocFile (skinpath, NULL);
+	skinbuffer = (char*)QFS_LoadMallocFile (skinpath, NULL, NULL);
 
 	if (skinbuffer) {
 		if (Mod_ValidateSkinFile (skinbuffer, md3_surface_names, num_md3_surfaces, skinpath)) {
@@ -4618,7 +4622,7 @@ static void Mod_LoadMD3_ValidateAndCacheSkinPath (int skinnum, int* valid_skin_p
 
 	if (valid_skin_path_id[skinnum] == 0) {
 		q_snprintf (skinpath, sizeof (skinpath), "%s_%d.skin", basepath, skinnum);
-		skinbuffer = (char*)COM_LoadMallocFile (skinpath, NULL);
+		skinbuffer = (char*)QFS_LoadMallocFile (skinpath, NULL, NULL);
 
 		if (skinbuffer) {
 			if (Mod_ValidateSkinFile (skinbuffer, md3_surface_names, num_md3_surfaces, skinpath)) {
@@ -4937,11 +4941,11 @@ static void Mod_LoadMD3Model (qmodel_t* mod, const char* buffer)
 			skinbuffer = NULL;
 			if (valid_skin_path_id[skinnum] == 1) {
 				q_snprintf (skinpath, sizeof (skinpath), "%s_%d.skin", md3path, skinnum);
-				skinbuffer = (char*)COM_LoadMallocFile (skinpath, NULL);
+				skinbuffer = (char*)QFS_LoadMallocFile (skinpath, NULL, NULL);
 			}
 			else if (valid_skin_path_id[skinnum] == 2) {
 				q_snprintf (skinpath, sizeof (skinpath), "%s_%d.skin", basepath, skinnum);
-				skinbuffer = (char*)COM_LoadMallocFile (skinpath, NULL);
+				skinbuffer = (char*)QFS_LoadMallocFile (skinpath, NULL, NULL);
 			}
 
 			if (!skinbuffer) {
