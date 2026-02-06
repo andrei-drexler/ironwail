@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.andrei_drexler.ironwail</id>
+  <name>Ironwail</name>
+  <developer id="io.github.andrei-drexler.ironwail-contributors">
+	  <name>Andrei Drexler, Ironwail Contributors</name>
+    <url>https://github.com/andrei-drexler/ironwail/graphs/contributors</url>
+  </developer>
+  <summary>A modern port of the original Quake engine, focused on performance</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-2.0-only</project_license>
+  <launchable type="desktop-id">io.github.andrei_drexler.ironwail</launchable>
+  <url type="homepage">https://github.com/andrei-drexler/ironwail/</url>
+  <description>
+    <p>Ironwail is a fork of the popular GLQuake descendant QuakeSpasm with a focus on high performance
+		instead of maximum compatibility, with a few extra features sprinkled on top.</p>
+    <p>Bonus features:</p>
+      <ul>
+		<li>Ability to play the 2021 release content with zero setup: if you have Quake installed on Steam,
+			simply run Ironwail to play the game, including any add-ons you have already downloaded</li>
+		<li>New Mods menu, for quick access to any add-ons you've already installed</li>
+		<li>Ability to change weapon key bindings using the UI, not just the console</li>
+		<li>Ability to use the mouse to control the UI</li>
+		<li>Alternative HUD styles based on the Q64 layout (classic one is still available, of course)</li>
+		<li>Real-time palettization (with optional dithering) for a more authentic look</li>
+		<li>Classic underwater warp effect</li>
+		<li>More options exposed in the UI, most of them taking effect instantly (no vid_restart needed)</li>
+		<li>Support for lightmapped liquid surfaces</li>
+		<li>Lightstyle interpolation (e.g. smoothly pulsating lighting in ad_tears)</li>
+		<li>Reduced heap usage (e.g. you can play tershib/shib1_drake and peril/tavistock without using -heapsize on the command line)</li>
+		<li>Reduced loading time for jumbo maps</li>
+		<li>Slightly higher color/depth buffer precision to avoid banding/z-fighting artifacts</li>
+		<li>A more precise hackwork-around for the z-fighting issues present in the original levels</li>
+		<li>Capped framerate when no map is loaded</li>
+		<li>Ability to run the game from a folder containing Unicode characters</li>
+      </ul>
+    <p>Ironwail requires a copy of the Quake game data, at the least in the form of the shareware data file pak0.pak.
+		If you have Quake on Steam, you can simply install it to the default directory and run Ironwail and Ironwail will automatically
+		detect your Quake installation. Alternately, you can manually copy the game data to ~/.var/app/io.github.andrei-drexler.ironwail/data
+		and copy the .pak files from a copy of Quake there. Ironwail will notify you on startup if it cannot find or access the game data.</p>
+  </description>
+  <screenshots>
+    <screenshot type="default">
+      <image type="source">https://raw.githubusercontent.com/andrei-drexler/ironwail/master/Misc/screenshots/ironwail-modmenu.png</image>
+      <caption>Mod menu with search functionality</caption>
+    </screenshot>
+    <screenshot>
+      <image type="source">https://raw.githubusercontent.com/andrei-drexler/ironwail/master/Misc/screenshots/ironwail-tershibboleth.png</image>
+      <caption>Ter Shibboleth: Drake Redux</caption>
+    </screenshot>
+    <screenshot>
+      <image type="source">https://raw.githubusercontent.com/andrei-drexler/ironwail/master/Misc/screenshots/ironwail-ravenkeep.png</image>
+      <caption>Raven Keep</caption>
+    </screenshot>
+    <screenshot>
+      <image type="source">https://raw.githubusercontent.com/andrei-drexler/ironwail/master/Misc/screenshots/ironwail-peril.png</image>
+      <caption>Peril</caption>
+    </screenshot>
+    <screenshot>
+      <image type="source">https://raw.githubusercontent.com/andrei-drexler/ironwail/master/Misc/screenshots/ironwail-optionsmenu.png</image>
+      <caption>Options menu with some new settings</caption>
+    </screenshot>
+  </screenshots>
+  <categories>
+    <category>Game</category>
+  </categories>
+  <releases>
+    <release version="0.7.0" date="2023-03-17"/>
+  </releases>
+  <content_rating type="oars-1.1">
+    <content_attribute id="violence-fantasy">intense</content_attribute>
+    <content_attribute id="violence-bloodshed">intense</content_attribute>
+    <content_attribute id="violence-desecration">moderate</content_attribute>
+  </content_rating>
+</component>
