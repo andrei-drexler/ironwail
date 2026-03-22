@@ -6789,7 +6789,7 @@ void M_Mods_Key (int key)
 		item = modsmenu.items[modsmenu.list.cursor].source;
 		if (Modlist_GetStatus (item) == MODSTATUS_INSTALLED)
 		{
-			Cbuf_AddText (va ("game %s\n", item->name));
+			Cbuf_AddText (va ("game \"%s\"\n", item->name));
 			M_Menu_Main_f ();
 		}
 		else
