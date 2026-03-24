@@ -4977,6 +4977,11 @@ static const menukeybind_t menubinds[] =
 	{"impulse 8",		"Thunderbolt",			KDM_ANY},
 	{"impulse 225",		"Laser Cannon",			KDM_ANY},
 	{"impulse 226",		"Mjolnir",				KDM_ANY},
+	{"impulse 22",		"Grappling Hook",		KDM_ANY},
+	{"",				"",						KDM_ANY},
+	{"impulse 20",		"Drop backpack",		KDM_ANY},
+	{"impulse 21",		"Drop weapon",			KDM_ANY},
+	{"impulse 23",		"Flag status",			KDM_ANY},
 	{"",				"",						KDM_ANY},
 	{QUICKSAVE,			"Quick save",			KDM_ANY},
 	{QUICKLOAD,			"Quick load",			KDM_ANY},
@@ -5042,6 +5047,10 @@ static void M_Keys_Populate (void)
 			continue;
 
 		if (!hipnotic && (strcmp (menubinds[i].command, "impulse 225") == 0 || strcmp (menubinds[i].command, "impulse 226") == 0))
+			continue;
+
+		if (!rogue && (strcmp (menubinds[i].command, "impulse 20") == 0 || strcmp (menubinds[i].command, "impulse 21") == 0
+			|| strcmp (menubinds[i].command, "impulse 22") == 0 || strcmp (menubinds[i].command, "impulse 23") == 0))
 			continue;
 
 		// if we have two separators in a row, overwrite the old one
