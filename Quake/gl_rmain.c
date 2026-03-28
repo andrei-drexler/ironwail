@@ -1728,11 +1728,12 @@ R_ReadPointFile_f
 */
 void R_ReadPointFile_f (void)
 {
-	FILE		*f;
+	qfshandle_t	*f;
 	vec3_t		org;
 	int			r, n;
 	qboolean	leakmode;
 	char		name[MAX_QPATH];
+	char		rdbuf[256];
 
 	VEC_CLEAR (r_pointfile);
 
@@ -1742,7 +1743,7 @@ void R_ReadPointFile_f (void)
 	q_snprintf (name, sizeof(name), "maps/%s.pts", cl.mapname);
 	leakmode = Cmd_Argc () >= 2 && !strcmp (Cmd_Argv (1), "leak");
 
-	COM_FOpenFile (name, &f, NULL);
+	f = QFS_FOpenFile (name, NULL);
 	if (!f)
 	{
 		Con_Printf ("couldn't open %s\n", name);
@@ -1753,8 +1754,14 @@ void R_ReadPointFile_f (void)
 		Con_Printf ("Reading %s...\n", name);
 	org[0] = org[1] = org[2] = 0; // silence pesky compiler warnings
 
-	for (r = 0; fscanf (f,"%f %f %f\n", &org[0], &org[1], &org[2]) == 3; r++)
+	for (r = 0; !QFS_Eof (f); ++r)
 	{
+		memset(rdbuf, 0, sizeof(rdbuf));
+		QFS_GetLine (f, rdbuf, sizeof(rdbuf));
+
+		if (sscanf (rdbuf, "%f %f %f", &org[0], &org[1], &org[2]) != 3)
+			break;
+
 		Vec_Append ((void **) &r_pointfile, sizeof (r_pointfile[0]), &org, 1);
 		n = (int) VEC_SIZE (r_pointfile);
 		if (n >= 3 && Collinear (r_pointfile[n-3], r_pointfile[n-2], r_pointfile[n-1]))
@@ -1764,7 +1771,7 @@ void R_ReadPointFile_f (void)
 		}
 	}
 
-	fclose (f);
+	QFS_CloseFile (f);
 
 	if (leakmode)
 		Con_Warning ("map appears to have leaks!\n");
