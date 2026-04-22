@@ -271,7 +271,10 @@ void CL_AdjustAngles (void)
 	float	up, down;
 
 	if (CL_InCutscene ())
+	{
+		V_StopPitchDrift ();
 		return;
+	}
 
 	if ((in_speed.state & 1) ^ (cl_alwaysrun.value != 0.0))
 		speed = host_frametime * cl_anglespeedkey.value;
