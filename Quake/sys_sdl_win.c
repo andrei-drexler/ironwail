@@ -963,7 +963,8 @@ qboolean Sys_IsStartedFromMapEditor (void)
 			if (PARENT_STARTS_WITH ("TrenchBroom") ||
 				PARENT_STARTS_WITH ("jack") ||
 				PARENT_STARTS_WITH ("ne_q1spCompilingGui") ||
-				PARENT_STARTS_WITH ("q1compile"))
+				PARENT_STARTS_WITH ("q1compile") ||
+				PARENT_STARTS_WITH ("qrucible"))
 				from_editor = true;
 			#undef PARENT_STARTS_WITH
 		}

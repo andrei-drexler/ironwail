@@ -782,7 +782,10 @@ qboolean Sys_IsStartedFromMapEditor (void)
 	slash = strrchr (path, '/');
 	exe = slash ? slash + 1 : path;
 
-	return q_strcasestr (exe, "trenchbroom") != NULL || q_strcasestr (exe, "jack") != NULL;
+	return
+		q_strcasestr (exe, "trenchbroom") != NULL ||
+		q_strcasestr (exe, "jack") != NULL ||
+		q_strcasestr (exe, "qrucible") != NULL;
 }
 
 void Sys_Init (void)
