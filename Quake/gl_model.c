@@ -412,6 +412,25 @@ static qmodel_t *Mod_LoadModel (qmodel_t *mod, qboolean crash)
 		Mod_LoadSpriteModel (mod, buf);
 		break;
 
+	case MD3_IDENT:
+		{
+			char mdlpath[MAX_QPATH];
+			COM_StripExtension (mod->name, mdlpath, sizeof (mdlpath));
+			COM_AddExtension (mdlpath, ".mdl", sizeof (mdlpath));
+			Sys_Error (
+				"Can't load '%s' directly,\nplease load '%s' instead.\n"
+				"\n"
+				"MD3 is only supported as an optional enhanced replacement format.\n"
+				"In order to preserve compatibility with other Quake source ports\n"
+				"all model references must point to valid MDL files.\n"
+				"When the \"Models: Enhanced\" option is enabled the engine will load\n"
+				"the corresponding MD3 files automatically, if they exist.\n",
+				mod->name,
+				mdlpath
+			);
+		}
+		break;
+
 	default:
 		Mod_LoadBrushModel (mod, buf);
 		break;
