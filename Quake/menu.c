@@ -5099,7 +5099,7 @@ static qboolean M_Keys_Match (int index)
 
 static void M_Keys_AddItem (const menukeybind_t *item)
 {
-	int i;
+	size_t i;
 
 	// filter by device type
 	if (!(keysmenu.devicemask & item->devicemask))
@@ -5137,7 +5137,7 @@ static void M_Keys_AddSeparator (void)
 static void M_Keys_Populate (void)
 {
 	qboolean added_custom_entries = false;
-	int i, j;
+	size_t i, j;
 
 	VEC_CLEAR (keysmenu.filtered_items);
 
@@ -5168,7 +5168,7 @@ static void M_Keys_Populate (void)
 
 void M_Menu_Keys_f (void)
 {
-	int i;
+	size_t i;
 	char *file;
 	keydevice_t lastactive = IN_GetLastActiveDeviceType ();
 
