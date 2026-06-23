@@ -16,7 +16,7 @@ jobs:
             package: x86-64
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Dependencies
         run: sudo apt update && sudo apt install gcc-mingw-w64-${{ matrix.config.package }}

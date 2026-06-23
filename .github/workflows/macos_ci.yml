@@ -7,7 +7,7 @@ jobs:
     strategy:
       fail-fast: false
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Install Dependencies
       run: brew install libvorbis mad sdl2
     - name: Build
