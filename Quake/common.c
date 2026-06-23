@@ -1441,6 +1441,27 @@ qboolean COM_ParseLine (const char **str, stringview_t *line)
 	return true;
 }
 
+/*
+================
+COM_ParseMutableLine
+================
+*/
+qboolean COM_ParseMutableLine (char **str, char **line)
+{
+	stringview_t view;
+
+	if (!COM_ParseLine (str, &view))
+		return false;
+
+	if (line)
+	{
+		char *ret = (char*)view.data;
+		ret[view.len] = '\0';
+		*line = ret;
+	}
+
+	return true;
+}
 
 /*
 ================

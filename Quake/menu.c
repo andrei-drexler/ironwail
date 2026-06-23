@@ -4942,8 +4942,9 @@ typedef struct
 #define QUICKSAVE "echo Quicksaving...; wait; save quick"
 #define QUICKLOAD "echo Quickloading...; wait; load quick"
 
-static const menukeybind_t menubinds[] =
+static const menukeybind_t default_keybinds[] =
 {
+	/* Standard movement/looking bindings *************************************/
 	{"+forward",		"Move forward",			KDM_KEYBOARD_AND_MOUSE},
 	{"+back",			"Move backward",		KDM_KEYBOARD_AND_MOUSE},
 	{"+moveleft",		"Move left",			KDM_KEYBOARD_AND_MOUSE},
@@ -4964,6 +4965,9 @@ static const menukeybind_t menubinds[] =
 	{"+gyroaction",		"Gyro switch",			KDM_GAMEPAD},
 	{"+altmodifier",	"Alt modifier",			KDM_GAMEPAD},
 	{"",				"",						KDM_ANY},
+	/* Weapons / insertion point for bindlist.lst entries *********************/
+	{"*",				"",						0},
+	{"",				"",						KDM_ANY},
 	{"+attack",			"Attack",				KDM_ANY},
 	{"impulse 10",		"Next weapon",			KDM_ANY},
 	{"impulse 12",		"Previous weapon",		KDM_ANY},
@@ -4978,6 +4982,9 @@ static const menukeybind_t menubinds[] =
 	{"impulse 225",		"Laser Cannon",			KDM_ANY},
 	{"impulse 226",		"Mjolnir",				KDM_ANY},
 	{"",				"",						KDM_ANY},
+	/* Miscelaneous entries ***************************************************/
+	{"*",				"",						0},
+	{"",				"",						KDM_ANY},
 	{QUICKSAVE,			"Quick save",			KDM_ANY},
 	{QUICKLOAD,			"Quick load",			KDM_ANY},
 	{"menu_load",		"Load menu",			KDM_ANY},
@@ -4986,9 +4993,9 @@ static const menukeybind_t menubinds[] =
 	{"menu_options",	"Options menu",			KDM_ANY},
 	{"screenshot",		"Screenshot",			KDM_ANY},
 	{"+showscores",		"Show score",			KDM_ANY},
+	{"messagemode",		"Text chat",			KDM_KEYBOARD_AND_MOUSE},
 };
 
-#define	NUMCOMMANDS		Q_COUNTOF(menubinds)
 #define KEYLIST_TOP		56						// title plaque, tabs, scroll ellipsis bar
 #define KEYLIST_BOTTOM	24						// scroll ellipsis bar, search box, key hint
 
@@ -4997,10 +5004,71 @@ static struct
 	menulist_t			list;
 	keydevicemask_t		devicemask;
 	int					y;
-	menukeybind_t		*items;
+	int					maxitems;
+	menukeybind_t		*custom_items;			// mod-specific key bindings, loaded from bindlist.lst
+	menukeybind_t		*filtered_items;		// list of items corresponding to active input device
 } keysmenu;
 
 static qboolean	bind_grab;
+
+static void M_Keys_AddCustomEntry (const char *cmd, const char *desc)
+{
+	int i;
+	menukeybind_t new_item;
+
+	// bindlist format uses "-" as separator, convert to empty string
+	if (cmd[0] == '-' && cmd[1] == '\0')
+		cmd++;
+
+	if (cmd[0]) // not a separator
+	{
+		static const char *const deprecated[] =
+		{
+			"+klook",
+			"+mlook",
+		};
+		qboolean filter_enabled = true;
+
+		// skip unsupported entries, e.g. +voip in Mjolnir's bindlist.lst
+		COM_Parse (cmd);
+		if (!Cmd_Exists (com_token) && !Cmd_AliasExists (com_token))
+		{
+			Con_DPrintf ("Skipping unsupported key binding: \"%s\" = \"%s\"\n", desc, cmd);
+			return;
+		}
+
+		// skip deprecated entries, e.g. +klook in Mjolnir's bindlist.lst
+		for (i = 0; i < Q_COUNTOF (deprecated); i++)
+		{
+			if (strcmp (deprecated[i], cmd) == 0)
+			{
+				Con_DPrintf ("Skipping deprecated key binding: \"%s\" = \"%s\"\n", desc, cmd);
+				return;
+			}
+		}
+
+		// The list of default key bindings is split into 3 sections by entries marked with asterisks.
+		// We remove custom bindings duplicating default ones from the first/last section.
+		for (i = 0; i < Q_COUNTOF (default_keybinds); i++)
+		{
+			if (!default_keybinds[i].command[0])
+				continue;
+			if (default_keybinds[i].command[0] == '*')
+			{
+				filter_enabled = !filter_enabled;
+				continue;
+			}
+			if (filter_enabled && strcmp (default_keybinds[i].command, cmd) == 0)
+				return;
+		}
+	}
+
+	// add custom key binding
+	new_item.command = strdup (cmd);
+	new_item.description = strdup (desc);
+	new_item.devicemask = KDM_ANY;
+	VEC_PUSH (keysmenu.custom_items, new_item);
+}
 
 static void M_Keys_UpdateLayout (void)
 {
@@ -5008,9 +5076,9 @@ static void M_Keys_UpdateLayout (void)
 
 	M_UpdateBounds ();
 
-	// Note: we use NUMCOMMANDS instead of keysmenu.list.numitems to have a stable layout
+	// Note: we use keysmenu.maxitems instead of keysmenu.list.numitems to have a stable layout
 	// when switching between keyboard+mouse/gamepad tabs (different number of items)
-	height = NUMCOMMANDS * 8 + KEYLIST_TOP + KEYLIST_BOTTOM;
+	height = keysmenu.maxitems * 8 + KEYLIST_TOP + KEYLIST_BOTTOM;
 	height = q_min (height, m_height);
 	keysmenu.y = m_top + (((m_height - height) / 2) & ~7);
 	keysmenu.list.viewsize = (height - KEYLIST_TOP - KEYLIST_BOTTOM) / 8;
@@ -5018,47 +5086,131 @@ static void M_Keys_UpdateLayout (void)
 
 static qboolean M_Keys_IsSelectable (int index)
 {
-	return keysmenu.items[index].command[0] != '\0';
+	return keysmenu.filtered_items[index].command[0] != '\0';
 }
 
 static qboolean M_Keys_Match (int index)
 {
-	const char *name = keysmenu.items[index].description;
+	const char *name = keysmenu.filtered_items[index].description;
 	if (!*name)
 		return false;
 	return q_strcasestr (name, keysmenu.list.search.text) != NULL;
 }
 
-static void M_Keys_Populate (void)
+static void M_Keys_AddItem (const menukeybind_t *item)
 {
 	int i;
 
-	VEC_CLEAR (keysmenu.items);
+	// filter by device type
+	if (!(keysmenu.devicemask & item->devicemask))
+		return;
 
-	for (i = 0; i < NUMCOMMANDS; i++)
+	// skip duplicate entries
+	if (item->command[0])
 	{
-		// filter item by device type
-		if (!(keysmenu.devicemask & menubinds[i].devicemask))
-			continue;
-
-		if (!hipnotic && (strcmp (menubinds[i].command, "impulse 225") == 0 || strcmp (menubinds[i].command, "impulse 226") == 0))
-			continue;
-
-		// if we have two separators in a row, overwrite the old one
-		if (VEC_SIZE (keysmenu.items) > 0 && !menubinds[i].command[0] && !VEC_LAST(keysmenu.items).command[0])
-			VEC_LAST(keysmenu.items) = menubinds[i];
-		else // otherwise add a new item
-			VEC_PUSH (keysmenu.items, menubinds[i]);
+		for (i = 0; i < VEC_SIZE (keysmenu.filtered_items); i++)
+		{
+			const menukeybind_t *existimg_item = &keysmenu.filtered_items[i];
+			if (existimg_item->command[0] && strcmp( item->command, existimg_item->command ) == 0)
+				return;
+		}
 	}
 
-	keysmenu.list.numitems = (int) VEC_SIZE (keysmenu.items);
+	// if we have two separators in a row, overwrite the old one
+	if (VEC_SIZE (keysmenu.filtered_items) > 0 && !item->command[0] && !VEC_LAST (keysmenu.filtered_items).command[0])
+		VEC_LAST (keysmenu.filtered_items) = *item;
+	else // otherwise add a new item
+		VEC_PUSH (keysmenu.filtered_items, *item);
+
+	keysmenu.list.numitems = (int) VEC_SIZE (keysmenu.filtered_items);
+}
+
+static void M_Keys_AddSeparator (void)
+{
+	menukeybind_t separator;
+	separator.command = "";
+	separator.description = "";
+	separator.devicemask = KDM_ANY;
+	M_Keys_AddItem (&separator);
+}
+
+static void M_Keys_Populate (void)
+{
+	qboolean added_custom_entries = false;
+	int i, j;
+
+	VEC_CLEAR (keysmenu.filtered_items);
+
+	for (i = 0; i < Q_COUNTOF (default_keybinds); i++)
+	{
+		const menukeybind_t *item = &default_keybinds[i];
+
+		if (!hipnotic && (strcmp (item->command, "impulse 225") == 0 || strcmp (item->command, "impulse 226") == 0))
+			continue;
+
+		if (item->command[0] == '*') // section boundary (movement/gameplay/misc)
+		{
+			if (!added_custom_entries)
+			{
+				added_custom_entries = true;
+				for (j = 0; j < VEC_SIZE (keysmenu.custom_items); j++)
+					M_Keys_AddItem (&keysmenu.custom_items[j]);
+			}
+			continue;
+		}
+
+		M_Keys_AddItem (item);
+	}
+
 	keysmenu.list.cursor = 0;
 	keysmenu.list.scroll = 0;
 }
 
 void M_Menu_Keys_f (void)
 {
+	int i;
+	char *file;
 	keydevice_t lastactive = IN_GetLastActiveDeviceType ();
+
+	// free custom items
+	for (i = 0; i < VEC_SIZE (keysmenu.custom_items); i++)
+	{
+		menukeybind_t *item = &keysmenu.custom_items[i];
+		free ((void *)item->command);
+		free ((void *)item->description);
+	}
+	VEC_CLEAR (keysmenu.custom_items);
+
+	// load custom items from bindlist.lst
+	file = (char*) COM_LoadMallocFile ("bindlist.lst", NULL);
+	if (file)
+	{
+		char *text = file;
+		char *line;
+
+		while (COM_ParseMutableLine (&text, &line))
+		{
+			const char *cmd, *desc;
+			Cmd_TokenizeString (line);
+			cmd = Cmd_Argv (0);
+			desc = Cmd_Argv (1);
+			/*tip = Cmd_Argv(2); unused in quakespasm*/
+
+			M_Keys_AddCustomEntry( cmd, desc );
+		}
+
+		free (file);
+	}
+
+	// hacky: determine the maximum number of items by populating the item list for both kb/m & gamepad
+	// (easy way to properly account for the quirky item deduplication logic)
+	keysmenu.maxitems = 0;
+	keysmenu.devicemask = KDM_KEYBOARD_AND_MOUSE;
+	M_Keys_Populate ();
+	keysmenu.maxitems = q_max (keysmenu.maxitems, keysmenu.list.numitems);
+	keysmenu.devicemask = KDM_GAMEPAD;
+	M_Keys_Populate ();
+	keysmenu.maxitems = q_max (keysmenu.maxitems, keysmenu.list.numitems);
 
 	IN_DeactivateForMenu();
 	key_dest = key_menu;
@@ -5133,23 +5285,23 @@ void M_Keys_Draw (void)
 			M_DrawEllipsisBar (x, y + keysmenu.list.viewsize*8, cols);
 	}
 
-	// search for known bindings
+	// draw items
 	M_List_GetVisibleRange (&keysmenu.list, &firstvis, &numvis);
 	while (numvis-- > 0)
 	{
 		i = firstvis++;
 
-		if (keysmenu.items[i].command[0])
+		if (keysmenu.filtered_items[i].command[0])
 		{
 			char buf[64];
 			qboolean active = (i == keysmenu.list.cursor && bind_grab);
 			void (*print_fn) (int cx, int cy, const char *text) =
 				active ? M_PrintWhite : M_Print;
 
-			COM_TintSubstring (keysmenu.items[i].description, keysmenu.list.search.text, buf, sizeof (buf));
+			COM_TintSubstring (keysmenu.filtered_items[i].description, keysmenu.list.search.text, buf, sizeof (buf));
 			M_PrintDotFill (0, y, buf, 17, !active);
 
-			M_FindKeysForCommand (keysmenu.items[i].command, keys);
+			M_FindKeysForCommand (keysmenu.filtered_items[i].command, keys);
 			// If we already have 3 keys bound to this action
 			// they will all be unbound when a new one is assigned.
 			// We show this outcome to the user before it actually
@@ -5226,7 +5378,7 @@ void M_Keys_Key (int k)
 			if (!(Key_GetDeviceMaskForKeynum (k) & keysmenu.devicemask))
 				return;
 
-			command = keysmenu.items[keysmenu.list.cursor].command;
+			command = keysmenu.filtered_items[keysmenu.list.cursor].command;
 			if (!Cmd_IsGamepadAltModifier (command))
 			{
 				if (Key_IsKeyGamepadAltModifier (k))
@@ -5285,7 +5437,7 @@ void M_Keys_Key (int k)
 	case K_DEL:
 	case K_YBUTTON:
 		M_ThrottledSound ("misc/menu2.wav");
-		M_UnbindCommand (keysmenu.items[keysmenu.list.cursor].command);
+		M_UnbindCommand (keysmenu.filtered_items[keysmenu.list.cursor].command);
 		break;
 	}
 }

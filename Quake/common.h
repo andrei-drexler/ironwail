@@ -301,6 +301,7 @@ typedef struct
 } stringview_t;
 
 qboolean COM_ParseLine (const char **str, stringview_t *line);
+qboolean COM_ParseMutableLine (char **str, char **line);
 
 extern	int			com_argc;
 extern	const char	**com_argv;
