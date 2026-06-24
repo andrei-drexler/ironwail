@@ -933,21 +933,59 @@ static void IN_JoyKeyEvent(qboolean wasdown, qboolean isdown, int key, double *t
 	}
 }
 
-static joyaxis_t IN_GetLookAxis (joyaxisstate_t *state)
-{
+// Add a new control scheme option
+#define JOY_SCHEME_DEFAULT 0
+#define JOY_SCHEME_SWAP 1
+#define JOY_SCHEME_LEGACY 2
+
+static joyaxis_t IN_GetLookAxis(joyaxisstate_t *state) {
 	joyaxis_t axis;
-	axis.x = state->axisvalue[joy_swapmovelook.value ? SDL_CONTROLLER_AXIS_LEFTX : SDL_CONTROLLER_AXIS_RIGHTX];
-	axis.y = state->axisvalue[joy_swapmovelook.value ? SDL_CONTROLLER_AXIS_LEFTY : SDL_CONTROLLER_AXIS_RIGHTY];
+
+	switch ((int)joy_swapmovelook.value) {
+		case JOY_SCHEME_LEGACY:
+			// GoldenEye 1.1 setup: rotate and move forward/backward on the left stick, strafe and up/down look on the right stick
+			axis.x = state->axisvalue[SDL_CONTROLLER_AXIS_LEFTX];
+			axis.y = state->axisvalue[SDL_CONTROLLER_AXIS_RIGHTY];
+		break;
+		case JOY_SCHEME_SWAP:
+			// Swapped move/look configuration
+			axis.x = state->axisvalue[SDL_CONTROLLER_AXIS_LEFTX];
+			axis.y = state->axisvalue[SDL_CONTROLLER_AXIS_LEFTY];
+		break;
+		default: // JOY_SCHEME_DEFAULT
+			// Default configuration
+			axis.x = state->axisvalue[SDL_CONTROLLER_AXIS_RIGHTX];
+			axis.y = state->axisvalue[SDL_CONTROLLER_AXIS_RIGHTY];
+		break;
+	}
+
 	return axis;
 }
 
-static joyaxis_t IN_GetMoveAxis (joyaxisstate_t *state)
-{
+static joyaxis_t IN_GetMoveAxis(joyaxisstate_t *state) {
 	joyaxis_t axis;
-	axis.x = state->axisvalue[joy_swapmovelook.value ? SDL_CONTROLLER_AXIS_RIGHTX : SDL_CONTROLLER_AXIS_LEFTX];
-	axis.y = state->axisvalue[joy_swapmovelook.value ? SDL_CONTROLLER_AXIS_RIGHTY : SDL_CONTROLLER_AXIS_LEFTY];
+
+	switch ((int)joy_swapmovelook.value) {
+		case JOY_SCHEME_LEGACY:
+			// GoldenEye 1.1 setup: rotate and move forward/backward on the left stick, strafe and up/down look on the right stick
+			axis.x = state->axisvalue[SDL_CONTROLLER_AXIS_RIGHTX];
+			axis.y = state->axisvalue[SDL_CONTROLLER_AXIS_LEFTY];
+		break;
+		case JOY_SCHEME_SWAP:
+			// Swapped move/look configuration
+			axis.x = state->axisvalue[SDL_CONTROLLER_AXIS_RIGHTX];
+			axis.y = state->axisvalue[SDL_CONTROLLER_AXIS_RIGHTY];
+		break;
+		default: // JOY_SCHEME_DEFAULT
+			// Default configuration
+			axis.x = state->axisvalue[SDL_CONTROLLER_AXIS_LEFTX];
+			axis.y = state->axisvalue[SDL_CONTROLLER_AXIS_LEFTY];
+		break;
+	}
+
 	return axis;
 }
+
 
 static qboolean IN_JoyActive (void)
 {
@@ -1562,7 +1600,7 @@ float IN_GetRawLookMagnitude (void)
 	if (!joy_active_controller)
 		return 0.f;
 
-	axis.x = joy_axisstate.axisvalue[joy_swapmovelook.value ? SDL_CONTROLLER_AXIS_LEFTX : SDL_CONTROLLER_AXIS_RIGHTX];
+	axis.x = joy_axisstate.axisvalue[joy_swapmovelook.value ? SDL_CONTROLLER_AXIS_LEFTX : SDL_CONTROLLER_AXIS_RIGHTX ];
 	axis.y = joy_axisstate.axisvalue[joy_swapmovelook.value ? SDL_CONTROLLER_AXIS_LEFTY : SDL_CONTROLLER_AXIS_RIGHTY];
 
 	return IN_AxisMagnitude (axis);
