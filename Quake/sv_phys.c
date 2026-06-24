@@ -47,11 +47,27 @@ cvar_t	sv_gravity = {"sv_gravity","800",CVAR_NOTIFY|CVAR_SERVERINFO};
 cvar_t	sv_maxvelocity = {"sv_maxvelocity","2000",CVAR_NONE};
 cvar_t	sv_nostep = {"sv_nostep","0",CVAR_NONE};
 cvar_t	sv_freezenonclients = {"sv_freezenonclients","0",CVAR_NONE};
+cvar_t  sv_fixrampphysics = {"sv_fixrampphysics","0",CVAR_NOTIFY|CVAR_SERVERINFO};
 
+rampfix_t alwaysfixramps = RAMP_USER; // [B] Give the map some control over what physics to use.
 
 #define	MOVE_EPSILON	0.01
 
 void SV_Physics_Toss (edict_t *ent);
+
+/*
+================
+SV_ShouldFixRamps
+================
+*/
+
+qboolean SV_ShouldFixRamps (void)
+{
+	if (alwaysfixramps != RAMP_USER)
+		return alwaysfixramps != RAMP_VANILLA;
+
+	return sv_fixrampphysics.value != 0;
+}
 
 /*
 ================
@@ -228,7 +244,7 @@ If steptrace is not NULL, the trace of any vertical wall hit will be stored
 ============
 */
 #define	MAX_CLIP_PLANES	5
-int SV_FlyMove (edict_t *ent, float time, trace_t *steptrace)
+int SV_FlyMove (edict_t *ent, float time, trace_t *steptrace, int onground)
 {
 	int			bumpcount, numbumps;
 	vec3_t		dir;
@@ -241,6 +257,7 @@ int SV_FlyMove (edict_t *ent, float time, trace_t *steptrace)
 	vec3_t		end;
 	float		time_left;
 	int			blocked;
+	int			fixramps;
 
 	numbumps = 4;
 
@@ -248,6 +265,7 @@ int SV_FlyMove (edict_t *ent, float time, trace_t *steptrace)
 	VectorCopy (ent->v.velocity, original_velocity);
 	VectorCopy (ent->v.velocity, primal_velocity);
 	numplanes = 0;
+	fixramps = onground && SV_ShouldFixRamps ();
 
 	time_left = time;
 
@@ -287,6 +305,11 @@ int SV_FlyMove (edict_t *ent, float time, trace_t *steptrace)
 			{
 				ent->v.flags =	(int)ent->v.flags | FL_ONGROUND;
 				ent->v.groundentity = EDICT_TO_PROG(trace.ent);
+				// [B] If originally on the ground, treat the entity like it had no downward
+				// velocity to avoid sliding down ramps from gravity. Avoid doing this on flat
+				// ground, otherwise it'll subtly mess with the standard physics.
+				if (fixramps && trace.plane.normal[2] < 1 && original_velocity[2] < 0)
+					original_velocity[2] = 0;
 			}
 		}
 		if (!trace.plane.normal[2])
@@ -817,7 +840,7 @@ int SV_TryUnstick (edict_t *ent, vec3_t oldvel)
 		ent->v.velocity[0] = oldvel[0];
 		ent->v. velocity[1] = oldvel[1];
 		ent->v. velocity[2] = 0;
-		clip = SV_FlyMove (ent, 0.1, &steptrace);
+		clip = SV_FlyMove (ent, 0.1, &steptrace, 0);
 
 		if ( fabs(oldorg[1] - ent->v.origin[1]) > 4
 			|| fabs(oldorg[0] - ent->v.origin[0]) > 4 )
@@ -860,7 +883,7 @@ void SV_WalkMove (edict_t *ent)
 	VectorCopy (ent->v.origin, oldorg);
 	VectorCopy (ent->v.velocity, oldvel);
 
-	clip = SV_FlyMove (ent, host_frametime, &steptrace);
+	clip = SV_FlyMove (ent, host_frametime, &steptrace, oldonground);
 
 	if ( !(clip & 2) )
 		return;		// move didn't block on a step
@@ -897,7 +920,7 @@ void SV_WalkMove (edict_t *ent)
 	ent->v.velocity[0] = oldvel[0];
 	ent->v. velocity[1] = oldvel[1];
 	ent->v. velocity[2] = 0;
-	clip = SV_FlyMove (ent, host_frametime, &steptrace);
+	clip = SV_FlyMove (ent, host_frametime, &steptrace, oldonground);
 
 // check for stuckness, possibly due to the limited precision of floats
 // in the clipping hulls
@@ -990,7 +1013,7 @@ void SV_Physics_Client (edict_t	*ent, int num)
 	case MOVETYPE_FLY:
 		if (!SV_RunThink (ent))
 			return;
-		SV_FlyMove (ent, host_frametime, NULL);
+		SV_FlyMove (ent, host_frametime, NULL, 0);
 		break;
 
 	case MOVETYPE_NOCLIP:
@@ -1115,6 +1138,7 @@ void SV_Physics_Toss (edict_t *ent)
 	trace_t	trace;
 	vec3_t	move;
 	float	backoff;
+	float	velcheck;
 
 	// regular thinking
 	if (!SV_RunThink (ent))
@@ -1152,7 +1176,13 @@ void SV_Physics_Toss (edict_t *ent)
 // stop if on ground
 	if (trace.plane.normal[2] > 0.7)
 	{
-		if (ent->v.velocity[2] < 60 || ent->v.movetype != MOVETYPE_BOUNCE)
+		velcheck = ent->v.velocity[2];
+		if (SV_ShouldFixRamps ())
+		{
+			velcheck = DotProduct (trace.plane.normal, ent->v.velocity);
+		}
+
+		if (velcheck < 60 || ent->v.movetype != MOVETYPE_BOUNCE)
 		{
 			ent->v.flags = (int)ent->v.flags | FL_ONGROUND;
 			ent->v.groundentity = EDICT_TO_PROG(trace.ent);
@@ -1198,7 +1228,7 @@ void SV_Physics_Step (edict_t *ent)
 
 		SV_AddGravity (ent);
 		SV_CheckVelocity (ent);
-		SV_FlyMove (ent, host_frametime, NULL);
+		SV_FlyMove (ent, host_frametime, NULL, 0);
 		SV_LinkEdict (ent, true);
 
 		if ( (int)ent->v.flags & FL_ONGROUND )	// just hit ground
