@@ -43,7 +43,7 @@ static float old_green;
 static float old_blue;
 
 static float fade_time; //duration of fade
-static float fade_done; //time when fade will be done
+static double fade_done; //time when fade will be done
 
 extern float skyfog;
 
