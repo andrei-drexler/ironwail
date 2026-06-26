@@ -5125,15 +5125,6 @@ static void M_Keys_AddItem (const menukeybind_t *item)
 	keysmenu.list.numitems = (int) VEC_SIZE (keysmenu.filtered_items);
 }
 
-static void M_Keys_AddSeparator (void)
-{
-	menukeybind_t separator;
-	separator.command = "";
-	separator.description = "";
-	separator.devicemask = KDM_ANY;
-	M_Keys_AddItem (&separator);
-}
-
 static void M_Keys_Populate (void)
 {
 	qboolean added_custom_entries = false;
