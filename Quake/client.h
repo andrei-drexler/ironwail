@@ -258,6 +258,12 @@ typedef struct
 	float		zoomdir;
 
 	qboolean	forceunderwater;	// force underwater warping/sound distortion even when camera is not submerged (e.g. alk1.2 liquidbrush)
+	qboolean	weaponwheelActive;
+	int		weaponwheelSelected;		// slot index 0-6; -1 = none
+	float		weaponwheel_dx;			// accumulated mouse X delta while wheel open
+	float		weaponwheel_dy;			// accumulated mouse Y delta while wheel open
+	float		weaponwheel_savedTimescale;	// host_timescale saved on wheel open
+
 } client_state_t;
 
 

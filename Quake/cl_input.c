@@ -248,6 +248,8 @@ cvar_t	cl_anglespeedkey = {"cl_anglespeedkey","1.5",CVAR_NONE};
 
 cvar_t	cl_alwaysrun = {"cl_alwaysrun","1",CVAR_ARCHIVE}; // QuakeSpasm -- new always run
 
+cvar_t cl_weaponwheel_slowdown = { "cl_weaponwheel_slowdown", "0.2", CVAR_ARCHIVE };
+
 /*
 ================
 CL_InCutscene
@@ -498,5 +500,6 @@ void CL_InitInput (void)
 	Cmd_AddCommand ("+mlook", IN_MLookDown);
 	Cmd_AddCommand ("-mlook", IN_MLookUp);
 
+	Cvar_RegisterVariable (&cl_weaponwheel_slowdown);
 }
 

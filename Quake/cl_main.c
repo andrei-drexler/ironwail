@@ -53,6 +53,10 @@ cvar_t	cl_mwheelpitch = {"cl_mwheelpitch", "5", CVAR_ARCHIVE};
 
 cvar_t	cl_startdemos = {"cl_startdemos", "1", CVAR_ARCHIVE};
 cvar_t	cl_confirmquit = {"cl_confirmquit", "0", CVAR_ARCHIVE};
+ 
+extern cvar_t cl_weaponwheel_slowdown;
+extern cvar_t host_timescale;
+
 
 client_static_t	cls;
 client_state_t	cl;
@@ -75,6 +79,8 @@ extern vec3_t	v_punchangles[2];
 void CL_FreeState(void)
 {
 	int i;
+	if (cl.weaponwheelActive && cl.maxclients == 1)
+		Cvar_SetValue ("host_timescale", cl.weaponwheel_savedTimescale);
 	for (i = 0; i < MAX_CL_STATS; i++)
 		free (cl.statss[i]);
 	PR_ClearProgs (&cl.qcvm);
@@ -991,6 +997,33 @@ void V_Water_f (void)
 	cl.forceunderwater = atoi (Cmd_Argv (1));
 }
 
+void CL_WeaponWheelDown_f (void)
+{
+	if (cl.weaponwheelActive)
+		return;
+	cl.weaponwheelActive = true;
+	cl.weaponwheelSelected = -1;
+	cl.weaponwheel_dx = 0.0f;
+	cl.weaponwheel_dy = 0.0f;
+	if (cls.state == ca_connected && cl.maxclients == 1)
+	{
+		cl.weaponwheel_savedTimescale = host_timescale.value;
+		Cvar_SetValue ("host_timescale", cl_weaponwheel_slowdown.value);
+	}
+}
+
+void CL_WeaponWheelUp_f (void)
+{
+	if (!cl.weaponwheelActive)
+		return;
+	if (cl.weaponwheelSelected >= 0)
+		Cbuf_AddText (va ("impulse %d\n", cl.weaponwheelSelected + 2));
+	if (cls.state == ca_connected && cl.maxclients == 1)
+		Cvar_SetValue ("host_timescale", cl.weaponwheel_savedTimescale);
+	cl.weaponwheelActive = false;
+	cl.weaponwheelSelected = -1;
+}
+
 /*
 =================
 CL_Init
@@ -1045,6 +1078,9 @@ void CL_Init (void)
 	Cmd_AddCommand ("stop", CL_Stop_f);
 	Cmd_AddCommand ("playdemo", CL_PlayDemo_f);
 	Cmd_AddCommand ("timedemo", CL_TimeDemo_f);
+
+	Cmd_AddCommand_ClientCommand ("+weaponwheel", CL_WeaponWheelDown_f);
+	Cmd_AddCommand_ClientCommand ("-weaponwheel", CL_WeaponWheelUp_f);
 
 	Cmd_AddCommand ("tracepos", CL_Tracepos_f); //johnfitz
 	cmd = Cmd_AddCommand ("viewpos", CL_Viewpos_f); //johnfitz

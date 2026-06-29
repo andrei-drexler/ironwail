@@ -753,6 +753,12 @@ void IN_MouseMotion(int dx, int dy)
 		total_dy = 0;
 		return;
 	}
+	if (cl.weaponwheelActive)
+	{
+		cl.weaponwheel_dx += (float)dx;
+		cl.weaponwheel_dy += (float)dy;
+		return;
+	}
 	total_dx += dx;
 	total_dy += dy;
 }
