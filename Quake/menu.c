@@ -4983,7 +4983,7 @@ static const menukeybind_t default_keybinds[] =
 	{"*",				"",						0},
 	{"",				"",						KDM_ANY},
 	{"+attack",			"Attack",				KDM_ANY},
-	{"+weaponwheel",	"Weapon wheel",			KDM_KEYBOARD_AND_MOUSE},
+	{"+weaponwheel",	"Weapon wheel",			KDM_ANY},
 	{"impulse 10",		"Next weapon",			KDM_ANY},
 	{"impulse 12",		"Previous weapon",		KDM_ANY},
 	{"impulse 1",		"Axe",					KDM_ANY},
