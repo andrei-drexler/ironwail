@@ -25,6 +25,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 static int		sb_updates;		// if >= vid.numpages, no update needed
 
+static cvar_t cl_weaponwheel_ring_texture = {"cl_weaponwheel_ring_texture", "metal5_1", CVAR_ARCHIVE};
+
 #define STAT_MINUS		10	// num frame for '-' stats digit
 
 #define SBAR2_MARGIN_X	16
@@ -258,6 +260,8 @@ void Sbar_Init (void)
 {
 	Cmd_AddCommand ("+showscores", Sbar_ShowScores);
 	Cmd_AddCommand ("-showscores", Sbar_DontShowScores);
+
+	Cvar_RegisterVariable (&cl_weaponwheel_ring_texture);
 
 	Sbar_LoadPics ();
 }
@@ -2149,5 +2153,171 @@ void Sbar_FinaleOverlay (void)
 
 	pic = Draw_CachePic ("gfx/finale.lmp");
 	Draw_Pic ( (320 - pic->width)/2, 16, pic); //johnfitz -- stretched menus
+}
+
+
+/*
+==================
+Sbar_DrawWeaponWheel
+==================
+*/
+void Sbar_DrawWeaponWheel (void)
+{
+	static const float rgb_ring[3]       = {0.04f, 0.05f, 0.11f};  /* fallback flat color */
+	static const float rgb_tex_tint[3]   = {0.55f, 0.52f, 0.48f};  /* warm tint over world texture */
+	static const float rgb_rim_inner[3]  = {0.22f, 0.22f, 0.30f};
+	static const float rgb_rim_outer[3]  = {0.14f, 0.14f, 0.22f};
+	static const float rgb_highlight[3]  = {0.35f, 0.30f, 0.10f};
+	static const float rgb_pulse[3]      = {0.40f, 0.55f, 0.80f};
+	static const float rgb_center[3]     = {0.08f, 0.09f, 0.18f};
+	static const float rgb_arrow[3]      = {0.90f, 0.80f, 0.28f};
+
+	gltexture_t *ring_tex;
+	int		i, j, num_weapons, sel_pos;
+	int		weapons[8];
+	float	cx, cy, outer_radius, inner_radius, icon_radius, icon_w, icon_h;
+	float	deadzone, dx, dy, len2, rim_w;
+	float	arrow_angle;
+
+	if (!cl.weaponwheelActive)
+		return;
+
+	/* Build list of weapons the player currently owns, in standard order */
+	num_weapons = 0;
+	for (i = 0; i < 7; i++)
+	{
+		if (cl.items & (IT_SHOTGUN << i))
+			weapons[num_weapons++] = i;
+	}
+	if (num_weapons == 0)
+		return;
+
+	/* Search worldmodel textures for the configured ring texture (fresh each frame — cheap
+	   and avoids stale-pointer bugs when the BSP is reloaded at the same address) */
+	ring_tex = NULL;
+	if (cl.worldmodel && cl_weaponwheel_ring_texture.string[0])
+	{
+		for (j = 0; j < cl.worldmodel->numtextures; j++)
+		{
+			texture_t *t = cl.worldmodel->textures[j];
+			if (t && t->gltexture && !q_strcasecmp (t->name, cl_weaponwheel_ring_texture.string))
+			{
+				ring_tex = t->gltexture;
+				break;
+			}
+		}
+	}
+
+	GL_SetCanvas (CANVAS_DEFAULT);
+
+	cx           = vid.guiwidth  * 0.62f;
+	cy           = vid.guiheight * 0.5f;
+	outer_radius = vid.guiheight * 0.21f;
+	inner_radius = vid.guiheight * 0.055f;
+	icon_radius  = (outer_radius + inner_radius) * 0.5f;
+	icon_w       = outer_radius * 0.32f;
+	icon_h       = icon_w * (2.0f / 3.0f);
+	rim_w        = outer_radius * 0.055f;
+
+	/* Update selection from accumulated mouse delta */
+	dx   = cl.weaponwheel_dx;
+	dy   = cl.weaponwheel_dy;
+	len2 = dx * dx + dy * dy;
+	deadzone = outer_radius * 0.22f;
+
+	if (len2 > deadzone * deadzone)
+	{
+		float angle   = (float)atan2 (dy, dx);
+		float shifted = (float)fmod (angle + M_PI * 0.5 + M_PI * 2.0, M_PI * 2.0);
+		int   slot    = (int)(shifted / (M_PI * 2.0) * num_weapons + 0.5) % num_weapons;
+		cl.weaponwheelSelected = weapons[slot];
+	}
+
+	/* Find wheel position of current selection (needed for arrow + segment) */
+	sel_pos = 0;
+	if (cl.weaponwheelSelected >= 0)
+		for (i = 0; i < num_weapons; i++)
+			if (weapons[i] == cl.weaponwheelSelected) { sel_pos = i; break; }
+
+	/* Arrow angle: follow raw mouse direction when moved enough, otherwise snap to slot */
+	if (len2 > 64.f)  /* ~8 pixel threshold */
+		arrow_angle = atan2f (dy, dx);
+	else if (cl.weaponwheelSelected >= 0)
+		arrow_angle = -(float)(M_PI * 0.5) + sel_pos * (float)(M_PI * 2.0) / num_weapons;
+	else
+		arrow_angle = -(float)(M_PI * 0.5);  /* point north when idle */
+
+	/* Main ring body — use world texture if available, flat colour as fallback */
+	if (ring_tex)
+		Draw_TexturedRing (cx, cy, outer_radius, inner_radius, ring_tex, outer_radius * 0.65f, rgb_tex_tint, 0.92f);
+	else
+		Draw_FillRing (cx, cy, outer_radius, inner_radius, rgb_ring, 0.90f);
+	/* Bright rim at inner hole edge */
+	Draw_FillRing (cx, cy, inner_radius + rim_w, inner_radius, rgb_rim_inner, 0.55f);
+	/* Dim rim at outer edge */
+	Draw_FillRing (cx, cy, outer_radius, outer_radius - rim_w, rgb_rim_outer, 0.42f);
+
+	/* Pulsing segment highlight on the selected slot's pie slice */
+	if (cl.weaponwheelSelected >= 0)
+	{
+		float sector     = (float)(M_PI * 2.0) / num_weapons;
+		float half_sec   = sector * 0.5f;
+		float ctr_angle;
+		float pulse_alpha;
+
+		ctr_angle   = -(float)(M_PI * 0.5) + sel_pos * sector;
+		pulse_alpha = 0.22f + 0.13f * sinf ((float)realtime * 4.5f);
+
+		Draw_FillRingSegment (cx, cy,
+			outer_radius - rim_w * 0.5f,
+			inner_radius + rim_w * 0.5f,
+			ctr_angle - half_sec + 0.04f,
+			ctr_angle + half_sec - 0.04f,
+			rgb_pulse, pulse_alpha);
+	}
+
+	/* Rotating arrow inside center hole — tracks mouse direction smoothly */
+	Draw_Arrow (cx, cy,
+		arrow_angle,
+		inner_radius * 0.38f, inner_radius * 0.88f, inner_radius * 0.28f,
+		rgb_arrow, 0.92f);
+
+	/* Center dot covers arrow base */
+	Draw_FillCircle (cx, cy, inner_radius * 0.32f, rgb_center, 0.95f);
+
+	/* Weapon icons */
+	for (i = 0; i < num_weapons; i++)
+	{
+		int		widx     = weapons[i];
+		float	angle    = -(float)(M_PI * 0.5) + i * (float)(M_PI * 2.0) / num_weapons;
+		float	wx       = cx + icon_radius * (float)cos (angle);
+		float	wy       = cy + icon_radius * (float)sin (angle);
+		float	ix       = wx - icon_w * 0.5f;
+		float	iy       = wy - icon_h * 0.5f;
+		qboolean is_sel  = (cl.weaponwheelSelected == widx);
+		qboolean is_cur  = (cl.stats[STAT_ACTIVEWEAPON] == (IT_SHOTGUN << widx));
+		qpic_t	*pic;
+		float	icon_alpha;
+
+		if (is_sel)
+		{
+			Draw_FillCircle (wx, wy, icon_w * 0.72f, rgb_highlight, 0.75f);
+			pic        = sb_weapons[1][widx];
+			icon_alpha = 1.0f;
+		}
+		else if (is_cur)
+		{
+			pic        = sb_weapons[1][widx];
+			icon_alpha = 0.85f;
+		}
+		else
+		{
+			pic        = sb_weapons[0][widx];
+			icon_alpha = 0.55f;
+		}
+
+		if (pic)
+			Draw_SubPic (ix, iy, icon_w, icon_h, pic, 0.f, 0.f, 1.f, 1.f, NULL, icon_alpha);
+	}
 }
 

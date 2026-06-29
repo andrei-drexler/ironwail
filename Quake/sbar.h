@@ -42,5 +42,8 @@ void Sbar_IntermissionOverlay (void);
 
 void Sbar_FinaleOverlay (void);
 
+void Sbar_DrawWeaponWheel (void);
+// called each frame when the weapon wheel is active
+
 #endif	/* _QUAKE_SBAR_H */
 

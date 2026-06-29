@@ -2154,6 +2154,7 @@ void SCR_UpdateScreen (void)
 		SCR_DrawPause ();
 		SCR_CheckDrawCenterString ();
 		Sbar_Draw ();
+		Sbar_DrawWeaponWheel ();
 		SCR_DrawDevStats (); //johnfitz
 		SCR_DrawClock (); //johnfitz
 		SCR_DrawDemoControls ();
