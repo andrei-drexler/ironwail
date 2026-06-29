@@ -38,6 +38,7 @@ extern cvar_t scr_fov;
 extern cvar_t cl_gun_fovscale;
 extern cvar_t v_gunkick;
 extern cvar_t cl_bob;
+extern cvar_t cl_weaponwheel_slowdown;
 extern cvar_t cl_rollangle;
 extern cvar_t cl_maxpitch;
 extern cvar_t cl_minpitch;
@@ -3233,6 +3234,7 @@ void M_Menu_Gamepad_f (void)
 		item (OPT_FLASHALPHA,			"Screen Flashes")				\
 		item (OPT_RECOIL,				"Recoil")						\
 		item (OPT_VIEWBOB,				"View Bob")						\
+		item (OPT_WW_SLOWDOWN,			"Weapon Wheel Speed")			\
 		item (OPT_ANGLELIMITS,			"Angle Limits")					\
 		item (OPT_ALWAYSRUN,			"Always Run")					\
 		item (SPACER,					"")								\
@@ -3783,6 +3785,10 @@ void M_AdjustSliders (int dir)
 		Cvar_SetValueQuick (&v_gunkick, ((int) q_max (v_gunkick.value, 0.f) + 3 + dir) % 3);
 		break;
 
+	case OPT_WW_SLOWDOWN:	// weapon wheel slowdown
+		Cvar_SetValueQuick (&cl_weaponwheel_slowdown, CLAMP (0.05f, cl_weaponwheel_slowdown.value - dir * 0.05f, 1.f));
+		break;
+
 	case OPT_FLASHALPHA:	// flash intensity
 		Cvar_SetValueQuick (&gl_cshiftpercent, CLAMP (0.f, gl_cshiftpercent.value + dir * 10.f, 100.f));
 		break;
@@ -4117,6 +4123,9 @@ qboolean M_SetSliderValue (int option, float f)
 	case OPT_SNDVOL:	// sfx volume
 		Cvar_SetValue ("volume", f);
 		return true;
+	case OPT_WW_SLOWDOWN:
+		Cvar_SetValueQuick (&cl_weaponwheel_slowdown, CLAMP (0.05f, 1.f - f, 1.f));
+		return true;
 	case OPT_FLASHALPHA:
 		Cvar_SetValueQuick (&gl_cshiftpercent, f * 100.f);
 		return true;
@@ -4415,6 +4424,11 @@ static void M_Options_DrawItem (int y, int item)
 	case OPT_FLASHALPHA:
 		r = gl_cshiftpercent.value / 100.f;
 		M_DrawSlider (x, y, r, va ("%.0f%%", gl_cshiftpercent.value));
+		break;
+
+	case OPT_WW_SLOWDOWN:
+		r = 1.f - CLAMP (0.05f, cl_weaponwheel_slowdown.value, 1.f);
+		M_DrawSlider (x, y, r, cl_weaponwheel_slowdown.value >= 1.f ? "Off" : va ("%.0f%%", cl_weaponwheel_slowdown.value * 100.f));
 		break;
 
 	case OPT_FOV:
@@ -4969,6 +4983,7 @@ static const menukeybind_t default_keybinds[] =
 	{"*",				"",						0},
 	{"",				"",						KDM_ANY},
 	{"+attack",			"Attack",				KDM_ANY},
+	{"+weaponwheel",	"Weapon wheel",			KDM_KEYBOARD_AND_MOUSE},
 	{"impulse 10",		"Next weapon",			KDM_ANY},
 	{"impulse 12",		"Previous weapon",		KDM_ANY},
 	{"impulse 1",		"Axe",					KDM_ANY},

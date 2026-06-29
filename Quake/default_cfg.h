@@ -66,6 +66,7 @@ static const char default_cfg[] =
 "bind ~ \"toggleconsole\"\n"
 "bind ` \"toggleconsole\"\n"
 
+"bind q \"+weaponwheel\"\n"
 "bind t \"messagemode\"\n"
 
 "bind + \"sizeup\"\n"
