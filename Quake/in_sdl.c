@@ -1115,6 +1115,15 @@ void IN_JoyMove (usercmd_t *cmd)
 	cmd->sidemove += speed * moveEased.x;
 	cmd->forwardmove -= speed * moveEased.y;
 
+	/* Weapon wheel: right stick steers selection instead of rotating the view */
+	if (cl.weaponwheelActive)
+	{
+		float ww_scale = vid.guiheight * 0.21f;	/* same as outer_radius in sbar.c */
+		cl.weaponwheel_dx = lookDeadzone.x * ww_scale;
+		cl.weaponwheel_dy = lookDeadzone.y * ww_scale;
+		return;
+	}
+
 	if (CL_InCutscene ())
 		return;
 
