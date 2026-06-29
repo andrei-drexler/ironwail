@@ -78,7 +78,7 @@ static const char default_cfg[] =
 "bind MOUSE1 +attack\n"
 "bind MOUSE2 +jump\n"
 
-"bind LSHOULDER \"impulse 12\"\n"
+"bind LSHOULDER \"+weaponwheel\"\n"
 "bind RSHOULDER \"impulse 10\"\n"
 "bind LTRIGGER +jump\n"
 "bind RTRIGGER +attack\n"
