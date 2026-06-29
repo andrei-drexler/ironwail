@@ -282,6 +282,10 @@ void GL_CreateFrameBuffers (void)
 		);
 	}
 
+	/* weapon wheel blur ping-pong framebuffer (color only, no depth needed) */
+	framebufs.ww_blur.color_tex = GL_CreateFBOAttachment (color_format, 1, GL_NEAREST, "ww blur colors");
+	framebufs.ww_blur.fbo = GL_CreateSimpleFBO (GL_TEXTURE_2D, framebufs.ww_blur.color_tex, 0, 0, "ww blur fbo");
+
 	GL_BindFramebufferFunc (GL_FRAMEBUFFER, 0);
 	GL_BindNative (GL_TEXTURE0, GL_TEXTURE_2D, 0);
 }
@@ -293,6 +297,7 @@ GL_DeleteFrameBuffers
 */
 void GL_DeleteFrameBuffers (void)
 {
+	GL_DeleteFramebuffersFunc (1, &framebufs.ww_blur.fbo);
 	GL_DeleteFramebuffersFunc (1, &framebufs.resolved_scene.fbo);
 	GL_DeleteFramebuffersFunc (1, &framebufs.oit.fbo_composite);
 	GL_DeleteFramebuffersFunc (1, &framebufs.oit.fbo_scene);
@@ -300,6 +305,7 @@ void GL_DeleteFrameBuffers (void)
 	GL_DeleteFramebuffersFunc (1, &framebufs.composite.fbo);
 	GL_BindFramebufferFunc (GL_FRAMEBUFFER, 0);
 
+	GL_DeleteNativeTexture (framebufs.ww_blur.color_tex);
 	GL_DeleteNativeTexture (framebufs.resolved_scene.color_tex);
 	GL_DeleteNativeTexture (framebufs.oit.revealage_tex);
 	GL_DeleteNativeTexture (framebufs.oit.accum_tex);
@@ -885,7 +891,51 @@ GL_NeedsPostprocess
 */
 qboolean GL_NeedsPostprocess (void)
 {
-	return vid_gamma.value != 1.f || vid_contrast.value != 1.f || softemu || R_GetEffectiveAlphaMode () == ALPHAMODE_OIT;
+	return vid_gamma.value != 1.f || vid_contrast.value != 1.f || softemu ||
+		R_GetEffectiveAlphaMode () == ALPHAMODE_OIT || cl.weaponwheelActive;
+}
+
+/*
+=============
+SCR_WeaponWheelBlur
+
+Applies a separable two-pass Gaussian blur to the composite framebuffer when
+the weapon wheel is open. Must be called after 3D rendering finishes and before
+2D rendering begins so the HUD overlays appear sharp on top of the blurred world.
+=============
+*/
+void SCR_WeaponWheelBlur (void)
+{
+	float hstep, vstep;
+
+	if (!cl.weaponwheelActive || !framebufs.ww_blur.fbo || !glprogs.ww_blur)
+		return;
+
+	GL_BeginGroup ("Weapon wheel blur");
+
+	/* Each kernel tap is 3 pixels apart in each axis.
+	   With a 9-tap kernel (radius 4 taps * 3 pixels = 12 pixels each side),
+	   this gives a sigma ~= 5 pixels per pass, doubling to ~= 7 after H+V. */
+	hstep = 3.0f / (float)vid.width;
+	vstep = 3.0f / (float)vid.height;
+
+	GL_UseProgram (glprogs.ww_blur);
+	GL_SetState (GLS_BLEND_OPAQUE | GLS_NO_ZTEST | GLS_NO_ZWRITE | GLS_CULL_NONE | GLS_ATTRIBS(0));
+
+	/* Horizontal pass: composite.color_tex → ww_blur.fbo */
+	GL_BindFramebufferFunc (GL_FRAMEBUFFER, framebufs.ww_blur.fbo);
+	glViewport (0, 0, vid.width, vid.height);
+	GL_BindNative (GL_TEXTURE0, GL_TEXTURE_2D, framebufs.composite.color_tex);
+	GL_Uniform2fFunc (0, hstep, 0.0f);
+	glDrawArrays (GL_TRIANGLES, 0, 3);
+
+	/* Vertical pass: ww_blur.color_tex → composite.fbo (restores draw target) */
+	GL_BindFramebufferFunc (GL_FRAMEBUFFER, framebufs.composite.fbo);
+	GL_BindNative (GL_TEXTURE0, GL_TEXTURE_2D, framebufs.ww_blur.color_tex);
+	GL_Uniform2fFunc (0, 0.0f, vstep);
+	glDrawArrays (GL_TRIANGLES, 0, 3);
+
+	GL_EndGroup ();
 }
 
 /*

@@ -337,6 +337,7 @@ void GL_CreateShaders (void)
 		glprogs.warpscale[warp] = GL_CreateProgram (warpscale_vertex_shader, warpscale_fragment_shader, "view warp/scale|WARP %d", warp);
 	for (palettize = 0; palettize < 3; palettize++)
 		glprogs.postprocess[palettize] = GL_CreateProgram (postprocess_vertex_shader, postprocess_fragment_shader, "postprocess|PALETTIZE %d", palettize);
+	glprogs.ww_blur = GL_CreateProgram (postprocess_vertex_shader, ww_blur_fragment_shader, "ww_blur");
 
 	for (mode = 0; mode < 2; mode++)
 		glprogs.oit_resolve[mode] = GL_CreateProgram (oit_resove_vertex_shader, oit_resove_fragment_shader, "oit resolve|MSAA %d", mode);

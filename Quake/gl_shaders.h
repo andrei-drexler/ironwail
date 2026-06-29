@@ -228,6 +228,30 @@ SOFTWARE.*/\
 
 ////////////////////////////////////////////////////////////////
 
+/* 9-tap separable Gaussian blur for the weapon wheel background DOF effect.
+   BlurDir encodes the per-tap UV step: (pixel_step/width, 0) or (0, pixel_step/height). */
+static const char ww_blur_fragment_shader[] =
+"layout(binding=0) uniform sampler2D Scene;\n"
+"layout(location=0) uniform vec2 BlurDir;\n"
+"layout(location=0) out vec4 out_fragcolor;\n"
+"\n"
+"void main()\n"
+"{\n"
+"	vec2 uv = gl_FragCoord.xy / vec2(textureSize(Scene, 0));\n"
+"	out_fragcolor =\n"
+"		  texture(Scene, uv + BlurDir * -4.0) * 0.0162\n"
+"		+ texture(Scene, uv + BlurDir * -3.0) * 0.0540\n"
+"		+ texture(Scene, uv + BlurDir * -2.0) * 0.1216\n"
+"		+ texture(Scene, uv + BlurDir * -1.0) * 0.1945\n"
+"		+ texture(Scene, uv                 ) * 0.2270\n"
+"		+ texture(Scene, uv + BlurDir *  1.0) * 0.1945\n"
+"		+ texture(Scene, uv + BlurDir *  2.0) * 0.1216\n"
+"		+ texture(Scene, uv + BlurDir *  3.0) * 0.0540\n"
+"		+ texture(Scene, uv + BlurDir *  4.0) * 0.0162;\n"
+"}\n";
+
+////////////////////////////////////////////////////////////////
+
 static const char postprocess_vertex_shader[] =
 "void main()\n"
 "{\n"

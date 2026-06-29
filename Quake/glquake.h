@@ -524,6 +524,7 @@ typedef struct glprogs_s {
 	GLuint		viewblend;
 	GLuint		warpscale[2];		// [warp]
 	GLuint		postprocess[3];		// [palettize:off/dithered/direct]
+	GLuint		ww_blur;			// weapon wheel separable gaussian blur
 	GLuint		oit_resolve[2];		// [msaa]
 
 	/* 3d */
@@ -588,6 +589,11 @@ typedef struct glframebufs_s {
 		GLuint		fbo_scene;
 		GLuint		fbo_composite;
 	}				oit;
+
+	struct {
+		GLuint		color_tex;
+		GLuint		fbo;
+	}				ww_blur;  /* ping-pong target for weapon wheel background blur */
 } glframebufs_t;
 
 extern glframebufs_t framebufs;
@@ -648,6 +654,7 @@ void GL_AddGarbageBuffer (GLuint handle);
 qboolean GL_NeedsSceneEffects (void);
 qboolean GL_NeedsPostprocess (void);
 void GL_PostProcess (void);
+void SCR_WeaponWheelBlur (void);
 
 float GL_WaterAlphaForTextureType (textype_t type);
 

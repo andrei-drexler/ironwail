@@ -2111,6 +2111,8 @@ void SCR_UpdateScreen (void)
 
 	V_RenderView ();
 
+	SCR_WeaponWheelBlur ();
+
 	GL_BeginGroup ("2D");
 
 	GL_Set2D ();
