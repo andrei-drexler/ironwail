@@ -980,6 +980,251 @@ void Draw_FillEx (float x, float y, float w, float h, const float *rgb, float al
 
 /*
 =============
+Draw_FillCircle
+
+Fills a circle with a single color using horizontal scanlines
+=============
+*/
+void Draw_FillCircle (float cx, float cy, float radius, const float *rgb, float alpha)
+{
+	int		iy, r;
+	guivertex_t	*verts;
+
+	if (alpha <= 0.f || radius <= 0.f)
+		return;
+
+	r = (int)ceilf (radius);
+	GL_PushCanvasColor (rgb[0], rgb[1], rgb[2], alpha);
+	Draw_SetTexture (whitetexture);
+
+	for (iy = -r; iy < r; iy++)
+	{
+		float yf = (float)iy;
+		float t = yf / radius;
+		float dx = radius * sqrtf (1.f - t * t);
+		verts = Draw_AllocQuad ();
+		Draw_SetVertex (verts++, cx - dx, cy + yf,       0.f, 0.f);
+		Draw_SetVertex (verts++, cx + dx, cy + yf,       0.f, 0.f);
+		Draw_SetVertex (verts++, cx + dx, cy + yf + 1.f, 0.f, 0.f);
+		Draw_SetVertex (verts++, cx - dx, cy + yf + 1.f, 0.f, 0.f);
+	}
+
+	GL_PopCanvasColor ();
+}
+
+/*
+=============
+Draw_FillRing
+
+Draws a filled ring (circle with a hole) using horizontal scanlines
+=============
+*/
+void Draw_FillRing (float cx, float cy, float r_outer, float r_inner, const float *rgb, float alpha)
+{
+	int		iy, r;
+	guivertex_t	*verts;
+
+	if (alpha <= 0.f || r_outer <= 0.f)
+		return;
+
+	r = (int)ceilf (r_outer);
+	GL_PushCanvasColor (rgb[0], rgb[1], rgb[2], alpha);
+	Draw_SetTexture (whitetexture);
+
+	for (iy = -r; iy < r; iy++)
+	{
+		float yf    = (float)iy;
+		float t2    = (yf * yf) / (r_outer * r_outer);
+		float dx_outer, dx_inner;
+
+		if (t2 >= 1.f)
+			continue;
+
+		dx_outer = r_outer * sqrtf (1.f - t2);
+
+		if (r_inner > 0.f && yf > -r_inner && yf < r_inner)
+		{
+			float ti2 = (yf * yf) / (r_inner * r_inner);
+			dx_inner = r_inner * sqrtf (1.f - CLAMP (0.f, ti2, 1.f));
+
+			verts = Draw_AllocQuad ();
+			Draw_SetVertex (verts++, cx - dx_outer, cy + yf,       0.f, 0.f);
+			Draw_SetVertex (verts++, cx - dx_inner, cy + yf,       0.f, 0.f);
+			Draw_SetVertex (verts++, cx - dx_inner, cy + yf + 1.f, 0.f, 0.f);
+			Draw_SetVertex (verts++, cx - dx_outer, cy + yf + 1.f, 0.f, 0.f);
+
+			verts = Draw_AllocQuad ();
+			Draw_SetVertex (verts++, cx + dx_inner, cy + yf,       0.f, 0.f);
+			Draw_SetVertex (verts++, cx + dx_outer, cy + yf,       0.f, 0.f);
+			Draw_SetVertex (verts++, cx + dx_outer, cy + yf + 1.f, 0.f, 0.f);
+			Draw_SetVertex (verts++, cx + dx_inner, cy + yf + 1.f, 0.f, 0.f);
+		}
+		else
+		{
+			verts = Draw_AllocQuad ();
+			Draw_SetVertex (verts++, cx - dx_outer, cy + yf,       0.f, 0.f);
+			Draw_SetVertex (verts++, cx + dx_outer, cy + yf,       0.f, 0.f);
+			Draw_SetVertex (verts++, cx + dx_outer, cy + yf + 1.f, 0.f, 0.f);
+			Draw_SetVertex (verts++, cx - dx_outer, cy + yf + 1.f, 0.f, 0.f);
+		}
+	}
+
+	GL_PopCanvasColor ();
+}
+
+/*
+=============
+Draw_TexturedRing
+
+Like Draw_FillRing but maps a repeating world texture across the ring using
+position-relative UV (origin = ring centre). tile_size is the number of screen
+pixels that one full texture tile should span. Requires the texture to have
+GL_REPEAT wrap mode (world/BSP textures do by default).
+=============
+*/
+void Draw_TexturedRing (float cx, float cy, float r_outer, float r_inner,
+                        gltexture_t *tex, float tile_size,
+                        const float *rgb, float alpha)
+{
+	int		iy, r;
+	float	inv_tile;
+	guivertex_t	*verts;
+
+	if (alpha <= 0.f || r_outer <= 0.f || !tex || tile_size <= 0.f)
+		return;
+
+	r        = (int)ceilf (r_outer);
+	inv_tile = 1.f / tile_size;
+
+	GL_PushCanvasColor (rgb[0], rgb[1], rgb[2], alpha);
+	Draw_SetTexture (tex);
+
+	for (iy = -r; iy < r; iy++)
+	{
+		float yf    = (float)iy;
+		float t2    = (yf * yf) / (r_outer * r_outer);
+		float dx_outer, dx_inner;
+		float tv0   = yf * inv_tile;
+		float tv1   = (yf + 1.f) * inv_tile;
+
+		if (t2 >= 1.f)
+			continue;
+
+		dx_outer = r_outer * sqrtf (1.f - t2);
+
+		if (r_inner > 0.f && yf > -r_inner && yf < r_inner)
+		{
+			float ti2  = (yf * yf) / (r_inner * r_inner);
+			dx_inner   = r_inner * sqrtf (1.f - CLAMP (0.f, ti2, 1.f));
+
+			verts = Draw_AllocQuad ();
+			Draw_SetVertex (verts++, cx - dx_outer, cy + yf,       -dx_outer * inv_tile, tv0);
+			Draw_SetVertex (verts++, cx - dx_inner, cy + yf,       -dx_inner * inv_tile, tv0);
+			Draw_SetVertex (verts++, cx - dx_inner, cy + yf + 1.f, -dx_inner * inv_tile, tv1);
+			Draw_SetVertex (verts++, cx - dx_outer, cy + yf + 1.f, -dx_outer * inv_tile, tv1);
+
+			verts = Draw_AllocQuad ();
+			Draw_SetVertex (verts++, cx + dx_inner, cy + yf,        dx_inner * inv_tile, tv0);
+			Draw_SetVertex (verts++, cx + dx_outer, cy + yf,        dx_outer * inv_tile, tv0);
+			Draw_SetVertex (verts++, cx + dx_outer, cy + yf + 1.f,  dx_outer * inv_tile, tv1);
+			Draw_SetVertex (verts++, cx + dx_inner, cy + yf + 1.f,  dx_inner * inv_tile, tv1);
+		}
+		else
+		{
+			verts = Draw_AllocQuad ();
+			Draw_SetVertex (verts++, cx - dx_outer, cy + yf,       -dx_outer * inv_tile, tv0);
+			Draw_SetVertex (verts++, cx + dx_outer, cy + yf,        dx_outer * inv_tile, tv0);
+			Draw_SetVertex (verts++, cx + dx_outer, cy + yf + 1.f,  dx_outer * inv_tile, tv1);
+			Draw_SetVertex (verts++, cx - dx_outer, cy + yf + 1.f, -dx_outer * inv_tile, tv1);
+		}
+	}
+
+	GL_PopCanvasColor ();
+}
+
+/*
+=============
+Draw_FillRingSegment
+
+Draws a filled sector of a ring (annulus) from angle a_start to a_end (radians,
+0=east, clockwise positive in screen space). Uses N fan quads as trapezoid strips.
+=============
+*/
+void Draw_FillRingSegment (float cx, float cy, float r_outer, float r_inner,
+                           float a_start, float a_end,
+                           const float *rgb, float alpha)
+{
+	int		k;
+	float	da;
+	static const int N = 24;
+	guivertex_t	*verts;
+
+	if (alpha <= 0.f || r_outer <= r_inner || a_end <= a_start)
+		return;
+
+	da = (a_end - a_start) / N;
+
+	GL_PushCanvasColor (rgb[0], rgb[1], rgb[2], alpha);
+	Draw_SetTexture (whitetexture);
+
+	for (k = 0; k < N; k++)
+	{
+		float a0 = a_start + k * da;
+		float a1 = a0 + da;
+		float c0 = cosf (a0), s0 = sinf (a0);
+		float c1 = cosf (a1), s1 = sinf (a1);
+		verts = Draw_AllocQuad ();
+		Draw_SetVertex (verts++, cx + r_inner * c0, cy + r_inner * s0, 0.f, 0.f);
+		Draw_SetVertex (verts++, cx + r_inner * c1, cy + r_inner * s1, 0.f, 0.f);
+		Draw_SetVertex (verts++, cx + r_outer * c1, cy + r_outer * s1, 0.f, 0.f);
+		Draw_SetVertex (verts++, cx + r_outer * c0, cy + r_outer * s0, 0.f, 0.f);
+	}
+
+	GL_PopCanvasColor ();
+}
+
+/*
+=============
+Draw_Arrow
+
+Draws a solid triangle arrow. angle is in radians (0 = right, clockwise positive).
+Tip is at distance tip_r from (cx,cy); base center at base_r; base half-width is hw.
+Uses a degenerate quad (v0 == v3 == tip) to form a single triangle.
+=============
+*/
+void Draw_Arrow (float cx, float cy, float angle, float base_r, float tip_r, float hw, const float *rgb, float alpha)
+{
+	float		cos_a, sin_a, perp_x, perp_y;
+	float		tip_x, tip_y, bcx, bcy;
+	guivertex_t	*verts;
+
+	if (alpha <= 0.f)
+		return;
+
+	cos_a  =  cosf (angle);
+	sin_a  =  sinf (angle);
+	perp_x = -sin_a;
+	perp_y =  cos_a;
+
+	tip_x = cx + tip_r  * cos_a;
+	tip_y = cy + tip_r  * sin_a;
+	bcx   = cx + base_r * cos_a;
+	bcy   = cy + base_r * sin_a;
+
+	GL_PushCanvasColor (rgb[0], rgb[1], rgb[2], alpha);
+	Draw_SetTexture (whitetexture);
+
+	verts = Draw_AllocQuad ();
+	Draw_SetVertex (verts++, tip_x,                  tip_y,                  0.f, 0.f); /* tip */
+	Draw_SetVertex (verts++, bcx + perp_x * hw, bcy + perp_y * hw, 0.f, 0.f); /* base-left */
+	Draw_SetVertex (verts++, bcx - perp_x * hw, bcy - perp_y * hw, 0.f, 0.f); /* base-right */
+	Draw_SetVertex (verts++, tip_x,                  tip_y,                  0.f, 0.f); /* degenerate */
+
+	GL_PopCanvasColor ();
+}
+
+/*
+=============
 Draw_Fill
 
 Fills a box of pixels with a single color

@@ -44,6 +44,11 @@ void Draw_ConsoleBackground (void); //johnfitz -- removed parameter int lines
 void Draw_TileClear (int x, int y, int w, int h);
 void Draw_Fill (int x, int y, int w, int h, int c, float alpha); //johnfitz -- added alpha
 void Draw_FillEx (float x, float y, float w, float h, const float *rgb, float alpha);
+void Draw_FillCircle (float cx, float cy, float radius, const float *rgb, float alpha);
+void Draw_FillRing (float cx, float cy, float r_outer, float r_inner, const float *rgb, float alpha);
+void Draw_TexturedRing (float cx, float cy, float r_outer, float r_inner, struct gltexture_s *tex, float tile_size, const float *rgb, float alpha);
+void Draw_FillRingSegment (float cx, float cy, float r_outer, float r_inner, float a_start, float a_end, const float *rgb, float alpha);
+void Draw_Arrow (float cx, float cy, float angle, float base_r, float tip_r, float hw, const float *rgb, float alpha);
 void Draw_PartialFadeScreen (float x0, float x1, float y0, float y1, float alpha);
 void Draw_FadeScreen (float alpha);
 void Draw_String (int x, int y, const char *str);
