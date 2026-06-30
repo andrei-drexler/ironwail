@@ -1017,8 +1017,12 @@ _load_embedded:
 		loadmodel->entities = NULL;
 		return;
 	}
-	loadmodel->entities = (char *) Hunk_AllocNameNoFill ( l->filelen, loadname);
+	// Note: some BSPs don't contain a NUL terminator, e.g.
+	// https://www.quakeone.com/qrack/maps/Mcmdm04.bsp
+	// https://www.quakeone.com/qrack/maps/Jvoxdm3.bsp
+	loadmodel->entities = (char *) Hunk_AllocNameNoFill (l->filelen + 1, loadname);
 	memcpy (loadmodel->entities, mod_base + l->fileofs, l->filelen);
+	loadmodel->entities[l->filelen] = '\0';
 }
 
 
