@@ -784,6 +784,7 @@ qboolean Sys_IsStartedFromMapEditor (void)
 
 	return
 		q_strcasestr (exe, "trenchbroom") != NULL ||
+		q_strcasestr (exe, "nextbroom") != NULL ||
 		q_strcasestr (exe, "jack") != NULL ||
 		q_strcasestr (exe, "qrucible") != NULL;
 }
