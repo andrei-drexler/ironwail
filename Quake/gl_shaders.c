@@ -215,7 +215,7 @@ static GLuint GL_CreateProgramFromSources (int count, const GLchar **sources, co
 	q_vsnprintf (eval, sizeof (eval), name, argptr);
 	macros[0] = 0;
 
-	pipe = strchr (name, '|');
+	pipe = (char*)strchr (name, '|');
 	if (pipe) // parse symbol list and generate #defines
 	{
 		char *dst = macros;

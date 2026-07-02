@@ -1017,8 +1017,12 @@ _load_embedded:
 		loadmodel->entities = NULL;
 		return;
 	}
-	loadmodel->entities = (char *) Hunk_AllocNameNoFill ( l->filelen, loadname);
+	// Note: some BSPs don't contain a NUL terminator, e.g.
+	// https://www.quakeone.com/qrack/maps/Mcmdm04.bsp
+	// https://www.quakeone.com/qrack/maps/Jvoxdm3.bsp
+	loadmodel->entities = (char *) Hunk_AllocNameNoFill (l->filelen + 1, loadname);
 	memcpy (loadmodel->entities, mod_base + l->fileofs, l->filelen);
+	loadmodel->entities[l->filelen] = '\0';
 }
 
 
@@ -2064,54 +2068,18 @@ Mod_LoadMarksurfaces
 static void Mod_LoadMarksurfaces (lump_t *l, int bsp2)
 {
 	int		i, j, count;
-	int		*out;
-	if (bsp2)
-	{
-		unsigned int *in = (unsigned int *)(mod_base + l->fileofs);
+	void *in = mod_base + l->fileofs;
 
-		if (l->filelen % sizeof(*in))
-			Host_Error ("Mod_LoadMarksurfaces: funny lump size in %s",loadmodel->name);
-
-		count = l->filelen / sizeof(*in);
-		out = (int*)Hunk_AllocNameNoFill ( count*sizeof(*out), loadname);
-
-		loadmodel->marksurfaces = out;
-		loadmodel->nummarksurfaces = count;
-
-		for (i=0 ; i<count ; i++)
-		{
-			j = LittleLong(in[i]);
-			if (j >= loadmodel->numsurfaces)
-				Host_Error ("Mod_LoadMarksurfaces: bad surface number");
-			out[i] = j;
-		}
-	}
-	else
-	{
-		short *in = (short *)(mod_base + l->fileofs);
-
-		if (l->filelen % sizeof(*in))
-			Host_Error ("Mod_LoadMarksurfaces: funny lump size in %s",loadmodel->name);
-
-		count = l->filelen / sizeof(*in);
-		out = (int*)Hunk_AllocNameNoFill ( count*sizeof(*out), loadname);
-
-		loadmodel->marksurfaces = out;
-		loadmodel->nummarksurfaces = count;
-
-		//johnfitz -- warn mappers about exceeding old limits
-		if (count > 32767)
-			Con_DWarning ("%i marksurfaces exceeds standard limit of 32767.\n", count);
-		//johnfitz
-
-		for (i=0 ; i<count ; i++)
-		{
-			j = (unsigned short)LittleShort(in[i]); //johnfitz -- explicit cast as unsigned short
-			if (j >= loadmodel->numsurfaces)
-				Sys_Error ("Mod_LoadMarksurfaces: bad surface number");
-			out[i] = j;
-		}
-	}
+	if(l->filelen % (bsp2 ? sizeof(uint32_t) : sizeof(int16_t)))
+		Host_Error ("Mod_LoadMarksurfaces: funny lump size in %s",loadmodel->name);
+	count = l->filelen / (bsp2 ? sizeof(uint32_t) : sizeof(int16_t));
+	loadmodel->marksurfaces = (int*)Hunk_AllocNameNoFill ( count*sizeof(int), loadname );
+	loadmodel->nummarksurfaces = count;
+	if (count > 32767)
+		Con_DWarning ("%i marksurfaces exceeds standard limit of 32767.\n", count);
+	for (i=0 ; i<count ; i++)
+		if((loadmodel->marksurfaces[i] = bsp2 ? le32toh(((uint32_t*)in)[i]) : le16toh(((int16_t*)in)[i])) >= loadmodel->numsurfaces)
+			Sys_Error ("Mod_LoadMarksurfaces: bad surface number");
 }
 
 /*

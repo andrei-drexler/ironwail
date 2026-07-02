@@ -70,6 +70,21 @@
 #include <float.h>
 #include <SDL_endian.h>
 
+#if defined(_MSC_VER) && !defined(__cplusplus)
+#define inline __inline
+#elif !defined(inline)
+#define inline __inline__
+#endif
+
+#if defined(_MSC_VER)
+#define ALIGN(x) __declspec(align(x))
+#define FUNC_INLINE inline __force_inline __flatten __declspec(nothrow)
+#define FUNC_CONST __declspec(noalias)
+#else
+#define ALIGN(x) __attribute__((aligned(x)))
+#define FUNC_INLINE inline __attribute__((always_inline,flatten,nothrow))
+#define FUNC_CONST __attribute__((const))
+#endif
 
 /*==========================================================================*/
 
@@ -157,12 +172,30 @@ COMPILE_TIME_ASSERT(truth, ((1 == 1) == true));
 COMPILE_TIME_ASSERT(qboolean, sizeof(qboolean) == 4);
 
 /*==========================================================================*/
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * bitceil replacement for stdc_bit_ceil               *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+#define sh0(x) (uintmax_t)(   (x) | (   (x) >> (1 << 0)))
+#define sh1(x) (uintmax_t)(sh0(x) | (sh0(x) >> (1 << 1)))
+#define sh2(x) (uintmax_t)(sh1(x) | (sh1(x) >> (1 << 2)))
+#define sh3(x) (uintmax_t)(sh2(x) | (sh2(x) >> (1 << 3)))
+#define sh4(x) (uintmax_t)(sh3(x) | (sh3(x) >> (1 << 4)))
+#define sh5(x) (uintmax_t)(sh4(x) | (sh4(x) >> (1 << 5)))
+#define bitceil(x) (const __typeof__(x))(sh5(((uintmax_t)(x)) - 1) + 1)
+
+#ifndef _MSC_VER
+#define arr(n,t) __typeof__(__typeof__(t)[n])
+#else
+#define arr(n,t) ALIGN((n == bitceil(n) ? n : 1) * __alignof__(t)) __typeof__(__typeof__(t)[n])
+#endif
+
+#define vec(n,t) arr(n,t)
 
 /* math */
 typedef float	vec_t;
-typedef vec_t	vec3_t[3];
-typedef vec_t	vec4_t[4];
-typedef vec_t	vec5_t[5];
+typedef vec(3,vec_t)	vec3_t;
+typedef vec(4,vec_t)	vec4_t;
+typedef vec(5,vec_t)	vec5_t;
 typedef int	fixed4_t;
 typedef int	fixed8_t;
 typedef int	fixed16_t;
@@ -201,6 +234,13 @@ typedef struct { float data[4]; } float4_t;
 typedef ptrdiff_t	ssize_t;
 #endif
 
+#ifndef SSIZE_MAX
+#define SSIZE_MAX (ssize_t)PTRDIFF_MAX
+#endif
+
+#ifndef SSIZE_MIN
+#define SSIZE_MIN (ssize_t)(-SSIZE_MAX - 1)
+#endif
 /*==========================================================================*/
 
 /* function attributes, etc */
@@ -252,10 +292,6 @@ typedef ptrdiff_t	ssize_t;
 #else
 #define FUNC_NOCLONE
 #endif
-
-#if defined(_MSC_VER) && !defined(__cplusplus)
-#define inline __inline
-#endif	/* _MSC_VER */
 
 #if defined(_MSC_VER)
 #define THREAD_LOCAL __declspec(thread)

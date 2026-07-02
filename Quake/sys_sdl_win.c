@@ -961,6 +961,7 @@ qboolean Sys_IsStartedFromMapEditor (void)
 		{
 			#define PARENT_STARTS_WITH(prefix)	(_wcsnicmp (parent->name, L##prefix, wcslen (L##prefix)) == 0)
 			if (PARENT_STARTS_WITH ("TrenchBroom") ||
+				PARENT_STARTS_WITH ("NextBroom") ||
 				PARENT_STARTS_WITH ("jack") ||
 				PARENT_STARTS_WITH ("ne_q1spCompilingGui") ||
 				PARENT_STARTS_WITH ("q1compile") ||
