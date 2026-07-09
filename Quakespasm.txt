@@ -3,7 +3,7 @@
   ______________________________________________________________________
 
 
-  Page last edited: July 2024.
+  Page last edited: January 2025.
 
 
   1. About
@@ -129,9 +129,9 @@
   -  joy_invert - Set to 1 to invert the vertical axis of the look
      stick.
 
-  -  joy_swapmovelook - Set to 1 to swap the left and right analog stick
-     functions. Default is 0, move on the left stick, look on the right
-     stick.
+  -  joy_swapmovelook - Set to 2 for legacy (GE/PD 1.1) style controls (move forward/backward look left/right on left stick, move left/right and look up/down on right stick.
+  Set to 1 to swap the left and right analog stick functions.
+  Default is 0, move on the left stick, look on the right stick.
 
   -  joy_enable - Set to 0 to disable controller support. Default is 1.
 
