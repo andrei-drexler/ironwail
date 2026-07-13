@@ -21,13 +21,10 @@ jobs:
         include:
           - os: windows-latest
             c_compiler: cl
-            cpp_compiler: cl
           - os: ubuntu-latest
             c_compiler: gcc
-            cpp_compiler: g++
           - os: ubuntu-latest
             c_compiler: clang
-            cpp_compiler: clang++
         exclude:
           - os: windows-latest
             c_compiler: gcc
@@ -35,9 +32,16 @@ jobs:
             c_compiler: clang
           - os: ubuntu-latest
             c_compiler: cl
+        config:
+          - target: win32
+            package: i686-win32
+          - target: win64
+            package: x86-64
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
+    - name: Install Dependencies
+      run: sudo apt update && sudo apt install libcurl4-openssl-dev libmpg123-dev libsdl2-dev libvorbis-dev gcc-mingw-w64-${{ matrix.config.package }}
 
     - name: Set reusable strings
       # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
@@ -59,6 +63,9 @@ jobs:
     - name: Build
       # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
       run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+    - name: Build MinGW ${{ matrix.config.target }}
+          export MAKEFLAGS=--jobs=3\ --keep-going
+          cd Quake && ./build_cross_${{ matrix.config.target }}-sdl2.sh
 
     - name: Test
       working-directory: ${{ steps.strings.outputs.build-output-dir }}
