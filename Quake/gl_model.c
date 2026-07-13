@@ -1181,7 +1181,7 @@ static void CalcSurfaceExtents (msurface_t *s)
 
 	tex = s->texinfo;
 
-	#pragma omp simd
+	_Pragma("omp simd")
 	for (int i=0 ; i<4 ; i++)
 	{
 		texvecs[0][i] = (vecd_t) tex->vecs[0][i];
@@ -1219,7 +1219,7 @@ static void CalcSurfaceExtents (msurface_t *s)
 		}
 	}
 
-	#pragma omp simd
+	_Pragma("omp simd")
 	for (int i=0 ; i<2 ; i++)
 	{
 		int bmin = ((int)floorf(mins[i] / 16)) << 4;

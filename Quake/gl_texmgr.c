@@ -962,7 +962,7 @@ static unsigned *TexMgr_MipMapW (unsigned *data, int width, int height, int dept
 	out = in = (byte *)data;
 	size = ((width*height)>>1)*depth;
 
-	#pragma omp simd
+	_Pragma("omp simd")
 	for (size_t i = 0; i < size; i++)
 	{
 		out[0] = (in[0] + in[4] + 1) >> 1;
@@ -995,7 +995,7 @@ static unsigned *TexMgr_MipMapH (unsigned *data, int width, int height, int dept
 
 	for (int i = 0; i < height; i++)
 	{
-		#pragma omp simd
+		_Pragma("omp simd")
 		for (int j = 0; j < width; j += 4)
 		{
 			out[0] = (in[0] + in[width+0] + 1)>>1;
@@ -1134,7 +1134,7 @@ static void TexMgr_PadEdgeFixH (byte *data, int width, int height)
 	//copy first full row to last empty row, leaving alpha byte at zero
 	dst = data + (padh - 1) * padw * 4;
 	src = data;
-	#pragma omp simd
+	_Pragma("omp simd")
 	for (i = 0; i < padw; i++)
 	{
 		dst[0] = src[0];

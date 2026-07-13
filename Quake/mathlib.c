@@ -622,14 +622,14 @@ void MatrixMultiply(float left[16], float right[16])
 	float temp[16];
 
 	memcpy(temp, left, 16 * sizeof(float));
-	#pragma omp simd
+	_Pragma("omp simd")
 	for(int row = 0; row < 4; ++row)
 	{
-		#pragma omp simd
+		_Pragma("omp simd")
 		for(int column = 0; column < 4; ++column)
 		{
 			float value = 0.0f;
-			#pragma omp simd reduction(+:value)
+			_Pragma("omp simd reduction(+:value)")
 			for (int i = 0; i < 4; ++i)
 				value += temp[i*4 + row] * right[column*4 + i];
 
