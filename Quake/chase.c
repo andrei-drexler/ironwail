@@ -23,10 +23,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
-cvar_t	chase_back = {"chase_back", "100", CVAR_NONE};
-cvar_t	chase_up = {"chase_up", "16", CVAR_NONE};
-cvar_t	chase_right = {"chase_right", "0", CVAR_NONE};
-cvar_t	chase_active = {"chase_active", "0", CVAR_NONE};
+cvar_t	chase_back = {"chase_back", "100", CVAR_NONE,0.0f,NULL,NULL,NULL,NULL};
+cvar_t	chase_up = {"chase_up", "16", CVAR_NONE,0.0f,NULL,NULL,NULL,NULL};
+cvar_t	chase_right = {"chase_right", "0", CVAR_NONE,0.0f,NULL,NULL,NULL,NULL};
+cvar_t	chase_active = {"chase_active", "0", CVAR_NONE,0.0f,NULL,NULL,NULL,NULL};
 
 /*
 ==============
