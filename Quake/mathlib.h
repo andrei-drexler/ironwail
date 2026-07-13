@@ -85,7 +85,7 @@ MULTI_LINE_MACRO_END
 FUNC_INLINE vecf_t dotf(size_t n, const vecf_t a[], const vecf_t b[])
 {
         vecf_t dst = (vecf_t)0;
-        #pragma omp simd reduction(+:dst)
+        _Pragma("omp simd reduction(+:dst)")
         for(size_t i = 0; i < n; i++)
                 dst += a[i] * b[i];
         return dst;
@@ -93,7 +93,7 @@ FUNC_INLINE vecf_t dotf(size_t n, const vecf_t a[], const vecf_t b[])
 FUNC_INLINE vecd_t dotftod(size_t n, const vecf_t a[], const vecf_t b[])
 {
         vecd_t dst = (vecd_t)0;
-        #pragma omp simd reduction(+:dst)
+        _Pragma("omp simd reduction(+:dst)")
         for(size_t i = 0; i < n; i++)
                 dst += (vecd_t)a[i] * b[i];
         return dst;
@@ -101,7 +101,7 @@ FUNC_INLINE vecd_t dotftod(size_t n, const vecf_t a[], const vecf_t b[])
 FUNC_INLINE vecd_t dotd(size_t n, const vecd_t a[], const vecd_t b[])
 {
         vecd_t dst = (vecd_t)0;
-        #pragma omp simd reduction(+:dst)
+        _Pragma("omp simd reduction(+:dst)")
         for(size_t i = 0; i < n; i++)
                 dst += a[i] * b[i];
         return dst;
@@ -109,7 +109,7 @@ FUNC_INLINE vecd_t dotd(size_t n, const vecd_t a[], const vecd_t b[])
 FUNC_INLINE vecf_t dotdtof(size_t n, const vecd_t a[], const vecd_t b[])
 {
         vecf_t dst = (vecf_t)0;
-        #pragma omp simd reduction(+:dst)
+        _Pragma("omp simd reduction(+:dst)")
         for(size_t i = 0; i < n; i++)
                 dst += (vecf_t)a[i] * b[i];
         return dst;
