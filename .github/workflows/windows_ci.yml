@@ -31,8 +31,6 @@ jobs:
         $options = @( `
           '-property:Configuration=Release', `
           '-property:Platform=${{ matrix.platform }}', `
-          '-maxcpucount', `
-          '-openmp', `
           '-verbosity:minimal' `
         )
         & $msbuild Windows\VisualStudio\ironwail.sln $options
