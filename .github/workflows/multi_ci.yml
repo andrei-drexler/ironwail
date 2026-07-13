@@ -32,11 +32,6 @@ jobs:
             c_compiler: clang
           - os: ubuntu-latest
             c_compiler: cl
-        config:
-          - target: win32
-            package: i686-win32
-          - target: win64
-            package: x86-64
 
     steps:
     - uses: actions/checkout@v7
@@ -63,6 +58,17 @@ jobs:
     - name: Build
       # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
       run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+  build-linux:
+    name: Build MinGW
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - target: win32
+            package: i686-win32
+          - target: win64
+            package: x86-64
     - name: Build MinGW ${{ matrix.config.target }}
       run: |
           export MAKEFLAGS=--jobs=3\ --keep-going
