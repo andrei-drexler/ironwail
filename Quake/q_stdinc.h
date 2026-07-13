@@ -70,6 +70,32 @@
 #include <float.h>
 #include <SDL_endian.h>
 
+#define countargs(...) (0 __VA_OPT__(+sizeof((__typeof__(__VA_ARGS__)[]){__VA_ARGS__})/sizeof(__VA_ARGS__)))
+#define emptyargs(...) (true __VA_OPT__(-1))
+
+/* TODO make this work with _Pragma and return value content or support ({}) GCC extension in MSVC */
+#define MULTI_LINE_MACRO_BEGIN do {
+#define MULTI_LINE_MACRO_END     \
+_Pragma("warning(push)") \
+_Pragma("warning(disable:4127)") \
+} while(0) \
+_Pragma("warning(pop)")
+
+#if defined(_MSC_VER)
+#if !defined(__cplusplus)
+#define inline __inline
+#endif
+#define ALIGN(x) __declspec(align(x))
+#define FUNC_INLINE inline
+#define FUNC_CONST __declspec(noalias)
+#else
+#if !defined(inline)
+#define inline __inline__
+#endif
+#define ALIGN(x) __attribute__((aligned(x)))
+#define FUNC_INLINE inline __attribute__((always_inline,flatten,nothrow))
+#define FUNC_CONST __attribute__((const))
+#endif
 
 /*==========================================================================*/
 
@@ -157,20 +183,73 @@ COMPILE_TIME_ASSERT(truth, ((1 == 1) == true));
 COMPILE_TIME_ASSERT(qboolean, sizeof(qboolean) == 4);
 
 /*==========================================================================*/
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * bitceil replacement for stdc_bit_ceil               *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+#define sh0(x) (uintmax_t)(   (x) | (   (x) >> (1 << 0)))
+#define sh1(x) (uintmax_t)(sh0(x) | (sh0(x) >> (1 << 1)))
+#define sh2(x) (uintmax_t)(sh1(x) | (sh1(x) >> (1 << 2)))
+#define sh3(x) (uintmax_t)(sh2(x) | (sh2(x) >> (1 << 3)))
+#define sh4(x) (uintmax_t)(sh3(x) | (sh3(x) >> (1 << 4)))
+#define sh5(x) (uintmax_t)(sh4(x) | (sh4(x) >> (1 << 5)))
+#define bitceil(x) (const __typeof__(x))(sh5(((uintmax_t)(x)) - 1) + 1)
+
+#if   defined(_MSC_VER)
+#define arr(n,t) __typeof__(__typeof__(t)[n/sizeof(__typeof__(t))])
+#else
+#define arr(n,t) ALIGN((n/sizeof(t) == bitceil(n/sizeof(t)) ? n/sizeof(t) : 1) * _Alignof(t)) __typeof__(__typeof__(t)[n/sizeof(t)])
+#endif
+
+#if   defined(_MSC_VER)
+/* requires len to be a numeric constant constexpr power of 2 and lacks C23 constexpr support */
+#define simd(len,t) __declspec(intrin_type) ALIGN(len) arr(len,t)
+#elif defined(__clang__)
+#define simd(len,t) __typeof__(__attribute__((__ext_vector_type__(bitceil(len)/sizeof(t)),__may_alias__)) __typeof__(t))
+#elif defined(__GNUC__)
+#define simd(len,t) __typeof__(__attribute__((__vector_size__(bitceil(len)),__may_alias__)) __typeof(t))
+#else
+#define simd(len,t) arr(bitceil(n),t)
+#endif
+
+#define vec(n,t) simd(n,t)
 
 /* math */
-typedef float	vec_t;
-typedef vec_t	vec3_t[3];
-typedef vec_t	vec4_t[4];
-typedef vec_t	vec5_t[5];
-typedef int	fixed4_t;
-typedef int	fixed8_t;
-typedef int	fixed16_t;
+typedef float             vecf_t;
+typedef double            vecd_t;
+typedef uint8_t          vecub_t;
+typedef uint16_t         vecus_t;
+typedef int32_t           veci_t;
+typedef int64_t           vecl_t;
+
+typedef vec( 8,float)    vec2f_t;
+typedef arr(12,float)    vec3f_t;
+typedef vec(16,float)    vec4f_t;
+typedef vec(32,float)    vec8f_t;
+
+typedef vec(16,double)   vec2d_t;
+typedef arr(24,double)   vec3d_t;
+typedef vec(32,double)   vec4d_t;
+typedef vec(64,double)   vec8d_t;
+
+typedef vecf_t             vec_t;
+typedef vec2f_t           vec2_t;
+typedef vec3f_t           vec3_t;
+typedef vec4f_t           vec4_t;
+typedef vec8f_t           vec8_t;
+
+typedef vec4f_t          quatf_t;
+typedef vec4d_t          quatd_t;
+typedef quatf_t           quat_t;
+
+typedef int             fixed4_t;
+typedef int             fixed8_t;
+typedef int            fixed16_t;
 
 /* natvis helpers */
 typedef struct { float data[2]; } float2_t;
 typedef struct { float data[3]; } float3_t;
 typedef struct { float data[4]; } float4_t;
+typedef struct { float data[8]; } float8_t;
 
 /*==========================================================================*/
 
@@ -201,6 +280,13 @@ typedef struct { float data[4]; } float4_t;
 typedef ptrdiff_t	ssize_t;
 #endif
 
+#ifndef SSIZE_MAX
+#define SSIZE_MAX (ssize_t)PTRDIFF_MAX
+#endif
+
+#ifndef SSIZE_MIN
+#define SSIZE_MIN (ssize_t)(-SSIZE_MAX - 1)
+#endif
 /*==========================================================================*/
 
 /* function attributes, etc */
@@ -252,10 +338,6 @@ typedef ptrdiff_t	ssize_t;
 #else
 #define FUNC_NOCLONE
 #endif
-
-#if defined(_MSC_VER) && !defined(__cplusplus)
-#define inline __inline
-#endif	/* _MSC_VER */
 
 #if defined(_MSC_VER)
 #define THREAD_LOCAL __declspec(thread)

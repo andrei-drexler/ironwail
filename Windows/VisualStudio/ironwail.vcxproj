@@ -97,7 +97,8 @@
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <CompileAs>CompileAsC</CompileAs>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <MultiProcessorCompilation>false</MultiProcessorCompilation>
+      <BuildParallel>false</BuildParallel>
       <TreatWarningAsError>true</TreatWarningAsError>
       <LanguageStandard_C>stdc11</LanguageStandard_C>
       <PrecompiledHeaderFile>quakedef.h</PrecompiledHeaderFile>
@@ -130,9 +131,10 @@ copy "$(SolutionDir)..\zlib\$(PlatformShortName)\*.dll" "$(TargetDir)"</Command>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <CompileAs>CompileAsC</CompileAs>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <MultiProcessorCompilation>false</MultiProcessorCompilation>
+      <BuildParallel>false</BuildParallel>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <LanguageStandard_C>stdc11</LanguageStandard_C>
+      <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <PrecompiledHeaderFile>quakedef.h</PrecompiledHeaderFile>
     </ClCompile>
     <Link>
@@ -166,9 +168,10 @@ copy "$(SolutionDir)..\zlib\$(PlatformShortName)\*.dll" "$(TargetDir)"</Command>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <CompileAs>CompileAsC</CompileAs>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <MultiProcessorCompilation>false</MultiProcessorCompilation>
+      <BuildParallel>false</BuildParallel>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <LanguageStandard_C>stdc11</LanguageStandard_C>
+      <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <PrecompiledHeaderFile>quakedef.h</PrecompiledHeaderFile>
     </ClCompile>
     <Link>
@@ -201,7 +204,8 @@ copy "$(SolutionDir)..\zlib\$(PlatformShortName)\*.dll" "$(TargetDir)"</Command>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <CompileAs>CompileAsC</CompileAs>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <MultiProcessorCompilation>false</MultiProcessorCompilation>
+      <BuildParallel>false</BuildParallel>
       <TreatWarningAsError>true</TreatWarningAsError>
       <LanguageStandard_C>stdc11</LanguageStandard_C>
       <PrecompiledHeaderFile>quakedef.h</PrecompiledHeaderFile>

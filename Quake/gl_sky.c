@@ -725,7 +725,7 @@ void Sky_DrawSkyBox (void)
 
 	GL_UniformMatrix4fvFunc (0, 1, GL_FALSE, r_matviewproj);
 	GL_Uniform3fvFunc (1, 1, r_refdef.vieworg);
-	GL_Uniform4fvFunc (2, 1, fog);
+	GL_Uniform4fvFunc (2, 1, (vec_t*)&fog);
 	GL_Uniform1fFunc (3, r_framedata.screendither);
 
 	for (i = 0; i < 6; i++)

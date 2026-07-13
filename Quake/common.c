@@ -2486,7 +2486,7 @@ void COM_ResetGameDirectories(const char *newgamedirs)
 
 	for(newpath = newgamedirs; newpath && *newpath; )
 	{
-		char *e = strchr(newpath, ';');
+		char *e = (char*)strchr(newpath, ';');
 		if (e)
 			*e++ = 0;
 

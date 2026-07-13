@@ -487,16 +487,6 @@ void SV_PushMove (edict_t *pusher, float movetime)
 		if ( ! ( ((int)check->v.flags & FL_ONGROUND)
 		&& PROG_TO_EDICT(check->v.groundentity) == pusher) )
 		{
-#ifdef USE_SSE2
-			__m128 check_absmin_vec = _mm_loadu_ps (check->v.absmin);
-			__m128 check_absmax_vec = _mm_loadu_ps (check->v.absmax);
-			__m128 maxs_vec = _mm_loadu_ps (maxs);
-			__m128 mins_vec = _mm_loadu_ps (mins);
-			if (_mm_movemask_ps (_mm_cmpnlt_ps (check_absmin_vec, maxs_vec)) & 7)
-				continue;
-			if (_mm_movemask_ps (_mm_cmpngt_ps (check_absmax_vec, mins_vec)) & 7)
-				continue;
-#else
 			if ( check->v.absmin[0] >= maxs[0]
 			|| check->v.absmin[1] >= maxs[1]
 			|| check->v.absmin[2] >= maxs[2]
@@ -504,7 +494,6 @@ void SV_PushMove (edict_t *pusher, float movetime)
 			|| check->v.absmax[1] <= mins[1]
 			|| check->v.absmax[2] <= mins[2] )
 				continue;
-#endif
 
 		// see if the ent's bbox is inside the pusher's final position
 			if (!SV_TestEntityPosition (check))
@@ -532,7 +521,7 @@ void SV_PushMove (edict_t *pusher, float movetime)
 			solid_backup == SOLID_SLIDEBOX)
 		{
 			pusher->v.solid = SOLID_NOT;
-			SV_PushEntity (check, move);
+			SV_PushEntity (check, (vec_t*)&move);
 			pusher->v.solid = solid_backup;
 		}
 
@@ -767,7 +756,7 @@ void SV_WallFriction (edict_t *ent, trace_t *trace)
 // cut the tangential velocity
 	i = DotProduct (trace->plane.normal, ent->v.velocity);
 	VectorScale (trace->plane.normal, i, into);
-	VectorSubtract (ent->v.velocity, into, side);
+	VectorSub (ent->v.velocity, into, side);
 
 	ent->v.velocity[0] = side[0] * (1 + d);
 	ent->v.velocity[1] = side[1] * (1 + d);

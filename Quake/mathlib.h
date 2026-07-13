@@ -52,44 +52,118 @@ static inline int IS_NAN (float x) {
 }
 #endif
 
+
 #define Q_rint(x) ((x) > 0 ? (int)((x) + 0.5) : (int)((x) - 0.5)) //johnfitz -- from joequake
 
-#define DotProduct(x,y)					((x)[0]*(y)[0]+(x)[1]*(y)[1]+(x)[2]*(y)[2])
-#define DoublePrecisionDotProduct(x,y)	((double)(x)[0]*(y)[0]+(double)(x)[1]*(y)[1]+(double)(x)[2]*(y)[2])
-#define VectorSubtract(a,b,dst)			do {(dst)[0]=(a)[0]-(b)[0];(dst)[1]=(a)[1]-(b)[1];(dst)[2]=(a)[2]-(b)[2];} while (0)
-#define VectorAdd(a,b,dst)				do {(dst)[0]=(a)[0]+(b)[0];(dst)[1]=(a)[1]+(b)[1];(dst)[2]=(a)[2]+(b)[2];} while (0)
-#define VectorCopy(src,dst)				do {(dst)[0]=(src)[0];(dst)[1]=(src)[1];(dst)[2]=(src)[2];} while (0)
-#define VectorSet(v,x,y,z)				do {(v)[0]=(x);(v)[1]=(y);(v)[2]=(z);} while (0)
-#define VectorLengthSquared(v)			DotProduct(v,v)
+#define VectorOps(n,op,a,b,dst) \
+MULTI_LINE_MACRO_BEGIN \
+_Pragma("omp simd") \
+for(size_t i = 0; i < n; i++) \
+	(dst)[i] = (__typeof__((dst)[0]))(a)[i] op (b)[i]; \
+MULTI_LINE_MACRO_END
+
+#define VectorNCopy(n,src,dst) \
+MULTI_LINE_MACRO_BEGIN \
+_Pragma("omp simd") \
+for(size_t i = 0; i < n; i++) \
+	(dst)[i] = (__typeof__((src)[0]))(src)[i]; \
+MULTI_LINE_MACRO_END
+#define VectorCopy(src,dst) VectorNCopy(3,src,dst)
+
+#define VectorSet(v,...) \
+MULTI_LINE_MACRO_BEGIN \
+_Pragma("omp simd") \
+for(size_t i = 0; i < countargs(__VA_ARGS__); i++) \
+	(v)[i] = (__typeof__((v)[0]))(__typeof__(__VA_ARGS__)[]){ __VA_ARGS__ }[i]; \
+MULTI_LINE_MACRO_END
+
+#define VectorAdd(a,b,dst) VectorOps(3,+,a,b,dst)
+#define VectorSub(a,b,dst) VectorOps(3,-,a,b,dst)
+#define VectorMul(a,b,dst) VectorOps(3,*,a,b,dst)
+#define VectorDiv(a,b,dst) VectorOps(3,/,a,b,dst)
+
+FUNC_INLINE vecf_t dotf(size_t n, const vecf_t a[], const vecf_t b[])
+{
+        vecf_t dst = (vecf_t)0;
+        #pragma omp simd reduction(+:dst)
+        for(size_t i = 0; i < n; i++)
+                dst += a[i] * b[i];
+        return dst;
+}
+FUNC_INLINE vecd_t dotftod(size_t n, const vecf_t a[], const vecf_t b[])
+{
+        vecd_t dst = (vecd_t)0;
+        #pragma omp simd reduction(+:dst)
+        for(size_t i = 0; i < n; i++)
+                dst += (vecd_t)a[i] * b[i];
+        return dst;
+}
+FUNC_INLINE vecd_t dotd(size_t n, const vecd_t a[], const vecd_t b[])
+{
+        vecd_t dst = (vecd_t)0;
+        #pragma omp simd reduction(+:dst)
+        for(size_t i = 0; i < n; i++)
+                dst += a[i] * b[i];
+        return dst;
+}
+FUNC_INLINE vecf_t dotdtof(size_t n, const vecd_t a[], const vecd_t b[])
+{
+        vecf_t dst = (vecf_t)0;
+        #pragma omp simd reduction(+:dst)
+        for(size_t i = 0; i < n; i++)
+                dst += (vecf_t)a[i] * b[i];
+        return dst;
+}
+
+#define cross3(a,b,dst)                 ((dst)[0]=(a)[1]*(b)[2]-(a)[2]*(b)[1],\
+                                         (dst)[1]=(a)[2]*(b)[0]-(a)[0]*(b)[2],\
+                                         (dst)[2]=(a)[0]*(b)[1]-(a)[1]*(b)[0])
+
+#define CrossProduct(a,b,cross)         cross3(a,b,cross)
+
+#define DotProduct(x,y)                 dotf(3,(const vecf_t*)(x),(const vecf_t*)(y))
+#define DotProduct4(x,y)                dotf(4,(const vecf_t*)(x),(const vecf_t*)(y))
+#define DoublePrecisionDotProduct(x,y)  dotftod(3,(const vecf_t*)(x),(const vecf_t*)(y))
+#define DoublePrecisionDotProduct4(x,y) dotftod(4,(const vecf_t*)(x),(const vecf_t*)(y))
+#define VectorLengthSquared(v)          DotProduct(v,v)
 
 //johnfitz -- courtesy of lordhavoc
 // QuakeSpasm: To avoid strict aliasing violations, use a float/int union instead of type punning.
-#define VectorNormalizeFast(_v)\
-do\
-{\
-	union { float f; int i; } _y, _number;\
-	_number.f = DotProduct((_v), (_v));\
-	if (_number.f != 0.0)\
-	{\
-		_y.i = 0x5f3759df - (_number.i >> 1);\
-		_y.f = _y.f * (1.5f - (_number.f * 0.5f * _y.f * _y.f));\
-		VectorScale((_v), _y.f, (_v));\
-	}\
-} while (0)
+#define VectorNormalizeFast(_v) \
+MULTI_LINE_MACRO_BEGIN \
+	union { float f; int i; } _y, _number; \
+	_number.f = DotProduct((_v),(_v)); \
+	if (_number.f != 0.0) \
+	{ \
+		_y.i = 0x5f3759df - (_number.i >> 1); \
+		_y.f = _y.f * (1.5f - (_number.f * 0.5f * _y.f * _y.f)); \
+		VectorScale((_v), _y.f, (_v)); \
+	} \
+MULTI_LINE_MACRO_END
+
+#define QuatMul(qa,qb,qdst) \
+MULTI_LINE_MACRO_BEGIN \
+	VectorSet(qdst,                                                                   \
+	((qa)[3] * (qb)[0] + (qa)[0] * (qb)[3] + (qa)[1] * (qb)[2] - (qa)[2] * (qb)[1]),  \
+	((qa)[3] * (qb)[1] + (qa)[1] * (qb)[3] + (qa)[2] * (qb)[0] - (qa)[0] * (qb)[2]),  \
+	((qa)[3] * (qb)[2] + (qa)[2] * (qb)[3] + (qa)[0] * (qb)[1] - (qa)[1] * (qb)[0]),  \
+	((qa)[3] * (qb)[3] - (qa)[0] * (qb)[0] - (qa)[1] * (qb)[1] - (qa)[2] * (qb)[2])); \
+MULTI_LINE_MACRO_END
+
+#define QuatMul2(qadst,qb) \
+MULTI_LINE_MACRO_BEGIN     \
+quat_t tmp;                \
+VectorNCopy(4,qadst,tmp);  \
+QuatMul(tmp,qb,qadst);     \
+MULTI_LINE_MACRO_END
 
 void VectorAngles (const vec3_t forward, vec3_t angles); //johnfitz
 
 void VectorMA (const vec3_t veca, float scale, const vec3_t vecb, vec3_t vecc);
 void VectorLerp (const vec3_t veca, const vec3_t vecb, float frac, vec3_t dst);
 
-vec_t _DotProduct (const vec3_t v1, const vec3_t v2);
-void _VectorSubtract (const vec3_t veca, const vec3_t vecb, vec3_t out);
-void _VectorAdd (const vec3_t veca, const vec3_t vecb, vec3_t out);
-void _VectorCopy (const vec3_t in, vec3_t out);
-
 int VectorCompare (const vec3_t v1, const vec3_t v2);
 vec_t VectorLength (const vec3_t v);
-void CrossProduct (const vec3_t v1, const vec3_t v2, vec3_t cross);
 float VectorNormalize (vec3_t v);		// returns vector length
 float DistanceSquared (const vec3_t a, const vec3_t b);
 float Distance (const vec3_t a, const vec3_t b);

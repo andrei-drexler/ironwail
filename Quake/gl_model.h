@@ -345,6 +345,7 @@ typedef struct {
 
 static inline aliashdr_t *Mod_NextSurface (aliashdr_t *hdr) { return hdr->nextsurface ? (aliashdr_t*)((byte*)hdr + hdr->nextsurface) : NULL; }
 
+#pragma pack(push,1)
 typedef struct
 {
 	float		xyz[3];
@@ -353,21 +354,32 @@ typedef struct
 	uint8_t		weight[4];
 	uint8_t		idx[4];
 } iqmvert_t;
+#pragma pack(pop)
+
+#pragma pack(push,1)
 typedef struct
 {
 	float mat[12];
 } bonepose_t; //pose data for a single bone.
+#pragma pack(pop)
+
+#pragma pack(push,1)
 typedef struct
 {
 	int parent; //-1 for a root bone
 	char name[32];
 	bonepose_t inverse;
 } boneinfo_t;
+#pragma pack(pop)
+
+#pragma pack(push,1)
 typedef struct
 {
 	uint16_t	xyz[3];
 	uint8_t		normal[2]; // spherical coords
 } md3pose_t; // Total size is now 8 bytes
+#pragma pack(pop)
+
 #define	MAXALIASVERTS		0x7fff //16-bit index buffer + onseam duplication
 #define	MAXALIASVERTS_QS	2000 //johnfitz -- was 1024
 #define	MAXALIASFRAMES		1024 //spike -- was 256

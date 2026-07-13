@@ -1017,8 +1017,12 @@ _load_embedded:
 		loadmodel->entities = NULL;
 		return;
 	}
-	loadmodel->entities = (char *) Hunk_AllocNameNoFill ( l->filelen, loadname);
+	// Note: some BSPs don't contain a NUL terminator, e.g.
+	// https://www.quakeone.com/qrack/maps/Mcmdm04.bsp
+	// https://www.quakeone.com/qrack/maps/Jvoxdm3.bsp
+	loadmodel->entities = (char *) Hunk_AllocNameNoFill (l->filelen + 1, loadname);
 	memcpy (loadmodel->entities, mod_base + l->fileofs, l->filelen);
+	loadmodel->entities[l->filelen] = '\0';
 }
 
 
@@ -1110,7 +1114,7 @@ static void Mod_LoadTexinfo (lump_t *l)
 	texinfo_t *in;
 	mtexinfo_t *out;
 	int	i, j, count, miptex;
-	int missing = 0; //johnfitz
+	int     missing = 0; //johnfitz
 
 	in = (texinfo_t *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
@@ -1164,83 +1168,65 @@ Fills in s->texturemins[] and s->extents[]
 */
 static void CalcSurfaceExtents (msurface_t *s)
 {
-	float	mins[2], maxs[2], val;
-	int		i,j, e;
+	vecf_t mins[2];
+	vecf_t maxs[2];
+	vecf_t     val;
+
 	mvertex_t	*v;
 	mtexinfo_t	*tex;
-	double	texvecs[2][4];
+	vec4d_t	        texvecs[2];
 
 	mins[0] = mins[1] = FLT_MAX;
 	maxs[0] = maxs[1] = -FLT_MAX;
 
 	tex = s->texinfo;
 
-#ifdef USE_SSE2
+	#pragma omp simd
+	for (int i=0 ; i<4 ; i++)
 	{
-		__m128 tv0 = _mm_loadu_ps (tex->vecs[0]);
-		__m128 tv1 = _mm_loadu_ps (tex->vecs[1]);
-		_mm_storeu_pd (&texvecs[0][0], _mm_cvtps_pd (tv0));
-		_mm_storeu_pd (&texvecs[0][2], _mm_cvtps_pd (_mm_shuffle_ps (tv0, tv0, _MM_SHUFFLE (1, 0, 3, 2))));
-		_mm_storeu_pd (&texvecs[1][0], _mm_cvtps_pd (tv1));
-		_mm_storeu_pd (&texvecs[1][2], _mm_cvtps_pd (_mm_shuffle_ps (tv1, tv1, _MM_SHUFFLE (1, 0, 3, 2))));
+		texvecs[0][i] = (vecd_t) tex->vecs[0][i];
+		texvecs[1][i] = (vecd_t) tex->vecs[1][i];
 	}
-#else
-	for (i=0 ; i<4 ; i++)
+
+	/* The following calculation is sensitive to floating-point
+	 * precision.  It needs to produce the same result that the
+	 * light compiler does, because R_BuildLightMap uses surf->
+	 * extents to know the width/height of a surface's lightmap,
+	 * and incorrect rounding here manifests itself as patches
+	 * of "corrupted" looking lightmaps.
+	 * Most light compilers are win32 executables, so they use
+	 * x87 floating point.  This means the multiplies and adds
+	 * are done at 80-bit precision, and the result is rounded
+	 * down to 32-bits and stored in val.
+	 * Adding the casts to double seems to be good enough to fix
+	 * lighting glitches when Quakespasm is compiled as x86_64
+	 * and using SSE2 floating-point.  A potential trouble spot
+	 * is the hallway at the beginning of mfxsp17.  -- ericw
+	 */
+	for (int i=0 ; i<s->numedges ; i++)
 	{
-		texvecs[0][i] = (double) tex->vecs[0][i];
-		texvecs[1][i] = (double) tex->vecs[1][i];
-	}
-#endif
+		const int e = loadmodel->surfedges[s->firstedge+i];
+		v = &loadmodel->vertexes[loadmodel->edges[abs(e)].v[e >= 0 ? 0 : 1]];
 
-	for (i=0 ; i<s->numedges ; i++)
-	{
-		double vposition[3];
+		const vec4d_t vposition = { (vecd_t)v->position[0], (vecd_t)v->position[1], (vecd_t)v->position[2], (vecd_t)1 };
 
-		e = loadmodel->surfedges[s->firstedge+i];
-		if (e >= 0)
-			v = &loadmodel->vertexes[loadmodel->edges[e].v[0]];
-		else
-			v = &loadmodel->vertexes[loadmodel->edges[-e].v[1]];
-
-		vposition[0] = (double) v->position[0];
-		vposition[1] = (double) v->position[1];
-		vposition[2] = (double) v->position[2];
-
-		for (j=0 ; j<2 ; j++)
+		for (int j=0 ; j<2 ; j++)
 		{
-			/* The following calculation is sensitive to floating-point
-			 * precision.  It needs to produce the same result that the
-			 * light compiler does, because R_BuildLightMap uses surf->
-			 * extents to know the width/height of a surface's lightmap,
-			 * and incorrect rounding here manifests itself as patches
-			 * of "corrupted" looking lightmaps.
-			 * Most light compilers are win32 executables, so they use
-			 * x87 floating point.  This means the multiplies and adds
-			 * are done at 80-bit precision, and the result is rounded
-			 * down to 32-bits and stored in val.
-			 * Adding the casts to double seems to be good enough to fix
-			 * lighting glitches when Quakespasm is compiled as x86_64
-			 * and using SSE2 floating-point.  A potential trouble spot
-			 * is the hallway at the beginning of mfxsp17.  -- ericw
-			 */
-			val =
-				(vposition[0] * texvecs[j][0]) +
-				(vposition[1] * texvecs[j][1]) +
-				(vposition[2] * texvecs[j][2]) +
-				texvecs[j][3];
+			val = dotdtof(4,(const vecd_t*)&vposition,(const vecd_t*)&texvecs[j]);
 
 			mins[j] = q_min (mins[j], val);
 			maxs[j] = q_max (maxs[j], val);
 		}
 	}
 
-	for (i=0 ; i<2 ; i++)
+	#pragma omp simd
+	for (int i=0 ; i<2 ; i++)
 	{
-		int bmin = 16 * (int) floor (mins[i]/16);
-		int bmax = 16 * (int) ceil (maxs[i]/16);
+		int bmin = ((int)floorf(mins[i] / 16)) << 4;
+		int bmax = ((int)ceilf (maxs[i] / 16)) << 4;
 
 		s->texturemins[i] = bmin;
-		s->extents[i] = bmax - bmin;
+		s->extents[i]     = bmax - bmin;
 
 		if ( !(tex->flags & TEX_SPECIAL) && s->extents[i] > 2000) //johnfitz -- was 512 in glquake, 256 in winquake
 			Sys_Error ("Bad surface extents");
@@ -1263,11 +1249,8 @@ void Mod_CalcSurfaceBounds (msurface_t *s)
 	for (i=0 ; i<s->numedges ; i++)
 	{
 		e = loadmodel->surfedges[s->firstedge+i];
-		if (e >= 0)
-			v = &loadmodel->vertexes[loadmodel->edges[e].v[0]];
-		else
-			v = &loadmodel->vertexes[loadmodel->edges[-e].v[1]];
-
+		v = &loadmodel->vertexes[loadmodel->edges[abs(e)].v[e >= 0 ? 0 : 1]];
+	
 		s->mins[0] = q_min (s->mins[0], v->position[0]);
 		s->mins[1] = q_min (s->mins[1], v->position[1]);
 		s->mins[2] = q_min (s->mins[2], v->position[2]);
@@ -2064,54 +2047,18 @@ Mod_LoadMarksurfaces
 static void Mod_LoadMarksurfaces (lump_t *l, int bsp2)
 {
 	int		i, j, count;
-	int		*out;
-	if (bsp2)
-	{
-		unsigned int *in = (unsigned int *)(mod_base + l->fileofs);
+	void *in = mod_base + l->fileofs;
 
-		if (l->filelen % sizeof(*in))
-			Host_Error ("Mod_LoadMarksurfaces: funny lump size in %s",loadmodel->name);
-
-		count = l->filelen / sizeof(*in);
-		out = (int*)Hunk_AllocNameNoFill ( count*sizeof(*out), loadname);
-
-		loadmodel->marksurfaces = out;
-		loadmodel->nummarksurfaces = count;
-
-		for (i=0 ; i<count ; i++)
-		{
-			j = LittleLong(in[i]);
-			if (j >= loadmodel->numsurfaces)
-				Host_Error ("Mod_LoadMarksurfaces: bad surface number");
-			out[i] = j;
-		}
-	}
-	else
-	{
-		short *in = (short *)(mod_base + l->fileofs);
-
-		if (l->filelen % sizeof(*in))
-			Host_Error ("Mod_LoadMarksurfaces: funny lump size in %s",loadmodel->name);
-
-		count = l->filelen / sizeof(*in);
-		out = (int*)Hunk_AllocNameNoFill ( count*sizeof(*out), loadname);
-
-		loadmodel->marksurfaces = out;
-		loadmodel->nummarksurfaces = count;
-
-		//johnfitz -- warn mappers about exceeding old limits
-		if (count > 32767)
-			Con_DWarning ("%i marksurfaces exceeds standard limit of 32767.\n", count);
-		//johnfitz
-
-		for (i=0 ; i<count ; i++)
-		{
-			j = (unsigned short)LittleShort(in[i]); //johnfitz -- explicit cast as unsigned short
-			if (j >= loadmodel->numsurfaces)
-				Sys_Error ("Mod_LoadMarksurfaces: bad surface number");
-			out[i] = j;
-		}
-	}
+	if(l->filelen % (bsp2 ? sizeof(uint32_t) : sizeof(int16_t)))
+		Host_Error ("Mod_LoadMarksurfaces: funny lump size in %s",loadmodel->name);
+	count = l->filelen / (bsp2 ? sizeof(uint32_t) : sizeof(int16_t));
+	loadmodel->marksurfaces = (int*)Hunk_AllocNameNoFill ( count*sizeof(int), loadname );
+	loadmodel->nummarksurfaces = count;
+	if (count > 32767)
+		Con_DWarning ("%i marksurfaces exceeds standard limit of 32767.\n", count);
+	for (i=0 ; i<count ; i++)
+		if((loadmodel->marksurfaces[i] = bsp2 ? LittleLong(((uint32_t*)in)[i]) : LittleShort(((int16_t*)in)[i])) >= loadmodel->numsurfaces)
+			Sys_Error ("Mod_LoadMarksurfaces: bad surface number");
 }
 
 /*
@@ -3781,16 +3728,22 @@ static double MD5_ParseFloat(const char **buffer)
 #define MD5CHECK(s) MD5_ParseCheck(s, &buffer)
 #define MD5IGNORE() buffer = COM_Parse(buffer)
 
+#pragma pack(push,1)
 typedef struct
 {
 	size_t firstweight;
-	unsigned int count;
+	size_t count;
 } md5vertinfo_t;
+#pragma pack(pop)
+
+#pragma pack(push,1)
 typedef struct
 {
-	size_t bone;
-	vec4_t pos;
+	vec4f_t   pos;
+	uint64_t bone;
+	uint64_t  pad;
 } md5weightinfo_t;
+#pragma pack(pop)
 
 static void GenMatrixPosQuat4Scale(const vec3_t pos, const vec4_t quat, const vec3_t scale, float result[12])
 {
@@ -3859,20 +3812,21 @@ static void Matrix3x4_Invert_Simple (const float *in1, float *out)
 	out[11] = -(in1[3] * out[8] + in1[7] * out[9] + in1[11] * out[10]);
 }
 
-static void Matrix3x4_RM_Transform4(const float *matrix, const float *vector, float *product)
+static void Matrix3x4_RM_Transform4(const vecf_t matrix[12], const vecf_t vector[4], vecf_t product[3])
 {
-	product[0] = matrix[0]*vector[0] + matrix[1]*vector[1] + matrix[2]*vector[2] + matrix[3]*vector[3];
-	product[1] = matrix[4]*vector[0] + matrix[5]*vector[1] + matrix[6]*vector[2] + matrix[7]*vector[3];
-	product[2] = matrix[8]*vector[0] + matrix[9]*vector[1] + matrix[10]*vector[2] + matrix[11]*vector[3];
+	product[0] = DotProduct4(&matrix[0], vector);
+	product[1] = DotProduct4(&matrix[4], vector);
+	product[2] = DotProduct4(&matrix[8], vector);
 }
+
 static void MD5_BakeInfluences(const char *fname, bonepose_t *outposes, iqmvert_t *vert, md5vertinfo_t *vinfo, md5weightinfo_t *weight, size_t numverts, size_t numweights)
 {
 	size_t v, i, lowidx, k;
 	md5weightinfo_t *w;
-	vec3_t pos;
-	float lowval, scale;
+	vec3f_t pos;
+	vecf_t lowval, scale;
 	unsigned int maxinfluences = 0;
-	float scaleimprecision = 1;
+	vecf_t scaleimprecision = 1;
 	for (v = 0; v < numverts; v++, vert++, vinfo++)
 	{
 		// unquantized weights
@@ -3891,7 +3845,7 @@ static void MD5_BakeInfluences(const char *fname, bonepose_t *outposes, iqmvert_
 		w = weight + vinfo->firstweight;
 		for (i = 0; i < vinfo->count; i++, w++)
 		{
-			Matrix3x4_RM_Transform4(outposes[w->bone].mat, w->pos, pos);
+			Matrix3x4_RM_Transform4(&outposes[w->bone].mat[0], (vecf_t*)&w->pos, pos);
 			VectorAdd(vert->xyz, pos, vert->xyz);
 
 			if (i < countof(weights))
@@ -3992,8 +3946,8 @@ static void MD5_ComputeNormals(iqmvert_t *vert, size_t numverts, unsigned short 
 		iqmvert_t *v1 = &vert[i1];
 		iqmvert_t *v2 = &vert[i2];
 
-		VectorSubtract(v1->xyz, v0->xyz, d1);
-		VectorSubtract(v2->xyz, v0->xyz, d2);
+		VectorSub(v1->xyz, v0->xyz, d1);
+		VectorSub(v2->xyz, v0->xyz, d2);
 		CrossProduct(d2, d1, norm);
 
 		VectorAdd(normals[i0], norm, normals[i0]);
@@ -4160,7 +4114,7 @@ static void MD5Anim_Load(md5animctx_t *ctx, boneinfo_t *bones, size_t numbones)
 			bonepose_t local;
 			vec3_t pos = {0,0,0};
 			static vec3_t scale = {1,1,1};
-			vec4_t quat = {0,0,0};
+			vec4_t quat = {0,0,0,1};
 			r = raw + ab[j].offset;
 			if (ab[j].flags & 1)	pos[0] = *r++;
 			if (ab[j].flags & 2)	pos[1] = *r++;
@@ -4170,8 +4124,8 @@ static void MD5Anim_Load(md5animctx_t *ctx, boneinfo_t *bones, size_t numbones)
 			if (ab[j].flags & 16)	quat[1] = *r++;
 			if (ab[j].flags & 32)	quat[2] = *r++;
 
-			quat[3] = 1 - DotProduct(quat,quat);
-			if (quat[3] < 0)
+			quat[3] -= DotProduct(&quat,&quat);
+			if (quat[3] < (vec_t)0)
 				quat[3] = 0;//we have no imagination.
 			quat[3] = -sqrt(quat[3]);
 
@@ -4245,7 +4199,7 @@ static void Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer)
 	{
 		vec3_t pos;
 		static vec3_t scale = {1,1,1};
-		vec4_t quat;
+		vec4_t quat = {0,0,0,1};
 		q_strlcpy(outbones[j].name, com_token, sizeof(outbones[j].name));	buffer = COM_Parse(buffer);
 		outbones[j].parent = MD5SINT();
 		if (outbones[j].parent < -1 && outbones[j].parent >= (int)numjoints)
@@ -4256,10 +4210,10 @@ static void Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer)
 		pos[2] = MD5FLOAT();
 		MD5EXPECT(")");
 		MD5EXPECT("(");
-		quat[0] = MD5FLOAT();
-		quat[1] = MD5FLOAT();
-		quat[2] = MD5FLOAT();
-		quat[3] = 1 - DotProduct(quat,quat);
+		quat[0]  = MD5FLOAT();
+		quat[1]  = MD5FLOAT();
+		quat[2]  = MD5FLOAT();
+		quat[3] -= DotProduct(&quat,&quat);
 		if (quat[3] < 0)
 			quat[3] = 0;//we have no imagination.
 		quat[3] = -sqrt(quat[3]);
@@ -4416,7 +4370,7 @@ static void Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer)
 		//md5 is a gpu-unfriendly interchange format. :(
 		MD5EXPECT("numweights");
 		numweights = MD5UINT();
-		weight = (md5weightinfo_t *) Z_Malloc(sizeof(*weight)*numweights);
+		weight = (md5weightinfo_t *) Z_Malloc(sizeof(md5weightinfo_t)*numweights);
 		while (MD5CHECK("weight"))
 		{
 			size_t idx = MD5UINT();
@@ -4426,11 +4380,9 @@ static void Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer)
 			weight[idx].bone = MD5UINT();
 			if (weight[idx].bone >= numjoints)
 				Sys_Error ("bone index out of bounds");
-			weight[idx].pos[3] = MD5FLOAT();
+			vecf_t _w = MD5FLOAT();
 			MD5EXPECT("(");
-			weight[idx].pos[0] = MD5FLOAT()*weight[idx].pos[3];
-			weight[idx].pos[1] = MD5FLOAT()*weight[idx].pos[3];
-			weight[idx].pos[2] = MD5FLOAT()*weight[idx].pos[3];
+			weight[idx].pos = (vec4_t){ MD5FLOAT()*_w, MD5FLOAT()*_w, MD5FLOAT()*_w, _w };
 			MD5EXPECT(")");
 		}
 		//so make it gpu-friendly.

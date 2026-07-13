@@ -89,17 +89,9 @@ static double Sys_WaitUntil (double endtime)
 			estimate = q_min (estimate, 2e-3);
 		}
 	}
-	
-	while (now < endtime)
-	{
-#ifdef USE_SSE2
-		_mm_pause (); _mm_pause (); _mm_pause (); _mm_pause ();
-		_mm_pause (); _mm_pause (); _mm_pause (); _mm_pause ();
-		_mm_pause (); _mm_pause (); _mm_pause (); _mm_pause ();
-		_mm_pause (); _mm_pause (); _mm_pause (); _mm_pause ();
-#endif
+
+	while(now < endtime)
 		now = Sys_DoubleTime ();
-	}
 	
 	return now;
 }

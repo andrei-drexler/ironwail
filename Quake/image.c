@@ -48,6 +48,10 @@ static byte *Image_LoadLMP (FILE *f, int *width, int *height);
 	#pragma GCC diagnostic pop
 #endif
 
+// HACK: override fopen for stbiw and lodepng to handle Unicode paths and automatic subdirectory creation
+#pragma push_macro("fopen")
+#define fopen Sys_fopen
+
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_STATIC
 #include "stb_image_write.h"
@@ -58,6 +62,8 @@ static byte *Image_LoadLMP (FILE *f, int *width, int *height);
 #define LODEPNG_NO_COMPILE_ERROR_TEXT
 #include "lodepng.h"
 #include "lodepng.c"
+
+#pragma pop_macro("fopen")
 
 static char loadfilename[MAX_OSPATH]; //file scope so that error messages can use it
 

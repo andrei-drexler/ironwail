@@ -953,7 +953,7 @@ TexMgr_MipMapW
 */
 static unsigned *TexMgr_MipMapW (unsigned *data, int width, int height, int depth)
 {
-	int	i, size;
+	size_t	size;
 	byte	*out, *in;
 
 	if (!data)
@@ -962,32 +962,15 @@ static unsigned *TexMgr_MipMapW (unsigned *data, int width, int height, int dept
 	out = in = (byte *)data;
 	size = ((width*height)>>1)*depth;
 
-#ifdef USE_SSE2
-	while (size >= 4)
+	#pragma omp simd
+	for (size_t i = 0; i < size; i++)
 	{
-		__m128i v0, v1, v2, v3;
-
-		v0 = _mm_loadu_si128 ((const __m128i *)in);
-		v1 = _mm_loadu_si128 ((const __m128i *)in + 1);
-		v0 = _mm_shuffle_epi32 (v0, _MM_SHUFFLE (3, 1, 2, 0));
-		v1 = _mm_shuffle_epi32 (v1, _MM_SHUFFLE (3, 1, 2, 0));
-		v2 = _mm_unpacklo_epi64 (v0, v1);
-		v3 = _mm_unpackhi_epi64 (v0, v1);
-		v0 = _mm_avg_epu8 (v2, v3);
-		_mm_storeu_si128 ((__m128i *)out, v0);
-
-		size -= 4;
-		in += 32;
-		out += 16;
-	}
-#endif
-
-	for (i = 0; i < size; i++, out += 4, in += 8)
-	{
-		out[0] = (in[0] + in[4] + 1)>>1;
-		out[1] = (in[1] + in[5] + 1)>>1;
-		out[2] = (in[2] + in[6] + 1)>>1;
-		out[3] = (in[3] + in[7] + 1)>>1;
+		out[0] = (in[0] + in[4] + 1) >> 1;
+		out[1] = (in[1] + in[5] + 1) >> 1;
+		out[2] = (in[2] + in[6] + 1) >> 1;
+		out[3] = (in[3] + in[7] + 1) >> 1;
+		out += 4;
+		in  += 8;
 	}
 
 	return data;
@@ -1000,7 +983,6 @@ TexMgr_MipMapH
 */
 static unsigned *TexMgr_MipMapH (unsigned *data, int width, int height, int depth)
 {
-	int	i, j;
 	byte	*out, *in;
 
 	if (!data)
@@ -1011,31 +993,19 @@ static unsigned *TexMgr_MipMapH (unsigned *data, int width, int height, int dept
 	height*=depth;
 	width<<=2;
 
-	for (i = 0; i < height; i++, in += width)
+	for (int i = 0; i < height; i++)
 	{
-		j = 0;
-#ifdef USE_SSE2
-		while (j + 16 <= width)
-		{
-			__m128i v0, v1;
-
-			v0 = _mm_loadu_si128 ((const __m128i *)in);
-			v1 = _mm_loadu_si128 ((const __m128i *)(in + width));
-			v0 = _mm_avg_epu8 (v0, v1);
-			_mm_storeu_si128 ((__m128i *)out, v0);
-
-			j += 16;
-			in += 16;
-			out += 16;
-		}
-#endif
-		for (; j < width; j += 4, out += 4, in += 4)
+		#pragma omp simd
+		for (int j = 0; j < width; j += 4)
 		{
 			out[0] = (in[0] + in[width+0] + 1)>>1;
 			out[1] = (in[1] + in[width+1] + 1)>>1;
 			out[2] = (in[2] + in[width+2] + 1)>>1;
 			out[3] = (in[3] + in[width+3] + 1)>>1;
+			out += 4;
+			in  += 4;
 		}
+		in += width;
 	}
 
 	return data;
@@ -1051,7 +1021,7 @@ operates in place on 32bit data
 */
 static void TexMgr_AlphaEdgeFix (byte *data, int width, int height)
 {
-	int	i, j, n = 0, b, c[3] = {0,0,0},
+	int n = 0, b, c[3] = {0,0,0},
 		lastrow, thisrow, nextrow,
 		lastpix, thispix, nextpix;
 	byte	*dest = data;
@@ -1059,13 +1029,13 @@ static void TexMgr_AlphaEdgeFix (byte *data, int width, int height)
 	if (!data)
 		return;
 
-	for (i = 0; i < height; i++)
+	for (int i = 0; i < height; i++)
 	{
 		lastrow = width * 4 * ((i == 0) ? height-1 : i-1);
 		thisrow = width * 4 * i;
 		nextrow = width * 4 * ((i == height-1) ? 0 : i+1);
 
-		for (j = 0; j < width; j++, dest += 4)
+		for (int j = 0; j < width; j++, dest += 4)
 		{
 			if (dest[3]) //not transparent
 				continue;
@@ -1164,6 +1134,7 @@ static void TexMgr_PadEdgeFixH (byte *data, int width, int height)
 	//copy first full row to last empty row, leaving alpha byte at zero
 	dst = data + (padh - 1) * padw * 4;
 	src = data;
+	#pragma omp simd
 	for (i = 0; i < padw; i++)
 	{
 		dst[0] = src[0];
@@ -2080,12 +2051,12 @@ Returns index of palette buffer to use:
 */
 int GLPalette_Postprocess (void)
 {
-	const float *blend;
+	const vec_t *blend;
 	
 	if (!softemu)
 		return 0;
 
-	blend = (v_blend[3] && gl_polyblend.value) ? v_blend : vec4_origin;
+	blend = (v_blend[3] && gl_polyblend.value) ? v_blend : (vec_t*)&vec4_origin;
 
 	/* can we use the original palette? */
 	if (vid_gamma.value == 1.f &&
@@ -2096,12 +2067,12 @@ int GLPalette_Postprocess (void)
 	/* no change since last time? */
 	if (cached_gamma == vid_gamma.value &&
 		cached_contrast == vid_contrast.value &&
-		memcmp (cached_blendcolor, blend, 4 * sizeof (float)) == 0)
+		memcmp (&cached_blendcolor, blend, 4 * sizeof (vec_t)) == 0)
 		return 1;
 
 	cached_gamma = vid_gamma.value;
 	cached_contrast = vid_contrast.value;
-	memcpy (cached_blendcolor, blend, 4 * sizeof (float));
+	memcpy (&cached_blendcolor, blend, 4 * sizeof (vec_t));
 
 	GL_BeginGroup ("Postprocess palette");
 

@@ -210,7 +210,7 @@ static void R_DrawSpriteModel_Real (entity_t *e, qboolean showtris)
 		s_right = v_right;
 		break;
 	case SPR_FACING_UPRIGHT: //faces camera origin, up is towards the heavens
-		VectorSubtract(e->origin, r_origin, v_forward);
+		VectorSub(e->origin, r_origin, v_forward);
 		v_forward[2] = 0;
 		VectorNormalizeFast(v_forward);
 		v_right[0] = v_forward[1];

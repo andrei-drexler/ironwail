@@ -149,7 +149,7 @@ hull_t *SV_HullForEntity (edict_t *ent, vec3_t mins, vec3_t maxs, vec3_t offset)
 			Host_Error ("SOLID_BSP with a non bsp model (%s at %f %f %f)",
 				    PR_GetString(ent->v.classname), ent->v.origin[0], ent->v.origin[1], ent->v.origin[2]);
 
-		VectorSubtract (maxs, mins, size);
+		VectorSub (maxs, mins, size);
 		if (size[0] < 3)
 			hull = &model->hulls[0];
 		else if (size[0] <= 32)
@@ -158,14 +158,14 @@ hull_t *SV_HullForEntity (edict_t *ent, vec3_t mins, vec3_t maxs, vec3_t offset)
 			hull = &model->hulls[2];
 
 // calculate an offset value to center the origin
-		VectorSubtract (hull->clip_mins, mins, offset);
+		VectorSub (hull->clip_mins, mins, offset);
 		VectorAdd (offset, ent->v.origin, offset);
 	}
 	else
 	{	// create a temp hull from bounding box sizes
 
-		VectorSubtract (ent->v.mins, maxs, hullmins);
-		VectorSubtract (ent->v.maxs, mins, hullmaxs);
+		VectorSub (ent->v.mins, maxs, hullmins);
+		VectorSub (ent->v.maxs, mins, hullmaxs);
 		hull = SV_HullForBox (hullmins, hullmaxs);
 
 		VectorCopy (ent->v.origin, offset);
@@ -224,7 +224,7 @@ areanode_t *SV_CreateAreaNode (int depth, vec3_t mins, vec3_t maxs)
 		return anode;
 	}
 
-	VectorSubtract (maxs, mins, size);
+	VectorSub (maxs, mins, size);
 	if (size[0] > size[1])
 		anode->axis = 0;
 	else
@@ -744,7 +744,7 @@ qboolean SV_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec
 	}
 	else
 	{
-		VectorSubtract (vec3_origin, plane->normal, trace->plane.normal);
+		VectorSub (vec3_origin, plane->normal, trace->plane.normal);
 		trace->plane.dist = -plane->dist;
 	}
 
@@ -795,8 +795,8 @@ trace_t SV_ClipMoveToEntity (edict_t *ent, vec3_t start, vec3_t mins, vec3_t max
 // get the clipping hull
 	hull = SV_HullForEntity (ent, mins, maxs, offset);
 
-	VectorSubtract (start, offset, start_l);
-	VectorSubtract (end, offset, end_l);
+	VectorSub (start, offset, start_l);
+	VectorSub (end, offset, end_l);
 
 // trace a line through the apropriate clipping hull
 	SV_RecursiveHullCheck (hull, hull->firstclipnode, 0, 1, start_l, end_l, &trace);

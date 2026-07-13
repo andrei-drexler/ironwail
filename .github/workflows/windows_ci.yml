@@ -35,7 +35,7 @@ jobs:
           '-verbosity:minimal' `
         )
         & $msbuild Windows\VisualStudio\ironwail.sln $options
-        if (-not $?) { throw "Build failed" }
+        if (-not $?) { throw "Build failed: ${LastExitCode}" }
     - name: Prepare archive
       run: |
             $compiledir = "Windows\VisualStudio\${env:BUILD_DIR}"

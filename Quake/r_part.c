@@ -468,7 +468,7 @@ void R_RocketTrail (vec3_t start, vec3_t end, int type)
 	int			dec;
 	static int	tracercount;
 
-	VectorSubtract (end, start, vec);
+	VectorSub (end, start, vec);
 	len = VectorNormalize (vec);
 	if (type < 128)
 		dec = 3;

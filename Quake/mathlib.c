@@ -287,40 +287,6 @@ void VectorLerp (const vec3_t veca, const vec3_t vecb, float frac, vec3_t dst)
 	dst[2] = LERP (veca[2], vecb[2], frac);
 }
 
-
-vec_t _DotProduct (const vec3_t v1, const vec3_t v2)
-{
-	return v1[0]*v2[0] + v1[1]*v2[1] + v1[2]*v2[2];
-}
-
-void _VectorSubtract (const vec3_t veca, const vec3_t vecb, vec3_t out)
-{
-	out[0] = veca[0]-vecb[0];
-	out[1] = veca[1]-vecb[1];
-	out[2] = veca[2]-vecb[2];
-}
-
-void _VectorAdd (const vec3_t veca, const vec3_t vecb, vec3_t out)
-{
-	out[0] = veca[0]+vecb[0];
-	out[1] = veca[1]+vecb[1];
-	out[2] = veca[2]+vecb[2];
-}
-
-void _VectorCopy (const vec3_t in, vec3_t out)
-{
-	out[0] = in[0];
-	out[1] = in[1];
-	out[2] = in[2];
-}
-
-void CrossProduct (const vec3_t v1, const vec3_t v2, vec3_t cross)
-{
-	cross[0] = v1[1]*v2[2] - v1[2]*v2[1];
-	cross[1] = v1[2]*v2[0] - v1[0]*v2[2];
-	cross[2] = v1[0]*v2[1] - v1[1]*v2[0];
-}
-
 vec_t VectorLength(const vec3_t v)
 {
 	return sqrt(DotProduct(v,v));
@@ -346,7 +312,7 @@ float VectorNormalize (vec3_t v)
 float DistanceSquared (const vec3_t a, const vec3_t b)
 {
 	vec3_t ab;
-	VectorSubtract (b, a, ab);
+	VectorSub (b, a, ab);
 	return VectorLengthSquared (ab);
 }
 
@@ -653,51 +619,21 @@ MatrixMultiply
 */
 void MatrixMultiply(float left[16], float right[16])
 {
-#ifdef USE_SSE2
-	if (use_simd)
+	float temp[16];
+
+	memcpy(temp, left, 16 * sizeof(float));
+	#pragma omp simd
+	for(int row = 0; row < 4; ++row)
 	{
-		int i;
-		__m128 leftcol0 = _mm_loadu_ps (left + 0);
-		__m128 leftcol1 = _mm_loadu_ps (left + 4);
-		__m128 leftcol2 = _mm_loadu_ps (left + 8);
-		__m128 leftcol3 = _mm_loadu_ps (left + 12);
-
-		#define VBROADCAST(vec,col)		_mm_shuffle_ps (vec, vec, _MM_SHUFFLE (col, col, col, col))
-
-		for (i = 0; i < 4; ++i, left+=4, right+=4)
+		#pragma omp simd
+		for(int column = 0; column < 4; ++column)
 		{
-			__m128 rightcol = _mm_loadu_ps (right);
+			float value = 0.0f;
+			#pragma omp simd reduction(+:value)
+			for (int i = 0; i < 4; ++i)
+				value += temp[i*4 + row] * right[column*4 + i];
 
-			__m128 c0 = _mm_mul_ps (leftcol0, VBROADCAST (rightcol, 0));
-			__m128 c1 = _mm_mul_ps (leftcol1, VBROADCAST (rightcol, 1));
-			__m128 c2 = _mm_mul_ps (leftcol2, VBROADCAST (rightcol, 2));
-			__m128 c3 = _mm_mul_ps (leftcol3, VBROADCAST (rightcol, 3));
-			c0 = _mm_add_ps (c0, c1);
-			c2 = _mm_add_ps (c2, c3);
-			c0 = _mm_add_ps (c0, c2);
-
-			_mm_storeu_ps (left, c0);
-		}
-
-		#undef VBROADCAST
-	}
-	else
-#endif
-	{
-		float temp[16];
-		int column, row, i;
-
-		memcpy(temp, left, 16 * sizeof(float));
-		for(row = 0; row < 4; ++row)
-		{
-			for(column = 0; column < 4; ++column)
-			{
-				float value = 0.0f;
-				for (i = 0; i < 4; ++i)
-					value += temp[i*4 + row] * right[column*4 + i];
-
-				left[column * 4 + row] = value;
-			}
+			left[column * 4 + row] = value;
 		}
 	}
 }
@@ -821,18 +757,6 @@ ApplyTranslation
 */
 void ApplyTranslation(float matrix[16], float x, float y, float z)
 {
-#ifdef USE_SSE2
-	__m128 v0 = _mm_loadu_ps (matrix + 0*4);
-	__m128 v1 = _mm_loadu_ps (matrix + 1*4);
-	__m128 v2 = _mm_loadu_ps (matrix + 2*4);
-	__m128 v3 = _mm_loadu_ps (matrix + 3*4);
-
-	v3 = _mm_add_ps (v3, _mm_mul_ps (v0, _mm_set_ps1 (x)));
-	v3 = _mm_add_ps (v3, _mm_mul_ps (v1, _mm_set_ps1 (y)));
-	v3 = _mm_add_ps (v3, _mm_mul_ps (v2, _mm_set_ps1 (z)));
-
-	_mm_storeu_ps (matrix + 3*4, v3);
-#else
 	matrix[3*4 + 0] += x*matrix[0*4 + 0];
 	matrix[3*4 + 1] += x*matrix[0*4 + 1];
 	matrix[3*4 + 2] += x*matrix[0*4 + 2];
@@ -847,7 +771,6 @@ void ApplyTranslation(float matrix[16], float x, float y, float z)
 	matrix[3*4 + 1] += z*matrix[2*4 + 1];
 	matrix[3*4 + 2] += z*matrix[2*4 + 2];
 	matrix[3*4 + 3] += z*matrix[2*4 + 3];
-#endif
 }
 
 /*

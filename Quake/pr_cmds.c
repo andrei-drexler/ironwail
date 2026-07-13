@@ -268,7 +268,7 @@ static void SetMinMaxSize (edict_t *e, float *minvec, float *maxvec, qboolean ro
 // set derived values
 	VectorCopy (rmin, e->v.mins);
 	VectorCopy (rmax, e->v.maxs);
-	VectorSubtract (maxvec, minvec, e->v.size);
+	VectorSub (maxvec, minvec, e->v.size);
 
 	SV_LinkEdict (e, false);
 }
@@ -1435,7 +1435,7 @@ static void PF_aim (void)
 			continue;	// don't aim at teammate
 		for (j = 0; j < 3; j++)
 			end[j] = check->v.origin[j] + 0.5 * (check->v.mins[j] + check->v.maxs[j]);
-		VectorSubtract (end, start, dir);
+		VectorSub (end, start, dir);
 		VectorNormalize (dir);
 		dist = DotProduct (dir, pr_global_struct->v_forward);
 		if (dist < bestdist)
@@ -1450,7 +1450,7 @@ static void PF_aim (void)
 
 	if (bestent)
 	{
-		VectorSubtract (bestent->v.origin, ent->v.origin, dir);
+		VectorSub (bestent->v.origin, ent->v.origin, dir);
 		dist = DotProduct (dir, pr_global_struct->v_forward);
 		VectorScale (pr_global_struct->v_forward, dist, end);
 		end[2] = dir[2];
@@ -1855,7 +1855,7 @@ int PR_Markup_Parse(struct markup_s *mu)
 			case '7':	//white
 			case '8':	//white+half-alpha
 			case '9':	//grey
-				f = q3rgb[mu->txt[1]-'0'];
+				f = (float*)&q3rgb[mu->txt[1]-'0'];
 				mu->colour[0] = mu->tint[0] * f[0];
 				mu->colour[1] = mu->tint[1] * f[1];
 				mu->colour[2] = mu->tint[2] * f[2];
