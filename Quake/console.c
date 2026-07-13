@@ -1550,6 +1550,7 @@ typedef struct tab_s
 	struct tab_s	*next;
 	struct tab_s	*prev;
 	int			count;
+	int			rank;
 } tab_t;
 tab_t	*tablist;
 
@@ -1563,6 +1564,28 @@ typedef struct cmdalias_s
 	char	*value;
 } cmdalias_t;
 extern	cmdalias_t	*cmd_alias;
+
+int Con_CompareTabEntry (int rank, const char* name, const tab_t* t)
+{
+	if (rank != t->rank) {
+		return rank - t->rank;
+	}
+	return q_strnaturalcmp (name, t->name);
+}
+
+int Con_MatchRank (const char *name, const char *partial)
+{
+	if (q_strcasestr (name, partial) != name) {
+		return 2; // partial not at start of string
+	}
+	else if (name[strlen(partial)])
+	{
+		return 1; // partial prefixes whole string
+	}
+	else {
+		return 0; // partial matches string exactly
+	}
+}
 
 /*
 ============
@@ -1582,10 +1605,12 @@ void Con_AddToTabList (const char *name, const char *partial, const char *type)
 	tab_t	*t,*insert;
 	char	*i_bash, *i_bash2;
 	const char *i_name, *i_name2;
-	int		namelen, typelen, mark;
+	int		namelen, typelen, mark, rank;
 
 	if (!Con_Match (name, partial))
 		return;
+
+	rank = Con_MatchRank (name, partial);
 
 	if (!*bash_partial && bash_singlematch)
 	{
@@ -1633,6 +1658,7 @@ void Con_AddToTabList (const char *name, const char *partial, const char *type)
 		memcpy ((char *) t->type, type, typelen);
 	}
 	t->count = 1;
+	t->rank = rank;
 
 	if (!tablist) //create list
 	{
@@ -1640,7 +1666,7 @@ void Con_AddToTabList (const char *name, const char *partial, const char *type)
 		t->next = t;
 		t->prev = t;
 	}
-	else if (q_strnaturalcmp (name, tablist->name) < 0) //insert at front
+	else if (Con_CompareTabEntry(rank, name, tablist) < 0) //insert at front
 	{
 		t->next = tablist;
 		t->prev = tablist->prev;
@@ -1653,7 +1679,7 @@ void Con_AddToTabList (const char *name, const char *partial, const char *type)
 		insert = tablist;
 		do
 		{
-			int cmp = q_strnaturalcmp (name, insert->name);
+			int cmp = Con_CompareTabEntry (rank, name, insert);
 			if (!cmp && !strcmp (name, insert->name)) // avoid duplicates
 			{
 				Hunk_FreeToLowMark (mark);
