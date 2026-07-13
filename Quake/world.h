@@ -23,12 +23,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef _QUAKE_WORLD_H
 #define _QUAKE_WORLD_H
 
+#pragma pack(push,1)
 typedef struct
 {
 	vec3_t	normal;
 	float	dist;
 } plane_t;
+#pragma pack(pop)
 
+#pragma pack(push,1)
 typedef struct
 {
 	qboolean	allsolid;	// if true, plane is not valid
@@ -39,7 +42,7 @@ typedef struct
 	plane_t	plane;			// surface normal at impact
 	edict_t	*ent;			// entity the surface is on
 } trace_t;
-
+#pragma pack(pop)
 
 #define	MOVE_NORMAL		0
 #define	MOVE_NOMONSTERS	1

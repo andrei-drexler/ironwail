@@ -23,10 +23,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
-cvar_t	chase_back = {"chase_back", "100", CVAR_NONE,0.0f,NULL,NULL,NULL,NULL};
-cvar_t	chase_up = {"chase_up", "16", CVAR_NONE,0.0f,NULL,NULL,NULL,NULL};
-cvar_t	chase_right = {"chase_right", "0", CVAR_NONE,0.0f,NULL,NULL,NULL,NULL};
-cvar_t	chase_active = {"chase_active", "0", CVAR_NONE,0.0f,NULL,NULL,NULL,NULL};
+cvar_t	chase_back = {"chase_back", "100", CVAR_NONE};
+cvar_t	chase_up = {"chase_up", "16", CVAR_NONE};
+cvar_t	chase_right = {"chase_right", "0", CVAR_NONE};
+cvar_t	chase_active = {"chase_active", "0", CVAR_NONE};
 
 /*
 ==============
@@ -50,7 +50,7 @@ TODO: impact on bmodels, monsters
 */
 void TraceLine (vec3_t start, vec3_t end, vec3_t impact)
 {
-	trace_t	trace;
+	trace_t	trace = {};
 
 	memset (&trace, 0, sizeof(trace));
 	SV_RecursiveHullCheck (cl.worldmodel->hulls, 0, 0, 1, start, end, &trace);
