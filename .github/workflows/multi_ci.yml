@@ -1,7 +1,7 @@
 name: CMake on multiple platforms
 on: [workflow_dispatch]
 jobs:
-  build-win: 
+  build: 
     name: Build Windows Visual Studio
     runs-on: windows-latest
     strategy:
@@ -9,14 +9,14 @@ jobs:
       matrix:
         build_type: [Release]
         c_compiler: [cl]
-    steps:
-        - name: Set reusable strings
-      # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
-      id: strings
-      shell: bash
-      run: |
-        echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
 
+    steps:
+      - name: Set reusable strings
+      # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
+        id: strings
+        shell: bash
+        run: |
+        echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
       - name: Build
         run: |
           cmake -B ${{ steps.strings.outputs.build-output-dir }} -DCMAKE_C_COMPILE=${{ matrix.c_compiler }} -DCMKE_BUILD_TYPE=${{matrix.build_type}} --config ${{ matrix.build_type }}
