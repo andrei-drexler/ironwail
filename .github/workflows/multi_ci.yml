@@ -1,7 +1,7 @@
 name: CMake on multiple platforms
 on: [workflow_dispatch]
 jobs:
-  build-linux:
+  build-mingw:
     name: Build MinGW
     runs-on: ubuntu-latest
     strategy:
@@ -12,7 +12,12 @@ jobs:
             package: i686-win32
           - target: win64
             package: x86-64
-    name: Linux / ${{ matrix.compiler }}
+    steps:
+    - uses: actions/checkout@v7
+    - name: Install Dependencies
+      run: sudo apt update && sudo apt install libcurl4-openssl-dev libmpg123-dev libsdl2-dev libvorbis-dev gcc-mingw-w64-${{ matrix.config.package }}
+  build-linux:
+    name: Build Linux / ${{ matrix.compiler }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -23,14 +28,8 @@ jobs:
     steps:
     - uses: actions/checkout@v7
     - name: Install Dependencies
-      run: sudo apt update && sudo apt install libcurl4-openssl-dev libmpg123-dev libsdl2-dev libvorbis-dev gcc-mingw-w64-${{ matrix.config.package }}
-    - name: Set reusable strings
-      # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
-      id: strings
-      shell: bash
-      run: |
-        echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
-  build-win:
+      run: sudo apt update && sudo apt install libcurl4-openssl-dev libmpg123-dev libsdl2-dev libvorbis-dev
+  build-win: Build Windows Visual Studio
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -39,12 +38,6 @@ jobs:
         build_type: [Release]
         c_compiler: [cl]
     steps:
-    - name: Set reusable strings
-      # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
-      id: strings
-      shell: bash
-      run: |
-        echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
 
 
     - name: Configure CMake
