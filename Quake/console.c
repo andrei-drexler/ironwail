@@ -1543,6 +1543,12 @@ void Con_LogCenterPrint (const char *str)
 //johnfitz -- tab completion stuff
 //unique defs
 char key_tabpartial[MAXCMDLINE];
+enum ConsoleMatchRank
+{
+	EXACT,
+	PREFIX,
+	INTERNAL
+};
 typedef struct tab_s
 {
 	const char	*name;
@@ -1550,7 +1556,7 @@ typedef struct tab_s
 	struct tab_s	*next;
 	struct tab_s	*prev;
 	int			count;
-	int			rank;
+	enum ConsoleMatchRank	rank;
 } tab_t;
 tab_t	*tablist;
 
@@ -1565,7 +1571,7 @@ typedef struct cmdalias_s
 } cmdalias_t;
 extern	cmdalias_t	*cmd_alias;
 
-int Con_CompareTabEntry (int rank, const char* name, const tab_t* t)
+int Con_CompareTabEntry (enum ConsoleMatchRank rank, const char* name, const tab_t* t)
 {
 	if (rank != t->rank) {
 		return rank - t->rank;
@@ -1576,14 +1582,14 @@ int Con_CompareTabEntry (int rank, const char* name, const tab_t* t)
 int Con_MatchRank (const char *name, const char *partial)
 {
 	if (q_strcasestr (name, partial) != name) {
-		return 2; // partial not at start of string
+		return INTERNAL; // partial not at start of string
 	}
 	else if (name[strlen(partial)])
 	{
-		return 1; // partial prefixes whole string
+		return PREFIX; // partial prefixes whole string
 	}
 	else {
-		return 0; // partial matches string exactly
+		return EXACT; // partial matches string exactly
 	}
 }
 
@@ -1605,7 +1611,8 @@ void Con_AddToTabList (const char *name, const char *partial, const char *type)
 	tab_t	*t,*insert;
 	char	*i_bash, *i_bash2;
 	const char *i_name, *i_name2;
-	int		namelen, typelen, mark, rank;
+	int		namelen, typelen, mark;
+	enum ConsoleMatchRank rank;
 
 	if (!Con_Match (name, partial))
 		return;
