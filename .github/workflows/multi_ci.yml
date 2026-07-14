@@ -1,34 +1,6 @@
 name: CMake on multiple platforms
 on: [workflow_dispatch]
 jobs:
-  build-mingw:
-    name: Build MinGW
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        config:
-          - target: win32
-            package: i686-win32
-          - target: win64
-            package: x86-64
-    steps:
-    - uses: actions/checkout@v7
-    - name: Install Dependencies
-      run: sudo apt update && sudo apt install libcurl4-openssl-dev libmpg123-dev libsdl2-dev libvorbis-dev gcc-mingw-w64-${{ matrix.config.package }}
-  build-linux:
-    name: Build Linux / ${{ matrix.compiler }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        os: ubuntu-latest
-        build_type: [Release]
-        c_compiler: [gcc, clang]
-    steps:
-    - uses: actions/checkout@v7
-    - name: Install Dependencies
-      run: sudo apt update && sudo apt install libcurl4-openssl-dev libmpg123-dev libsdl2-dev libvorbis-dev
   build-win: 
     name: Build Windows Visual Studio
     runs-on: windows-latest
@@ -39,8 +11,6 @@ jobs:
         build_type: [Release]
         c_compiler: [cl]
     steps:
-
-
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
@@ -52,8 +22,4 @@ jobs:
 
     - name: Build
       run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
-    - name: Build MinGW ${{ matrix.config.target }}
-      run: |
-          export MAKEFLAGS=--jobs=3\ --keep-going
-          cd Quake && ./build_cross_${{ matrix.config.target }}-sdl2.sh
 
