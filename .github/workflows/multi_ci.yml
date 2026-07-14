@@ -11,5 +11,5 @@ jobs:
         c_compiler: [cl]
     steps:
       - name: Build
-        run: cmake -DCMAKE_C_COMPILE=${{ matrix.c_compiler }} -DCMKE_BUILD_TYPE=${{matrix.build_type}} -S ${{ github.workspace }} --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+        run: cmake -DCMAKE_C_COMPILE=${{ matrix.c_compiler }} -DCMKE_BUILD_TYPE=${{matrix.build_type}} -S ${{ github.workspace }} --build ${{ steps.strings.outputs.build-output-dir }}
 
