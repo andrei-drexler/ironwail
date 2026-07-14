@@ -12,4 +12,5 @@ jobs:
 
     steps:
       - name: Build
-        run: cmake -B build -DCMAKE_C_COMPILE=${{ matrix.c_compiler }} -DCMKE_BUILD_TYPE=${{matrix.build_type}}
+        run: |
+        cmake -B build -DCMAKE_C_COMPILE=${{ matrix.c_compiler }} -DCMKE_BUILD_TYPE=${{matrix.build_type}}
