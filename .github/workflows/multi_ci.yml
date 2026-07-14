@@ -10,7 +10,12 @@ jobs:
         build_type: [Release]
         c_compiler: [cl]
     steps:
+        - name: Set reusable strings
+      # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
+      id: strings
+      shell: bash
+      run: |
+        echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+
       - name: Build
-        run: |
-        cmake -DCMAKE_C_COMPILE=${{ matrix.c_compiler }} -DCMKE_BUILD_TYPE=${{matrix.build_type}} . |
-        make
+        run: cmake -B ${{ steps.strings.outputs.build-output-dir }} -DCMAKE_C_COMPILE=${{ matrix.c_compiler }} -DCMKE_BUILD_TYPE=${{matrix.build_type}} --config ${{ matrix.build_type }}
