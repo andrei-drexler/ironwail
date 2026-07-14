@@ -29,7 +29,8 @@ jobs:
     - uses: actions/checkout@v7
     - name: Install Dependencies
       run: sudo apt update && sudo apt install libcurl4-openssl-dev libmpg123-dev libsdl2-dev libvorbis-dev
-  build-win: Build Windows Visual Studio
+  build-win: 
+    name: Build Windows Visual Studio
     runs-on: windows-latest
     strategy:
       fail-fast: false
