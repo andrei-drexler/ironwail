@@ -10,15 +10,6 @@ jobs:
         build_type: [Release]
         c_compiler: [cl]
     steps:
-      - name: Configure CMake
-      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
-      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-        run: >
-        cmake -B ${{ steps.strings.outputs.build-output-dir }}
-        -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
-        -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-        -S ${{ github.workspace }}
-
       - name: Build
-        run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+        run: cmake -DCMAKE_C_COMPILE=${{ matrix.c_compiler }} -DCMKE_BUILD_TYPE=${{matrix.build_type}} -S ${{ github.workspace }} --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
 
