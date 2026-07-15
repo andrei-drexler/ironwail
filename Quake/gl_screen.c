@@ -145,7 +145,7 @@ int	scr_tileclear_updates = 0; //johnfitz
 
 hudstyle_t	hudstyle;
 
-void SCR_ScreenShot_f (void);
+static void SCR_ScreenShot_f (void);
 
 /*
 ===============================================================================
@@ -697,7 +697,7 @@ static qboolean SCR_IsClockVisible (void)
 SCR_DrawFPS -- johnfitz
 ==============
 */
-void SCR_DrawFPS (void)
+static void SCR_DrawFPS (void)
 {
 	static double	oldtime = 0;
 	static double	lastfps = 0;
@@ -763,7 +763,7 @@ void SCR_DrawFPS (void)
 SCR_DrawSpeed
 ==============
 */
-void SCR_DrawSpeed (void)
+static void SCR_DrawSpeed (void)
 {
 	if (cl.intermission || CL_InCutscene () || scr_viewsize.value >= 130)
 		return;
@@ -815,7 +815,7 @@ void SCR_DrawSpeed (void)
 SCR_DrawClock -- johnfitz
 ==============
 */
-void SCR_DrawClock (void)
+static void SCR_DrawClock (void)
 {
 	char	str[12];
 
@@ -866,7 +866,7 @@ static void SCR_PrintMirrored (int x, int y, const char *str)
 SCR_DrawDemoControls
 ==============
 */
-void SCR_DrawDemoControls (void)
+static void SCR_DrawDemoControls (void)
 {
 	static const int	TIMEBAR_CHARS = 38;
 	static float		prevspeed = 1.0f;
@@ -986,7 +986,7 @@ void SCR_DrawDemoControls (void)
 SCR_DrawDevStats
 ==============
 */
-void SCR_DrawDevStats (void)
+static void SCR_DrawDevStats (void)
 {
 	char	str[40];
 	int		y = 25-10; //10=number of lines to print
@@ -1035,7 +1035,7 @@ void SCR_DrawDevStats (void)
 SCR_DrawTurtle
 ==============
 */
-void SCR_DrawTurtle (void)
+static void SCR_DrawTurtle (void)
 {
 	static int	count;
 
@@ -1062,7 +1062,7 @@ void SCR_DrawTurtle (void)
 SCR_DrawNet
 ==============
 */
-void SCR_DrawNet (void)
+static void SCR_DrawNet (void)
 {
 	if (realtime - cl.last_received_message < 0.3)
 		return;
@@ -1079,7 +1079,7 @@ void SCR_DrawNet (void)
 DrawPause
 ==============
 */
-void SCR_DrawPause (void)
+static void SCR_DrawPause (void)
 {
 	qpic_t	*pic;
 	float	alpha;
@@ -1115,7 +1115,7 @@ void SCR_DrawPause (void)
 SCR_DrawLoading
 ==============
 */
-void SCR_DrawLoading (void)
+static void SCR_DrawLoading (void)
 {
 	qpic_t	*pic;
 
@@ -1135,7 +1135,7 @@ void SCR_DrawLoading (void)
 SCR_DrawSaving
 ==============
 */
-void SCR_DrawSaving (void)
+static void SCR_DrawSaving (void)
 {
 	int x, y;
 
@@ -1162,7 +1162,7 @@ void SCR_DrawSaving (void)
 SCR_DrawCrosshair -- johnfitz
 ==============
 */
-void SCR_DrawCrosshair (void)
+static void SCR_DrawCrosshair (void)
 {
 	if (cl.intermission || CL_InCutscene () || !crosshair.value || scr_viewsize.value >= 130)
 		return;
@@ -1354,7 +1354,7 @@ Show info for the highlighted entity with r_showfields/r_showbboxes
 
 static char *scr_edictoverlaystrings = NULL;
 
-void SCR_DrawEdictInfo (void)
+static void SCR_DrawEdictInfo (void)
 {
 	char		tinted[1024];
 	int			i;
@@ -1505,7 +1505,7 @@ void SCR_DrawEdictInfo (void)
 SCR_SetUpToDrawConsole
 ==================
 */
-void SCR_SetUpToDrawConsole (void)
+static void SCR_SetUpToDrawConsole (void)
 {
 	//johnfitz -- let's hack away the problem of slow console when host_timescale is <0
 	extern cvar_t host_timescale;
@@ -1564,7 +1564,7 @@ void SCR_SetUpToDrawConsole (void)
 SCR_DrawConsole
 ==================
 */
-void SCR_DrawConsole (void)
+static void SCR_DrawConsole (void)
 {
 	if (scr_con_current)
 	{
@@ -1762,7 +1762,7 @@ static void SCR_ScreenShot_Usage (void)
 SCR_ScreenShot_f
 ==================
 */
-void SCR_ScreenShot_f (void)
+static void SCR_ScreenShot_f (void)
 {
 	byte	*buffer;
 	char	ext[4];
@@ -1937,7 +1937,7 @@ void SCR_EndLoadingPlaque (void)
 const char	*scr_notifystring;
 qboolean	scr_drawdialog;
 
-void SCR_DrawNotifyString (void)
+static void SCR_DrawNotifyString (void)
 {
 	const char	*start;
 	int		l;
@@ -2037,7 +2037,7 @@ johnfitz -- modified to use glwidth/glheight instead of vid.width/vid.height
 	    also added scr_tileclear_updates
 ==================
 */
-void SCR_TileClear (void)
+static void SCR_TileClear (void)
 {
 	//ericw -- added check for glsl gamma. TODO: remove this ugly optimization?
 	if (scr_tileclear_updates >= vid.numpages && !gl_clear.value && vid_gamma.value == 1)
