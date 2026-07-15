@@ -42,8 +42,6 @@ cvar_t	language = {"language","auto",CVAR_ARCHIVE}; /* for 2021 rerelease text *
 
 static qboolean		com_modified;	// set true if using non-id files
 
-qboolean		fitzmode;
-
 static void COM_Path_f (void);
 
 // if a packfile directory differs from this, it is assumed to be hacked
@@ -1624,8 +1622,6 @@ COM_Init
 */
 void COM_Init (void)
 {
-	if (COM_CheckParm("-fitz"))
-		fitzmode = true;
 }
 
 
@@ -2452,7 +2448,7 @@ void COM_AddGameDirectory (const char *dir)
 			com_searchpaths = search;
 
 			// add engine pak after pak0.pak
-			if (i == 0 && j == 0 && path_id == 1u && !fitzmode)
+			if (i == 0 && j == 0 && path_id == 1u)
 				COM_AddEnginePak ();
 		}
 	}

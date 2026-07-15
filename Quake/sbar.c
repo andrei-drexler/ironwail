@@ -72,6 +72,16 @@ void M_DrawPic (int x, int y, qpic_t *pic);
 
 /*
 ===============
+Sbar_ShowingScores
+===============
+*/
+qboolean Sbar_ShowingScores (void)
+{
+	return sb_showscores || cl.stats[STAT_HEALTH] <= 0;
+}
+
+/*
+===============
 Sbar_ShowScores
 
 Tab key down
@@ -470,7 +480,6 @@ Sbar_SoloScoreboard -- johnfitz -- new layout
 void Sbar_SoloScoreboard (void)
 {
 	char	str[256];
-	int	minutes, seconds, tens, units;
 	int	left, right, len;
 
 	sprintf (str,"Kills: %i/%i", cl.stats[STAT_MONSTERS], cl.stats[STAT_TOTALMONSTERS]);
@@ -481,37 +490,19 @@ void Sbar_SoloScoreboard (void)
 	right = 312 - strlen (str) * 8;
 	Sbar_DrawString (right, 12, str);
 
-	if (!fitzmode)
-	{ /* QuakeSpasm customization: */
-		q_snprintf (str, sizeof(str), "skill %i", (int)(skill.value + 0.5));
-		Sbar_DrawString ((left + right) / 2 - strlen (str) * 4, 12, str);
-
-		if (cl.levelname[0])
-		{
-			char cleanname[sizeof (cl.levelname)];
-			Mod_SanitizeMapDescription (cleanname, sizeof (cleanname), cl.levelname);
-			q_snprintf (str, sizeof (str), "%s (%s)", cleanname, cl.mapname);
-		}
-		else
-			q_strlcpy (str, cl.mapname, sizeof(str));
-		len = strlen (str);
-		if (len > 40)
-			Sbar_DrawScrollString (0, 4, 320, str);
-		else
-			Sbar_DrawString (160 - len*4, 4, str);
-		return;
-	}
-	minutes = cl.time / 60;
-	seconds = cl.time - 60*minutes;
-	tens = seconds / 10;
-	units = seconds - 10*tens;
-	sprintf (str,"%i:%i%i", minutes, tens, units);
-	Sbar_DrawString ((left + right)/2 - strlen(str)*4, 12, str);
+	/* QuakeSpasm customization: */
+	q_snprintf (str, sizeof(str), "skill %i", (int)(skill.value + 0.5));
+	Sbar_DrawString ((left + right) / 2 - strlen (str) * 4, 12, str);
 
 	if (cl.levelname[0])
-		len = Mod_SanitizeMapDescription (str, sizeof (str), cl.levelname);
+	{
+		char cleanname[sizeof (cl.levelname)];
+		Mod_SanitizeMapDescription (cleanname, sizeof (cleanname), cl.levelname);
+		q_snprintf (str, sizeof (str), "%s (%s)", cleanname, cl.mapname);
+	}
 	else
-		len = q_strlcpy (str, cl.mapname, sizeof(str));
+		q_strlcpy (str, cl.mapname, sizeof(str));
+	len = strlen (str);
 	if (len > 40)
 		Sbar_DrawScrollString (0, 4, 320, str);
 	else

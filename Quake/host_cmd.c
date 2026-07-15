@@ -3671,7 +3671,7 @@ static void Host_Startdemos_f (void)
 	{
 		cls.demonum = 0;
 		Cbuf_InsertText ("menu_main\n");
-		if (!fitzmode && !cl_startdemos.value)
+		if (!cl_startdemos.value)
 		{  /* QuakeSpasm customization: */
 			/* go straight to menu, no CL_NextDemo */
 			cls.demonum = -1;

@@ -7360,7 +7360,7 @@ void M_Draw (void)
 		break;
 
 	case m_quit:
-		if (!fitzmode && !cl_confirmquit.value)
+		if (!cl_confirmquit.value)
 		{ /* QuakeSpasm customization: */
 			/* Quit now! S.A. */
 			key_dest = key_console;

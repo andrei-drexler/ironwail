@@ -684,6 +684,16 @@ void SCR_Init (void)
 
 /*
 ==============
+SCR_IsClockVisible
+==============
+*/
+static qboolean SCR_IsClockVisible (void)
+{
+	return scr_clock.value || Sbar_ShowingScores ();
+}
+
+/*
+==============
 SCR_DrawFPS -- johnfitz
 ==============
 */
@@ -733,14 +743,14 @@ void SCR_DrawFPS (void)
 		{
 			x = 320 - 16 - (strlen(st)<<3);
 			y = 8;
-			if (scr_clock.value) y += 8; //make room for clock
+			if (SCR_IsClockVisible ()) y += 8; //make room for clock
 			GL_SetCanvas (CANVAS_TOPRIGHT);
 		}
 		else
 		{
 			x = 320 - (strlen(st)<<3);
 			y = 200 - 8;
-			if (scr_clock.value) y -= 8; //make room for clock
+			if (SCR_IsClockVisible ()) y -= 8; //make room for clock
 			GL_SetCanvas (CANVAS_BOTTOMRIGHT);
 		}
 		Draw_String (x, y, st);
@@ -809,7 +819,7 @@ void SCR_DrawClock (void)
 {
 	char	str[12];
 
-	if (scr_clock.value == 1 && scr_viewsize.value < 130)
+	if (SCR_IsClockVisible () && scr_viewsize.value < 130)
 	{
 		int minutes, seconds;
 
@@ -1138,7 +1148,7 @@ void SCR_DrawSaving (void)
 	y = 8;
 	if (hudstyle != HUD_CLASSIC && scr_viewsize.value < 130)
 	{
-		if (scr_clock.value) y += 8;
+		if (SCR_IsClockVisible ()) y += 8;
 		if (scr_showfps.value) y += 8;
 		if (y != 8)
 			y += 8;
