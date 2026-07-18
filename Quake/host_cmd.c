@@ -35,6 +35,8 @@ extern cvar_t	nomonsters;
 
 // 0 = no, 1 = ask, 2 = when dead, 3 = always
 cvar_t sv_autoload = {"sv_autoload", "2", CVAR_ARCHIVE};
+// 0 = normal restart, 1 = resurrect at death position
+cvar_t sv_resurrect = {"sv_resurrect", "0", CVAR_ARCHIVE};
 
 int	current_skill;
 
@@ -1623,6 +1625,187 @@ static void Host_Status_f (void)
 
 /*
 ==================
+Host_Resurrect_f
+==================
+*/
+// Finds a QuakeC function by name, returning zero if absent.
+static func_t Host_FindQCFunction (const char *name)
+{
+	int i;
+	for (i = 1; i < qcvm->progs->numfunctions; ++i)
+	{
+		if (!strcmp (PR_GetString (qcvm->functions[i].s_name), name))
+			return (func_t)i;
+	}
+	return 0;
+}
+// Finds a QuakeC float global by name, returning NULL if absent or incompatible.
+static eval_t *Host_FindQCFloat (const char *name)
+{
+	int i;
+	for (i = 0; i < qcvm->progs->numglobaldefs; ++i)
+	{
+		ddef_t *def = &qcvm->globaldefs[i];
+		if (strcmp (PR_GetString (def->s_name), name))
+			continue;
+		if ((def->type & ~DEF_SAVEGLOBAL) != ev_float)
+			return NULL;
+		return (eval_t *)&qcvm->globals[def->ofs];
+	}
+	return NULL;
+}
+// Executes a QuakeC function with the supplied player as self.
+static void Host_CallQCFunction (func_t function, edict_t *player)
+{
+	if (!function)
+		return;
+	pr_global_struct->time = qcvm->time;
+	pr_global_struct->self = EDICT_TO_PROG (player);
+	pr_global_struct->other = EDICT_TO_PROG (qcvm->edicts);
+	PR_ExecuteProgram (function);
+}
+// Sets an optional mod-defined float field when it exists.
+static void Host_SetOptionalFloat (edict_t *entity, const char *name, float newvalue)
+{
+	eval_t *value = GetEdictFieldValueByName (entity, name);
+	if (value)
+		value->_float = newvalue;
+}
+// Finds the normal player model index, returning zero if unavailable.
+static int Host_FindPlayerModelIndex (void)
+{
+	eval_t *value;
+	int modelindex;
+	int i;
+	value = Host_FindQCFloat ("modelindex_player");
+	modelindex = value ? (int)value->_float : 0;
+	if (modelindex > 0 && modelindex < MAX_MODELS && sv.model_precache[modelindex])
+		return modelindex;
+	for (i = 1; i < MAX_MODELS; ++i)
+	{
+		if (sv.model_precache[i] && !strcmp (sv.model_precache[i], "progs/player.mdl"))
+			return i;
+	}
+	return 0;
+}
+// Restores the normal player model after a gib death.
+static void Host_RestorePlayerModel (edict_t *player)
+{
+	int modelindex = Host_FindPlayerModelIndex ();
+	if (!modelindex)
+		return;
+	player->v.model = PR_SetEngineString (sv.model_precache[modelindex]);
+	player->v.modelindex = modelindex;
+}
+// Copies the dead player into the mod's body queue when supported.
+static void Host_CopyPlayerBody (edict_t *player)
+{
+	func_t function = Host_FindQCFunction ("CopyToBodyQueue");
+	if (!function)
+		function = Host_FindQCFunction ("CopyToBodyQue");
+	if (!function)
+		return;
+	G_INT (OFS_PARM0) = EDICT_TO_PROG (player);
+	Host_CallQCFunction (function, player);
+}
+// Creates a Copper or standard Quake teleport effect when supported.
+static void Host_CreateResurrectionEffect (edict_t *player)
+{
+	func_t function;
+	function = Host_FindQCFunction("teleport_flash");
+	if (function)
+	{
+		Host_CallQCFunction(function, player);
+		return;
+	}
+	function = Host_FindQCFunction("spawn_tfog");
+	if (!function)
+		return;
+	VectorCopy(player->v.origin, G_VECTOR(OFS_PARM0));
+	Host_CallQCFunction(function, player);
+}
+// Creates a telefrag trigger at the resurrection position when supported.
+static void Host_CreateResurrectionTelefrag (edict_t *player)
+{
+	func_t function = Host_FindQCFunction ("spawn_tdeath");
+	if (!function)
+		return;
+	VectorCopy (player->v.origin, G_VECTOR (OFS_PARM0));
+	G_INT (OFS_PARM1) = EDICT_TO_PROG (player);
+	Host_CallQCFunction (function, player);
+}
+// Restores Copper or standard Quake weapon state when supported.
+static void Host_RestorePlayerWeapon (edict_t *player)
+{
+	func_t function = Host_FindQCFunction ("W_ResetWeaponState");
+	if (!function)
+		function = Host_FindQCFunction ("W_SetCurrentAmmo");
+	Host_CallQCFunction (function, player);
+}
+// Resurrects a dead player at the current origin.
+static qboolean Host_ResurrectPlayer (edict_t *player)
+{
+	func_t function;
+	eval_t *value;
+	int cheatflags;
+	if (player->v.deadflag == DEAD_NO)
+		return false;
+	cheatflags = (int)player->v.flags & (FL_GODMODE | FL_NOTARGET);
+	Host_CopyPlayerBody (player);
+	player->v.health = player->v.max_health > 0 ? player->v.max_health : 100;
+	player->v.deadflag = DEAD_NO;
+	player->v.takedamage = DAMAGE_AIM;
+	value = Host_FindQCFloat ("clientsAlive");
+	if (value)
+		value->_float += 1;
+	player->v.solid = SOLID_SLIDEBOX;
+	player->v.movetype = MOVETYPE_WALK;
+	player->v.flags = FL_CLIENT | cheatflags;
+	player->v.button0 = 0;
+	player->v.button1 = 0;
+	player->v.button2 = 0;
+	player->v.think = 0;
+	player->v.nextthink = 0;
+	VectorSet (player->v.velocity, 0, 0, 0);
+	VectorSet (player->v.avelocity, 0, 0, 0);
+	VectorSet (player->v.mins, -16, -16, -24);
+	VectorSet (player->v.maxs, 16, 16, 32);
+	VectorSubtract (player->v.maxs, player->v.mins, player->v.size);
+	VectorSet (player->v.view_ofs, 0, 0, 22);
+	player->v.effects = 0;
+	player->v.enemy = EDICT_TO_PROG (qcvm->edicts);
+	Host_SetOptionalFloat (player, "air_finished", qcvm->time + 12);
+	Host_SetOptionalFloat (player, "dmg", 0);
+	Host_SetOptionalFloat (player, "customflags", 0);
+	Host_SetOptionalFloat (player, "show_hostile", 0);
+	Host_SetOptionalFloat (player, "attack_finished", qcvm->time + 0.1f);
+	Host_RestorePlayerModel (player);
+	SV_LinkEdict (player, false);
+	Host_CreateResurrectionEffect (player);
+	Host_CreateResurrectionTelefrag (player);
+	function = Host_FindQCFunction ("player_stand1");
+	Host_CallQCFunction (function, player);
+	Host_RestorePlayerWeapon (player);
+	return true;
+}
+// Handles the resurrect console command.
+static void Host_Resurrect_f (void)
+{
+	if (cmd_source == src_command)
+	{
+		Cmd_ForwardToServer ();
+		return;
+	}
+	if (pr_global_struct->deathmatch)
+	{
+		SV_ClientPrintf ("Resurrect is unavailable in deathmatch\n");
+		return;
+	}
+	SV_ClientPrintf (Host_ResurrectPlayer (sv_player) ? "Resurrected\n" : "Already alive\n");
+}
+
+/*
+==================
 Host_God_f
 
 Sets client to godmode
@@ -2044,11 +2227,40 @@ static void Host_Randmap_f (void)
 
 /*
 ==================
+Host_LocalPlayer
+==================
+*/
+// Finds the embedded server's local player.
+static edict_t *Host_LocalPlayer (void)
+{
+	if (!sv.active || cls.state != ca_connected)
+		return NULL;
+	if (!svs.clients[0].active || !svs.clients[0].spawned)
+		return NULL;
+	return svs.clients[0].edict;
+}
+
+/*
+==================
 Host_AutoLoad
 ==================
 */
 static qboolean Host_AutoLoad (void)
 {
+	edict_t *player;
+	qboolean resurrected;
+	// Lets resurrection override automatic loading for the local player.
+	player = Host_LocalPlayer ();
+	if (sv_resurrect.value && !cl.intermission && player &&
+		player->v.deadflag != DEAD_NO)
+	{
+		PR_SwitchQCVM (&sv.qcvm);
+		resurrected = Host_ResurrectPlayer (player);
+		PR_SwitchQCVM (NULL);
+		Con_Printf (resurrected ? "Resurrected\n" : "Already alive\n");
+		return true;
+	}
+
 	if (!sv_autoload.value || !sv.lastsave[0] || svs.maxclients != 1 || cl.intermission)
 		return false;
 
@@ -3752,6 +3964,7 @@ void Host_InitCommands (void)
 
 	Cmd_AddCommand_ClientCommand ("status", Host_Status_f);
 	Cmd_AddCommand ("quit", Host_Quit_f);
+	Cmd_AddCommand_ClientCommand ("resurrect", Host_Resurrect_f);
 	Cmd_AddCommand_ClientCommand ("god", Host_God_f);
 	Cmd_AddCommand_ClientCommand ("notarget", Host_Notarget_f);
 	Cmd_AddCommand_ClientCommand ("fly", Host_Fly_f);
