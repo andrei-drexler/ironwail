@@ -35,6 +35,8 @@ extern cvar_t	nomonsters;
 
 // 0 = no, 1 = ask, 2 = when dead, 3 = always
 cvar_t sv_autoload = {"sv_autoload", "2", CVAR_ARCHIVE};
+// 0 = normal restart, 1 = resurrect at death position
+cvar_t sv_resurrect = {"sv_resurrect", "0", CVAR_ARCHIVE};
 
 int	current_skill;
 
@@ -2225,11 +2227,40 @@ static void Host_Randmap_f (void)
 
 /*
 ==================
+Host_LocalPlayer
+==================
+*/
+// Finds the embedded server's local player.
+static edict_t *Host_LocalPlayer (void)
+{
+	if (!sv.active || cls.state != ca_connected)
+		return NULL;
+	if (!svs.clients[0].active || !svs.clients[0].spawned)
+		return NULL;
+	return svs.clients[0].edict;
+}
+
+/*
+==================
 Host_AutoLoad
 ==================
 */
 static qboolean Host_AutoLoad (void)
 {
+	edict_t *player;
+	qboolean resurrected;
+	// Lets resurrection override automatic loading for the local player.
+	player = Host_LocalPlayer ();
+	if (sv_resurrect.value && !cl.intermission && player &&
+		player->v.deadflag != DEAD_NO)
+	{
+		PR_SwitchQCVM (&sv.qcvm);
+		resurrected = Host_ResurrectPlayer (player);
+		PR_SwitchQCVM (NULL);
+		Con_Printf (resurrected ? "Resurrected\n" : "Already alive\n");
+		return true;
+	}
+
 	if (!sv_autoload.value || !sv.lastsave[0] || svs.maxclients != 1 || cl.intermission)
 		return false;
 
