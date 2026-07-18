@@ -550,6 +550,8 @@ nextmsg:
 				ret = 0;
 				if (q_strncasecmp(s, "status", 6) == 0)
 					ret = 1;
+				else if (q_strncasecmp(s, "resurrect", 9) == 0)
+					ret = 1;
 				else if (q_strncasecmp(s, "god", 3) == 0)
 					ret = 1;
 				else if (q_strncasecmp(s, "notarget", 8) == 0)
