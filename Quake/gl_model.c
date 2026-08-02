@@ -3215,7 +3215,7 @@ void Mod_SetExtraFlags (qmodel_t *mod)
 	if (!mod || mod->type != mod_alias)
 		return;
 
-	mod->flags &= (0xFF | MF_HOLEY); //only preserve first byte, plus MF_HOLEY
+	mod->flags &= (0xFF | MF_HOLEY | MOD_ALPHASURFS); //preserve first byte, MF_HOLEY, and MOD_ALPHASURFS
 
 	// nolerp flag
 	if (nameInList(r_nolerp_list.string, mod->name))
@@ -5125,6 +5125,15 @@ static void Mod_LoadMD3Model (qmodel_t* mod, const char* buffer)
 				hdr_skin->nextsurface = 0;
 			}
 		}
+	}
+
+	for (surf_i = 0; surf_i < in_header->numSurfaces; surf_i++)
+	{
+		hdr = (aliashdr_t*)((byte*)mainhdr + surf_i * hdrsize);
+		for (skinnum = 0; skinnum < hdr->numskins; skinnum++)
+			for (f = 0; f < 4; f++)
+				if (hdr->gltextures[skinnum][f] && (hdr->gltextures[skinnum][f]->flags & TEXPREF_ALPHAPIXELS))
+					mod->flags |= MOD_ALPHASURFS;
 	}
 
 	Hunk_FreeToLowMark (validation_mark);
