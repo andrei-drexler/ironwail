@@ -1114,7 +1114,15 @@ void R_DrawEntitiesOnList (qboolean alphapass) //johnfitz -- added parameter
 
 	ofs = cl_modtype_ofs + (alphapass ? 1 : 0);
 	R_DrawBrushModels  (entlist + ofs[2*mod_brush ], ofs[2*mod_brush +1] - ofs[2*mod_brush ]);
-	R_DrawAliasModels  (entlist + ofs[2*mod_alias ], ofs[2*mod_alias +1] - ofs[2*mod_alias ]);
+	if (!alphapass)
+		R_DrawAliasModels (entlist + ofs[2 * mod_alias], ofs[2 * mod_alias + 1] - ofs[2 * mod_alias], ALIASPASS_OPAQUE);
+	else
+	{
+		// draw fully translucent models
+		R_DrawAliasModels (entlist + ofs[2 * mod_alias], ofs[2 * mod_alias + 1] - ofs[2 * mod_alias], ALIASPASS_TRANSLUCENT);
+		// draw transparent surfaces on otherwise opaque models, only runs on models with MOD_ALPHASURFS
+		R_DrawAliasModels (entlist + cl_modtype_ofs[2 * mod_alias], cl_modtype_ofs[2 * mod_alias + 1] - cl_modtype_ofs[2 * mod_alias], ALIASPASS_TRANSLUCENT);
+	}
 	if (!alphapass)
 		R_DrawSpriteModels (entlist + cl_modtype_ofs[2*mod_sprite], cl_modtype_ofs[2*mod_sprite+2] - cl_modtype_ofs[2*mod_sprite]);
 
@@ -1150,7 +1158,7 @@ static qboolean R_IsViewModelVisible (void)
 R_DrawViewModel -- johnfitz -- gutted
 =============
 */
-void R_DrawViewModel (void)
+void R_DrawViewModel (qboolean alphapass)
 {
 	entity_t *e = &cl.viewent;
 
@@ -1161,7 +1169,7 @@ void R_DrawViewModel (void)
 
 	// hack the depth range to prevent view model from poking into walls
 	GL_DepthRange (ZRANGE_VIEWMODEL);
-	R_DrawAliasModels (&e, 1);
+	R_DrawAliasModels (&e, 1, alphapass ? ALIASPASS_TRANSLUCENT : ALIASPASS_OPAQUE);
 	GL_DepthRange (ZRANGE_FULL);
 
 	GL_EndGroup ();
@@ -1797,7 +1805,7 @@ void R_ShowTris (void)
 
 	ofs = cl_modtype_ofs;
 	R_DrawBrushModels_ShowTris  (entlist + ofs[2*mod_brush ], ofs[2*mod_brush +2] - ofs[2*mod_brush ]);
-	R_DrawAliasModels_ShowTris  (entlist + ofs[2*mod_alias ], ofs[2*mod_alias +2] - ofs[2*mod_alias ]);
+	R_DrawAliasModels_ShowTris  (entlist + ofs[2*mod_alias ], ofs[2*mod_alias +2] - ofs[2*mod_alias ], ALIASPASS_OPAQUE);
 	R_DrawSpriteModels_ShowTris (entlist + ofs[2*mod_sprite], ofs[2*mod_sprite+2] - ofs[2*mod_sprite]);
 
 	// viewmodel
@@ -1808,7 +1816,7 @@ void R_ShowTris (void)
 		if (r_showtris.value != 1.f)
 			GL_DepthRange (ZRANGE_VIEWMODEL);
 
-		R_DrawAliasModels_ShowTris (&e, 1);
+		R_DrawAliasModels_ShowTris (&e, 1, ALIASPASS_OPAQUE);
 
 		GL_DepthRange (ZRANGE_FULL);
 	}
@@ -1894,6 +1902,8 @@ void R_RenderScene (void)
 
 	Fog_EnableGFog (); //johnfitz
 
+	R_DrawViewModel (false); //johnfitz -- moved here from R_RenderView
+
 	S_ExtraUpdate (); // don't let sound get messed up if going slow
 
 	R_DrawEntitiesOnList (false); //johnfitz -- false means this is the pass for nonalpha entities
@@ -1906,6 +1916,8 @@ void R_RenderScene (void)
 
 	R_BeginTranslucency ();
 
+	R_DrawViewModel (true); //il8r -- support for transparent muzzleflashes
+
 	R_DrawWater (true);
 
 	R_DrawEntitiesOnList (true); //johnfitz -- true means this is the pass for alpha entities
@@ -1914,7 +1926,6 @@ void R_RenderScene (void)
 
 	R_EndTranslucency ();
 
-	R_DrawViewModel (); //johnfitz -- moved here from R_RenderView -- il8r -- moved for oit reasons
 
 	R_ShowTris (); //johnfitz
 

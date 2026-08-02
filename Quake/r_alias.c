@@ -286,21 +286,22 @@ void R_SetupAliasLighting (entity_t	*e)
 	VectorScale (lightcolor, 1.0f / 200.0f, lightcolor);
 }
 
+
 /*
 =================
 R_FlushAliasInstances
 =================
 */
-void R_FlushAliasInstances (qboolean showtris)
+void R_FlushAliasInstances (qboolean showtris, enum aliaspass_t pass)
 {
 	extern cvar_t r_softemu_mdl_warp;
 	qmodel_t* model;
 	aliashdr_t* mainhdr, *hdr;
-	qboolean	alphatest, translucent, oit;
+	qboolean	alphatest, translucent, alphasurfs, oit;
 	int			totalverts;
 	int			poseverttype;
 	int			skinnum, anim, mode;
-	unsigned	state, opaque_state, transparent_state;
+	unsigned	state;
 	GLuint		buf;
 	GLbyte* ofs;
 	size_t		ibuf_size;
@@ -320,8 +321,9 @@ void R_FlushAliasInstances (qboolean showtris)
 	poseverttype = mainhdr->poseverttype;
 
 	alphatest = model->flags & MF_HOLEY ? 1 : 0;
-	translucent = !ENTALPHA_OPAQUE (ibuf.ent->alpha);
-	oit = translucent && R_GetEffectiveAlphaMode () == ALPHAMODE_OIT;
+	translucent = !ENTALPHA_OPAQUE (ibuf.ent->alpha);              // whole entity is translucent
+	alphasurfs = (pass == ALIASPASS_TRANSLUCENT) && !translucent; // opaque ent, alpha surfaces only
+	oit = (translucent || alphasurfs) && R_GetEffectiveAlphaMode () == ALPHAMODE_OIT;
 	switch (softemu)
 	{
 	case SOFTEMU_BANDED:
@@ -340,9 +342,6 @@ void R_FlushAliasInstances (qboolean showtris)
 		state = GLS_CULL_BACK | GLS_ATTRIBS (5);
 	else
 		state = GLS_CULL_BACK | GLS_ATTRIBS (1);
-
-	opaque_state = (state | GLS_BLEND_OPAQUE) & ~(GLS_BLEND_ALPHA_OIT | GLS_NO_ZWRITE);
-	transparent_state = (state | GLS_BLEND_ALPHA) & ~(GLS_BLEND_OPAQUE | GLS_CULL_BACK);
 
 	if (translucent)
 	{
@@ -400,36 +399,15 @@ void R_FlushAliasInstances (qboolean showtris)
 		GL_VertexAttribPointerFunc (0, 2, GL_FLOAT, GL_FALSE, sizeof (meshst_t), (void*)mainhdr->vbostofs);
 	}
 
-	if (!translucent)
-		GL_SetState (opaque_state);
-
-	for (hdr = mainhdr; hdr; hdr = Mod_NextSurface (hdr))
+	if (pass == ALIASPASS_OPAQUE) 
 	{
-		skinnum = ibuf.ent->skinnum;
-		if ((skinnum >= hdr->numskins) || (skinnum < 0)) skinnum = 0;
-		textures[0] = hdr->gltextures[skinnum][anim];
-		if (!textures[0]) continue;
-
-		if (!translucent && (textures[0]->flags & TEXPREF_ALPHAPIXELS))
+		GL_SetState ((state | GLS_BLEND_OPAQUE) & ~(GLS_BLEND_ALPHA_OIT | GLS_NO_ZWRITE));
+	} else if (pass == ALIASPASS_TRANSLUCENT)
 		{
-			continue;
+			GL_SetState ((state & ~GLS_MASK_BLEND & ~GLS_MASK_CULL)
+				| (oit ? GLS_BLEND_ALPHA_OIT : GLS_BLEND_ALPHA)
+				| GLS_NO_ZWRITE);
 		}
-		textures[1] = hdr->fbtextures[skinnum][anim];
-		if (hdr == mainhdr && ibuf.ent->colormap != vid.colormap && !gl_nocolors.value)
-			if (CL_IsPlayerEnt (ibuf.ent)) textures[0] = playertextures[ibuf.ent - cl_entities - 1];
-		if (!gl_fullbrights.value) textures[1] = blacktexture;
-		if (r_lightmap_cheatsafe) { textures[0] = greytexture; textures[1] = blacktexture; }
-		if (!textures[1]) textures[1] = blacktexture;
-		if (showtris) { textures[0] = blacktexture; textures[1] = whitetexture; }
-
-		GL_BindTextures (0, 2, textures);
-		GL_DrawElementsInstancedFunc (GL_TRIANGLES, hdr->numindexes, GL_UNSIGNED_SHORT, (void*)hdr->eboofs, ibuf.count);
-		rs_aliaspasses += hdr->numtris * ibuf.count;
-	}
-
-	if (!translucent)
-	{
-		GL_SetState (transparent_state);
 
 		for (hdr = mainhdr; hdr; hdr = Mod_NextSurface (hdr))
 		{
@@ -438,11 +416,11 @@ void R_FlushAliasInstances (qboolean showtris)
 			textures[0] = hdr->gltextures[skinnum][anim];
 			if (!textures[0]) continue;
 
-			if (!(textures[0]->flags & TEXPREF_ALPHAPIXELS))
-			{ 
+			if ((pass == ALIASPASS_OPAQUE && !translucent && (textures[0]->flags & TEXPREF_ALPHAPIXELS)) ||  
+				(pass == ALIASPASS_TRANSLUCENT && !(textures[0]->flags & TEXPREF_ALPHAPIXELS)))
+			{
 				continue;
 			}
-
 			textures[1] = hdr->fbtextures[skinnum][anim];
 			if (hdr == mainhdr && ibuf.ent->colormap != vid.colormap && !gl_nocolors.value)
 				if (CL_IsPlayerEnt (ibuf.ent)) textures[0] = playertextures[ibuf.ent - cl_entities - 1];
@@ -454,7 +432,6 @@ void R_FlushAliasInstances (qboolean showtris)
 			GL_BindTextures (0, 2, textures);
 			GL_DrawElementsInstancedFunc (GL_TRIANGLES, hdr->numindexes, GL_UNSIGNED_SHORT, (void*)hdr->eboofs, ibuf.count);
 			rs_aliaspasses += hdr->numtris * ibuf.count;
-		}
 
 	}
 
@@ -477,6 +454,10 @@ static qboolean R_Alias_CanAddToBatch (const entity_t *e)
 	if (ibuf.count == countof (ibuf.inst))
 		return false;
 
+	// wrong batch for opacity
+	if (ENTALPHA_OPAQUE (ibuf.ent->alpha) != ENTALPHA_OPAQUE (e->alpha))
+		return false;
+
 	// different models/skins
 	if (ibuf.ent->model != e->model || ibuf.ent->skinnum != e->skinnum)
 		return false;
@@ -493,7 +474,7 @@ static qboolean R_Alias_CanAddToBatch (const entity_t *e)
 R_DrawAliasModel_Real
 =================
 */
-static void R_DrawAliasModel_Real (entity_t *e, qboolean showtris)
+static void R_DrawAliasModel_Real (entity_t *e, qboolean showtris, enum aliaspass_t pass)
 {
 	aliashdr_t	*paliashdr, *hdr;
 	lerpdata_t	lerpdata;
@@ -502,6 +483,8 @@ static void R_DrawAliasModel_Real (entity_t *e, qboolean showtris)
 	aliasinstance_t	*instance;
 	int			totalverts;
 
+	if (pass == ALIASPASS_TRANSLUCENT && ENTALPHA_OPAQUE (e->alpha) && !(e->model->flags & MOD_ALPHASURFS))
+		return;
 	//
 	// setup pose/lerp data -- do it first so we don't miss updates due to culling
 	//
@@ -570,7 +553,7 @@ static void R_DrawAliasModel_Real (entity_t *e, qboolean showtris)
 		entalpha = 1.f;
 
 	if (!R_Alias_CanAddToBatch (e))
-		R_FlushAliasInstances (showtris);
+		R_FlushAliasInstances (showtris, pass);
 
 	if (!ibuf.count)
 		ibuf.ent = e;
@@ -607,12 +590,12 @@ static void R_DrawAliasModel_Real (entity_t *e, qboolean showtris)
 R_DrawAliasModels
 =================
 */
-void R_DrawAliasModels (entity_t **ents, int count)
+void R_DrawAliasModels (entity_t **ents, int count, enum aliaspass_t pass)
 {
 	int i;
 	for (i = 0; i < count; i++)
-		R_DrawAliasModel_Real (ents[i], false);
-	R_FlushAliasInstances (false);
+		R_DrawAliasModel_Real (ents[i], false, pass);
+	R_FlushAliasInstances (false, pass);
 }
 
 /*
@@ -620,10 +603,10 @@ void R_DrawAliasModels (entity_t **ents, int count)
 R_DrawAliasModels_ShowTris
 =================
 */
-void R_DrawAliasModels_ShowTris (entity_t **ents, int count)
+void R_DrawAliasModels_ShowTris (entity_t **ents, int count, enum aliaspass_t pass)
 {
 	int i;
 	for (i = 0; i < count; i++)
-		R_DrawAliasModel_Real (ents[i], true);
-	R_FlushAliasInstances (true);
+		R_DrawAliasModel_Real (ents[i], true, pass);
+	R_FlushAliasInstances (true, pass);
 }
