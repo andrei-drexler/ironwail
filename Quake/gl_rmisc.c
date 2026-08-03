@@ -422,7 +422,7 @@ void R_TranslateNewPlayerSkin (int playernum)
 //upload new image
 	q_snprintf(name, sizeof(name), "player_%i", playernum);
 	playertextures[playernum] = TexMgr_LoadImage (e->model, name, paliashdr->skinwidth, paliashdr->skinheight,
-		SRC_INDEXED, pixels, paliashdr->gltextures[skinnum][0]->source_file, paliashdr->gltextures[skinnum][0]->source_offset, TEXPREF_PAD | TEXPREF_OVERWRITE);
+		paliashdr->gltextures[skinnum][0]->source_format, pixels, paliashdr->gltextures[skinnum][0]->source_file, paliashdr->gltextures[skinnum][0]->source_offset, TEXPREF_PAD | TEXPREF_OVERWRITE);
 
 //now recolor it
 	R_TranslatePlayerSkin (playernum);
@@ -517,6 +517,7 @@ void R_NewMap (void)
 	VEC_CLEAR (r_pointfile);
 
 	GL_BuildLightmaps ();
+	GL_DeleteBModelBuffers ();
 	GL_BuildBModelVertexBuffer ();
 	GL_BuildBModelMarkBuffers ();
 	//ericw -- no longer load alias models into a VBO here, it's done in Mod_LoadAliasModel

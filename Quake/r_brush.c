@@ -572,8 +572,7 @@ void GL_DeleteBModelBuffers (void)
 ==================
 GL_BuildBModelVertexBuffer
 
-Deletes gl_bmodel_vbo if it already exists, then rebuilds it with all
-surfaces from world + all brush models
+Rebuilds gl_bmodel_vbo with all surfaces from world + all brush models
 ==================
 */
 void GL_BuildBModelVertexBuffer (void)
@@ -585,9 +584,6 @@ void GL_BuildBModelVertexBuffer (void)
 	float		lmscalex = 1.f / 16.f / lightmap_width;
 	float		lmscaley = 1.f / 16.f / lightmap_height;
 
-// ask GL for a name for our VBO
-	GL_DeleteBuffer (gl_bmodel_vbo);
-	
 // count all verts in all models
 	numverts = 0;
 	for (j=1 ; j<MAX_MODELS ; j++)

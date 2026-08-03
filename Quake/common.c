@@ -42,8 +42,6 @@ cvar_t	language = {"language","auto",CVAR_ARCHIVE}; /* for 2021 rerelease text *
 
 static qboolean		com_modified;	// set true if using non-id files
 
-qboolean		fitzmode;
-
 static void COM_Path_f (void);
 
 // if a packfile directory differs from this, it is assumed to be hacked
@@ -1441,6 +1439,27 @@ qboolean COM_ParseLine (const char **str, stringview_t *line)
 	return true;
 }
 
+/*
+================
+COM_ParseMutableLine
+================
+*/
+qboolean COM_ParseMutableLine (char **str, char **line)
+{
+	stringview_t view;
+
+	if (!COM_ParseLine ((const char **)str, &view))
+		return false;
+
+	if (line)
+	{
+		char *ret = (char *)view.data;
+		ret[view.len] = '\0';
+		*line = ret;
+	}
+
+	return true;
+}
 
 /*
 ================
@@ -1603,8 +1622,6 @@ COM_Init
 */
 void COM_Init (void)
 {
-	if (COM_CheckParm("-fitz"))
-		fitzmode = true;
 }
 
 
@@ -1962,6 +1979,21 @@ static int COM_FindFile (const char *filename, int *handle, FILE **file,
 			strcmp(ext, "png") != 0 &&
 			strcmp(ext, "jpg") != 0 &&
 			strcmp(ext, "lmp") != 0 &&
+			// music formats
+			strcmp (ext, "ogg") != 0 &&
+			strcmp (ext, "opus") != 0 &&
+			strcmp (ext, "flac") != 0 &&
+			strcmp (ext, "wav") != 0 &&
+			strcmp (ext, "it") != 0 &&
+			strcmp (ext, "s3m") != 0 &&
+			strcmp (ext, "xm") != 0 &&
+			strcmp (ext, "mod") != 0 &&
+			strcmp (ext, "umx") != 0 &&
+			// alternate model formats
+			strcmp(ext, "md5mesh") != 0 &&
+			strcmp (ext, "md3") != 0 &&
+			strcmp (ext, "skin") != 0 &&
+			// optional map files
 			strcmp(ext, "lit") != 0 &&
 			strcmp(ext, "vis") != 0 &&
 			strcmp(ext, "ent") != 0)
@@ -2416,7 +2448,7 @@ void COM_AddGameDirectory (const char *dir)
 			com_searchpaths = search;
 
 			// add engine pak after pak0.pak
-			if (i == 0 && j == 0 && path_id == 1u && !fitzmode)
+			if (i == 0 && j == 0 && path_id == 1u)
 				COM_AddEnginePak ();
 		}
 	}

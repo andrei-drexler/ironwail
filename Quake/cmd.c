@@ -531,6 +531,16 @@ qboolean Cmd_IsReservedName (const char *name)
 
 /*
 ============
+Cmd_IsGamepadAltModifier
+============
+*/
+qboolean Cmd_IsGamepadAltModifier (const char *name)
+{
+	return name && !strcmp (name, "+altmodifier");
+}
+
+/*
+============
 Cmd_List_f -- johnfitz
 ============
 */

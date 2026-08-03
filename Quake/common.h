@@ -301,6 +301,7 @@ typedef struct
 } stringview_t;
 
 qboolean COM_ParseLine (const char **str, stringview_t *line);
+qboolean COM_ParseMutableLine (char **str, char **line);
 
 extern	int			com_argc;
 extern	const char	**com_argv;
@@ -479,8 +480,6 @@ long FS_filelength (fshandle_t *fh);
 
 extern struct cvar_s	registered;
 extern qboolean		standard_quake, rogue, hipnotic;
-extern qboolean		fitzmode;
-	/* if true, run in fitzquake mode disabling custom quakespasm hacks */
 
 #endif	/* _Q_COMMON_H */
 

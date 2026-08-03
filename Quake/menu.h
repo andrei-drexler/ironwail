@@ -61,7 +61,7 @@ extern qboolean m_entersound;
 // menus
 //
 void M_Init (void);
-void M_Keydown (int key);
+void M_Keydown (int key, qboolean repeat);
 void M_Charinput (int key);
 void M_Mousemove (int x, int y);
 enum textmode_t M_TextEntry (void);

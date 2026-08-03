@@ -224,7 +224,7 @@ Scrap_Upload -- johnfitz -- now uses TexMgr
 void Scrap_Upload (void)
 {
 	scrap_texture = TexMgr_LoadImage (NULL, "scrap", SCRAP_ATLAS_WIDTH, SCRAP_ATLAS_HEIGHT, SRC_INDEXED, scrap_texels,
-		"", (src_offset_t)scrap_texels, TEXPREF_ALPHA | TEXPREF_OVERWRITE | TEXPREF_NOPICMIP);
+		"", (src_offset_t)scrap_texels, TEXPREF_ALPHA | TEXPREF_OVERWRITE | TEXPREF_NOPICMIP | TEXPREF_UNCOMPRESSED);
 	scrap_dirty = false;
 }
 
@@ -343,7 +343,7 @@ qpic_t *Draw_PicFromWad2 (const char *name, unsigned int texflags)
 
 qpic_t *Draw_PicFromWad (const char *name)
 {
-	return Draw_PicFromWad2 (name, TEXPREF_ALPHA | TEXPREF_PAD | TEXPREF_NOPICMIP);
+	return Draw_PicFromWad2 (name, TEXPREF_ALPHA | TEXPREF_PAD | TEXPREF_NOPICMIP | TEXPREF_UNCOMPRESSED);
 }
 
 /*
@@ -412,7 +412,7 @@ qpic_t	*Draw_TryCachePic (const char *path, unsigned int texflags)
 
 qpic_t	*Draw_CachePic (const char *path)
 {
-	qpic_t *pic = Draw_TryCachePic(path, TEXPREF_ALPHA | TEXPREF_PAD | TEXPREF_NOPICMIP | TEXPREF_CLAMP);
+	qpic_t *pic = Draw_TryCachePic(path, TEXPREF_ALPHA | TEXPREF_PAD | TEXPREF_NOPICMIP | TEXPREF_CLAMP | TEXPREF_UNCOMPRESSED);
 	if (!pic)
 		Sys_Error ("Draw_CachePic: failed to load %s", path);
 	return pic;
@@ -425,7 +425,7 @@ Draw_MakePic -- johnfitz -- generate pics from internal data
 */
 qpic_t *Draw_MakePic (const char *name, int width, int height, byte *data)
 {
-	int flags = TEXPREF_NEAREST | TEXPREF_ALPHA | TEXPREF_PERSIST | TEXPREF_NOPICMIP | TEXPREF_PAD;
+	int flags = TEXPREF_NEAREST | TEXPREF_ALPHA | TEXPREF_PERSIST | TEXPREF_NOPICMIP | TEXPREF_PAD | TEXPREF_UNCOMPRESSED;
 	qpic_t		*pic;
 	glpic_t		gl;
 
@@ -476,10 +476,10 @@ void Draw_LoadPics (void)
 			char_texture_data + row*(16*10*10) + col*10, 16*10);
 	}
 	char_texture = TexMgr_LoadImage (NULL, WADFILENAME":conchars", 16*10, 16*10, SRC_INDEXED, char_texture_data,
-		"", (src_offset_t) char_texture_data, TEXPREF_ALPHA | TEXPREF_NEAREST | TEXPREF_NOPICMIP | TEXPREF_CONCHARS);
+		"", (src_offset_t) char_texture_data, TEXPREF_ALPHA | TEXPREF_NEAREST | TEXPREF_NOPICMIP | TEXPREF_CONCHARS | TEXPREF_UNCOMPRESSED);
 
 	draw_disc = Draw_PicFromWad ("disc");
-	draw_backtile = Draw_PicFromWad2 ("backtile", TEXPREF_ALPHA | TEXPREF_NOPICMIP); // no pad flag to force separate allocation
+	draw_backtile = Draw_PicFromWad2 ("backtile", TEXPREF_ALPHA | TEXPREF_NOPICMIP | TEXPREF_UNCOMPRESSED); // no pad flag to force separate allocation
 }
 
 /*
@@ -526,7 +526,7 @@ static void Draw_CreateWinQuakeMenuBgTex (void)
 
 	winquakemenubg = TexMgr_LoadImage (NULL, "winquakemenubg", 4, 2, SRC_RGBA,
 		(byte*)winquakemenubg_pixels, "", (src_offset_t)winquakemenubg_pixels,
-		TEXPREF_ALPHA | TEXPREF_NEAREST | TEXPREF_PERSIST | TEXPREF_NOPICMIP
+		TEXPREF_ALPHA | TEXPREF_NEAREST | TEXPREF_PERSIST | TEXPREF_NOPICMIP | TEXPREF_UNCOMPRESSED
 	);
 }
 

@@ -327,9 +327,7 @@ typedef struct {
 	//ericw --
 
 	int					numposes;
-	intptr_t			nextsurface;	//spike
-	//int					nummorphposes;		//spike -- renamed from numposes
-	int					numboneposes;		//spike -- for iqm
+	intptr_t			nextsurface;		//spike
 	int					numbones;			//spike -- for iqm
 	intptr_t			boneinfo;			//spike -- for iqm, boneinfo_t[numbones]
 	intptr_t			boneposedata;		//spike -- for iqm, bonepose_t[numboneposes*numbones]
@@ -337,12 +335,15 @@ typedef struct {
 	{
 		PV_QUAKE1,		//trivertx_t
 		PV_IQM,			//iqmvert_t
+		PV_MD3
 	} poseverttype;	//spike
 	struct gltexture_s	*gltextures[MAX_SKINS][4]; //johnfitz
 	struct gltexture_s	*fbtextures[MAX_SKINS][4]; //johnfitz
 	int					texels[MAX_SKINS];	// only for player skins
 	maliasframedesc_t	frames[1];	// variable sized
 } aliashdr_t;
+
+static inline aliashdr_t *Mod_NextSurface (aliashdr_t *hdr) { return hdr->nextsurface ? (aliashdr_t*)((byte*)hdr + hdr->nextsurface) : NULL; }
 
 typedef struct
 {
@@ -362,7 +363,11 @@ typedef struct
 	char name[32];
 	bonepose_t inverse;
 } boneinfo_t;
-
+typedef struct
+{
+	uint16_t	xyz[3];
+	uint8_t		normal[2]; // spherical coords
+} md3pose_t; // Total size is now 8 bytes
 #define	MAXALIASVERTS		0x7fff //16-bit index buffer + onseam duplication
 #define	MAXALIASVERTS_QS	2000 //johnfitz -- was 1024
 #define	MAXALIASFRAMES		1024 //spike -- was 256
@@ -510,6 +515,18 @@ typedef struct qmodel_s
 	cache_user_t	cache;		// only access through Mod_Extradata
 
 } qmodel_t;
+
+//
+// MD3 structs
+//
+#define MD3_IDENT			('I' + ('D' << 8) + ('P' << 16) + ('3' << 24))
+#define MD3_VERSION			15
+#define MD3_XYZ_SCALE		(1.0/64.0)
+	typedef struct { int ident, version; char name[MAX_QPATH]; int flags; int numFrames, numTags, numSurfaces, numSkins; int ofsFrames, ofsTags, ofsSurfaces, ofsEnd; } md3Header_t;
+	typedef struct { int ident; char name[MAX_QPATH]; int flags; int numFrames, numShaders, numVerts, numTriangles; int ofsTriangles, ofsShaders, ofsSt, ofsXyzNormal, ofsEnd; } md3Surface_t;
+	typedef struct { int indexes[3]; } md3Triangle_t;
+	typedef struct { float st[2]; } md3TexCoord_t;
+	typedef struct { short xyz[3]; unsigned char normal[2]; } md3Vertex_t;
 
 //============================================================================
 

@@ -578,6 +578,7 @@ void S_ClearBuffer (void)
 	if (!sound_started || !shm)
 		return;
 
+	S_ClearFilteredLevels ();
 	SNDDMA_LockBuffer ();
 	if (! shm->buffer)
 		return;

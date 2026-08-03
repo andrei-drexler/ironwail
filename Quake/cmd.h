@@ -145,6 +145,7 @@ void	Cmd_ForwardToServer (void);
 // so when they are typed in at the console, they will need to be forwarded.
 
 qboolean Cmd_IsReservedName (const char *name);
+qboolean Cmd_IsGamepadAltModifier (const char *name);
 
 #endif	/* _QUAKE_CMD_H */
 

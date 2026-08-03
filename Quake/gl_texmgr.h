@@ -44,6 +44,8 @@ typedef enum
 	TEXPREF_BINDLESS		= 0x2000,	// enable bindless usage
 	TEXPREF_ALPHABRIGHT		= 0x4000,	// use palette with lighting mask in alpha channel (0=fullbright, 1=lit)
 	TEXPREF_CLAMP			= 0x8000,	// clamp UVs
+	TEXPREF_ALPHAPIXELS		= 0x10000,	// has demonstratable alpha pixels, mostly used for md3
+	TEXPREF_UNCOMPRESSED	= 0x20000,	// disable compression
 
 	TEXPREF_HASALPHA		= (TEXPREF_ALPHA|TEXPREF_ALPHABRIGHT), // texture has alpha channel
 } textureflags_t;

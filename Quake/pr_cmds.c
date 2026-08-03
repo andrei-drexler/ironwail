@@ -2111,7 +2111,7 @@ static qpic_t *DrawQC_CachePic(const char *picname, unsigned int flags)
 	qcpics[i].flags = flags;
 	qcpics[i].pic = NULL;
 
-	texflags = TEXPREF_ALPHA | TEXPREF_PAD | TEXPREF_NOPICMIP | TEXPREF_CLAMP;
+	texflags = TEXPREF_ALPHA | TEXPREF_PAD | TEXPREF_NOPICMIP | TEXPREF_CLAMP | TEXPREF_UNCOMPRESSED;
 	if (flags & PICFLAG_WRAP)
 		texflags &= ~(TEXPREF_PAD | TEXPREF_CLAMP);	//don't allow padding if its going to need to wrap (even if we don't enable clamp-to-edge normally). I just hope we have npot support.
 	if (flags & PICFLAG_MIPMAP)

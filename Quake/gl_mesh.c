@@ -132,32 +132,29 @@ Original code by MH from RMQEngine
 void GLMesh_LoadVertexBuffer (qmodel_t *m, aliashdr_t *mainhdr)
 {
 	int totalvbosize = 0;
-	int animsize = 0;
-	const aliasmesh_t *desc;
-	const trivertx_t *trivertexes;
 	byte *ebodata;
 	byte *vbodata;
-	int f;
+	int f, v;
 	aliashdr_t *hdr;
 	unsigned int numindexes, numverts;
-	intptr_t stofs;
 	intptr_t vertofs;
-	intptr_t poseofs;
 
 	if (isDedicated)
 		return;
 
 	//count how much space we're going to need.
-	for(hdr = mainhdr, numverts = 0, numindexes = 0; ; )
+	for(hdr = mainhdr, numverts = 0, numindexes = 0; hdr; hdr = Mod_NextSurface (hdr))
 	{
 		switch(hdr->poseverttype)
 		{
 		case PV_QUAKE1:
-			totalvbosize += (hdr->numposes * hdr->numverts_vbo * sizeof (meshxyz_t)); // ericw -- what RMQEngine called nummeshframes is called numposes in QuakeSpasm
+			totalvbosize += hdr->numposes * hdr->numverts_vbo * sizeof (meshxyz_t); // ericw -- what RMQEngine called nummeshframes is called numposes in QuakeSpasm
 			break;
 		case PV_IQM:
-			totalvbosize += (hdr->numposes * hdr->numverts_vbo * sizeof (iqmvert_t));
-			animsize += hdr->numboneposes * hdr->numbones * sizeof (bonepose_t);
+			totalvbosize += hdr->numverts_vbo * sizeof (iqmvert_t);
+			break;
+		case PV_MD3:
+			totalvbosize += hdr->numposes * hdr->numverts_vbo * sizeof (md3pose_t);
 			break;
 		default:
 			Sys_Error ("Bad vert type %i for %s", hdr->poseverttype, m->name);
@@ -166,30 +163,22 @@ void GLMesh_LoadVertexBuffer (qmodel_t *m, aliashdr_t *mainhdr)
 
 		numverts += hdr->numverts_vbo;
 		numindexes += hdr->numindexes;
-
-		if (hdr->nextsurface)
-			hdr = (aliashdr_t*)((byte*)hdr + hdr->nextsurface);
-		else
-			break;
 	}
-	hdr = NULL;
 
-	vertofs = 0;
-	totalvbosize = (totalvbosize + ssbo_align) & ~ssbo_align;	//align it.
+	// Note: 65535, not 65536, so that we can safely add 1 in remapping code
+	if (numverts >= 65535)
+		Sys_Error ("Model %s has too many verts (%d)", m->name, numverts);
 
-	stofs = totalvbosize;
-	if (mainhdr->poseverttype == PV_QUAKE1)
-		totalvbosize += (numverts * sizeof (meshst_t));
-	totalvbosize = (totalvbosize + ssbo_align) & ~ssbo_align;	//align it.
-
-	poseofs = totalvbosize;
-	totalvbosize += animsize;
-	totalvbosize = (totalvbosize + ssbo_align) & ~ssbo_align;	//align it.
+	totalvbosize = GL_AlignSSBO (totalvbosize);
+	if (mainhdr->poseverttype == PV_QUAKE1 || mainhdr->poseverttype == PV_MD3)
+		totalvbosize += numverts * sizeof (meshst_t);
+	else
+		totalvbosize += mainhdr->numposes * mainhdr->numbones * sizeof (bonepose_t);
 
 	if (!totalvbosize) return;
 	if (!numindexes) return;
 
-	//create an elements buffer
+	// create an elements buffer
 	ebodata = (byte *) malloc(numindexes * sizeof(unsigned short));
 	if (!ebodata)
 		return;	//fatal
@@ -203,98 +192,106 @@ void GLMesh_LoadVertexBuffer (qmodel_t *m, aliashdr_t *mainhdr)
 	}
 	memset(vbodata, 0, totalvbosize);
 
-	numindexes = 0;
-
-	for(hdr = mainhdr, numverts = 0, numindexes = 0; ; )
+	// fill in index data
+	for (hdr = mainhdr, numverts = 0, numindexes = 0; hdr; hdr = Mod_NextSurface (hdr))
 	{
-		// grab the pointers to data in the extradata
-		desc = (aliasmesh_t *) ((byte *) hdr + hdr->meshdesc);
-		trivertexes = (const trivertx_t *) ((byte *)hdr + hdr->vertexes);
+		unsigned short *dstidx;
+		const unsigned short *srcidx;
 
-		//submit the index data.
 		hdr->eboofs = numindexes * sizeof (unsigned short);
+		dstidx = (unsigned short *) (ebodata + hdr->eboofs);
+		srcidx = (const unsigned short *) ((byte *) hdr + hdr->indexes);
+		for (f = 0; f < hdr->numindexes; f++)
+			dstidx[f] = srcidx[f] + numverts;
 		numindexes += hdr->numindexes;
-		memcpy(ebodata + hdr->eboofs, (short *) ((byte *) hdr + hdr->indexes), hdr->numindexes * sizeof (unsigned short));
+		numverts += hdr->numverts;
+	}
 
+	vertofs = 0;
+	for (hdr = mainhdr; hdr; hdr = Mod_NextSurface (hdr))
 		hdr->vbovertofs = vertofs;
 
-		// fill in the vertices at the start of the buffer
-		switch(hdr->poseverttype)
+	if (mainhdr->poseverttype == PV_QUAKE1 || mainhdr->poseverttype == PV_MD3)
+	{
+		// fill in pose data
+		for (f = 0; f < mainhdr->numposes; f++)
 		{
-		case PV_QUAKE1:
-			for (f = 0; f < hdr->numposes; f++) // ericw -- what RMQEngine called nummeshframes is called numposes in QuakeSpasm
+			for (hdr = mainhdr; hdr; hdr = Mod_NextSurface (hdr))
 			{
-				int v;
-				meshxyz_t *xyz = (meshxyz_t *) (vbodata + vertofs);
-				const trivertx_t *tv = (const trivertx_t*)trivertexes + (hdr->numverts * f);
-				vertofs += hdr->numverts_vbo * sizeof (*xyz);
-
-				for (v = 0; v < hdr->numverts_vbo; v++)
+				if (mainhdr->poseverttype == PV_QUAKE1)
 				{
-					trivertx_t trivert = tv[desc[v].vertindex];
+					// grab the pointers to data in the extradata
+					const aliasmesh_t *desc = (aliasmesh_t *) ((byte *) hdr + hdr->meshdesc);
+					const trivertx_t *tv = (const trivertx_t *) ((byte *)hdr + hdr->vertexes) + hdr->numverts * f;
+					meshxyz_t *xyz = (meshxyz_t *) (vbodata + vertofs);
 
-					xyz[v].xyz[0] = trivert.v[0];
-					xyz[v].xyz[1] = trivert.v[1];
-					xyz[v].xyz[2] = trivert.v[2];
-					xyz[v].xyz[3] = 1;	// need w 1 for 4 byte vertex compression
+					for (v = 0; v < hdr->numverts_vbo; v++)
+					{
+						trivertx_t trivert = tv[desc[v].vertindex];
 
-					// map the normal coordinates in [-1..1] to [-127..127] and store in an unsigned char.
-					// this introduces some error (less than 0.004), but the normals were very coarse
-					// to begin with
-					xyz[v].normal[0] = 127 * r_avertexnormals[trivert.lightnormalindex][0];
-					xyz[v].normal[1] = 127 * r_avertexnormals[trivert.lightnormalindex][1];
-					xyz[v].normal[2] = 127 * r_avertexnormals[trivert.lightnormalindex][2];
-					xyz[v].normal[3] = 0;	// unused; for 4-byte alignment
+						xyz[v].xyz[0] = trivert.v[0];
+						xyz[v].xyz[1] = trivert.v[1];
+						xyz[v].xyz[2] = trivert.v[2];
+						xyz[v].xyz[3] = 1;	// need w 1 for 4 byte vertex compression
+
+						// map the normal coordinates in [-1..1] to [-127..127] and store in an unsigned char.
+						// this introduces some error (less than 0.004), but the normals were very coarse
+						// to begin with
+						xyz[v].normal[0] = 127 * r_avertexnormals[trivert.lightnormalindex][0];
+						xyz[v].normal[1] = 127 * r_avertexnormals[trivert.lightnormalindex][1];
+						xyz[v].normal[2] = 127 * r_avertexnormals[trivert.lightnormalindex][2];
+						xyz[v].normal[3] = 0;	// unused; for 4-byte alignment
+					}
+
+					vertofs += hdr->numverts_vbo * sizeof (meshxyz_t);
+				}
+				else // PV_MD3
+				{
+					size_t posesize = hdr->numverts_vbo * sizeof (md3pose_t);
+					memcpy (vbodata + vertofs, (byte*)hdr + hdr->vertexes + f * posesize, posesize);
+					vertofs += posesize;
 				}
 			}
-			break;
-		case PV_IQM:
-			for (f = 0; f < hdr->numposes; f++) // ericw -- what RMQEngine called nummeshframes is called numposes in QuakeSpasm
-			{
-				int v;
-				iqmvert_t *xyz = (iqmvert_t *) (vbodata + vertofs);
-				const iqmvert_t *tv = (const iqmvert_t*)trivertexes + (hdr->numverts_vbo * f);
-				vertofs += hdr->numverts_vbo * sizeof (*xyz);
-
-				for (v = 0; v < hdr->numverts_vbo; v++, tv++)
-					xyz[v] = *tv;
-			}
-
-			// copy bone poses
-			hdr->vboposeofs = poseofs;
-			memcpy (vbodata + hdr->vboposeofs, (byte *) hdr + hdr->boneposedata, hdr->numboneposes * hdr->numbones * sizeof (bonepose_t));
-			poseofs += hdr->numboneposes * hdr->numbones * sizeof (bonepose_t);
-
-			break;
+		}
+	}
+	else // PV_IQM
+	{
+		// copy vertices
+		for (hdr = mainhdr; hdr; hdr = Mod_NextSurface (hdr))
+		{
+			memcpy (vbodata + vertofs, (byte *)hdr + hdr->vertexes, hdr->numverts_vbo * sizeof (iqmvert_t));
+			vertofs += hdr->numverts_vbo * sizeof (iqmvert_t);
 		}
 
-		// fill in the ST coords at the end of the buffer
-		if (hdr->poseverttype == PV_QUAKE1)
+		// copy bone poses
+		vertofs = GL_AlignSSBO (vertofs);
+		for (hdr = mainhdr; hdr; hdr = Mod_NextSurface (hdr))
+			hdr->vboposeofs = vertofs;
+		memcpy (vbodata + mainhdr->vboposeofs, (byte *)mainhdr + mainhdr->boneposedata, mainhdr->numposes * mainhdr->numbones * sizeof (bonepose_t));
+	}
+
+	vertofs = GL_AlignSSBO (vertofs);
+
+	// fill in the ST coords at the end of the buffer
+	if (mainhdr->poseverttype == PV_QUAKE1 || mainhdr->poseverttype == PV_MD3)
+	{
+		meshst_t *st = (meshst_t *) (vbodata + vertofs);
+		for (hdr = mainhdr, numverts = 0; hdr; hdr = Mod_NextSurface (hdr))
 		{
-			meshst_t *st;
-			float hscale, vscale;
+			const aliasmesh_t *desc = (aliasmesh_t *) ((byte *) hdr + hdr->meshdesc);
 
 			//johnfitz -- padded skins
-			hscale = 1.0f / (float)TexMgr_PadConditional(hdr->skinwidth);
-			vscale = 1.0f / (float)TexMgr_PadConditional(hdr->skinheight);
+			float hscale = 1.0f / (float)TexMgr_PadConditional(hdr->skinwidth);
+			float vscale = 1.0f / (float)TexMgr_PadConditional(hdr->skinheight);
 			//johnfitz
 
-			hdr->vbostofs = stofs; 
-			st = (meshst_t *) (vbodata + stofs);
-			stofs += hdr->numverts_vbo*sizeof(*st);
-			for (f = 0; f < hdr->numverts_vbo; f++)
-			{
-				st[f].st[0] = hscale * ((float) desc[f].st[0] + 0.5f);
-				st[f].st[1] = vscale * ((float) desc[f].st[1] + 0.5f);
+			hdr->vbostofs = vertofs;
+			for (f = 0; f < hdr->numverts_vbo; f++, st++) {
+				st->st[0] = hscale * ((float)desc[f].st[0] + 0.5f);
+				st->st[1] = vscale * ((float)desc[f].st[1] + 0.5f);
 			}
 		}
-
-		if (hdr->nextsurface)
-			hdr = (aliashdr_t*)((byte*)hdr + hdr->nextsurface);
-		else
-			break;
 	}
-	hdr = NULL;
 
 	// upload indexes buffer
 	GL_DeleteBuffer (m->meshindexesvbo);
