@@ -3597,78 +3597,84 @@ qboolean LOC_LoadFile (const char *file)
 		return false;
 
 	memset(&archive, 0, sizeof(archive));
-	for (i = com_numbasedirs - 1; i >= 0; i--)
-	{
-		q_snprintf(path, sizeof(path), "%s/%s", com_basedirs[i], file);
-		rw = SDL_RWFromFile(path, "rb");
-		if (rw)
-			break;
-	}
-	if (!rw)
+
+	localization.text = (char *) COM_LoadMallocFile (file, NULL);
+
+	if (!localization.text)
 	{
 		for (i = com_numbasedirs - 1; i >= 0; i--)
 		{
-			q_snprintf(path, sizeof(path), "%s/QuakeEX.kpf", com_basedirs[i]);
+			q_snprintf(path, sizeof(path), "%s/%s", com_basedirs[i], file);
 			rw = SDL_RWFromFile(path, "rb");
 			if (rw)
 				break;
 		}
 		if (!rw)
 		{
-			steamgame_t steamquake;
-			char steampath[MAX_OSPATH];
-			if (Steam_FindGame (&steamquake, QUAKE_STEAM_APPID) &&
-				Steam_ResolvePath (steampath, sizeof (steampath), &steamquake))
+			for (i = com_numbasedirs - 1; i >= 0; i--)
 			{
-				q_snprintf(path, sizeof(path), "%s/rerelease/QuakeEX.kpf", steampath);
+				q_snprintf(path, sizeof(path), "%s/QuakeEX.kpf", com_basedirs[i]);
 				rw = SDL_RWFromFile(path, "rb");
+				if (rw)
+					break;
 			}
-		}
-		if (!rw)
-		{
-			char gogpath[MAX_OSPATH];
-			if (Sys_GetGOGQuakeEnhancedDir (gogpath, sizeof (gogpath)))
+			if (!rw)
 			{
-				q_snprintf(path, sizeof(path), "%s/QuakeEX.kpf", gogpath);
-				rw = SDL_RWFromFile(path, "rb");
+				steamgame_t steamquake;
+				char steampath[MAX_OSPATH];
+				if (Steam_FindGame (&steamquake, QUAKE_STEAM_APPID) &&
+					Steam_ResolvePath (steampath, sizeof (steampath), &steamquake))
+				{
+					q_snprintf(path, sizeof(path), "%s/rerelease/QuakeEX.kpf", steampath);
+					rw = SDL_RWFromFile(path, "rb");
+				}
 			}
-		}
-		if (!rw)
-		{
-			char egspath[MAX_OSPATH];
-			if (EGS_FindGame (egspath, sizeof (egspath), QUAKE_EGS_NAMESPACE, QUAKE_EGS_ITEM_ID, QUAKE_EGS_APP_NAME))
+			if (!rw)
 			{
-				q_snprintf(path, sizeof(path), "%s/QuakeEX.kpf", egspath);
-				rw = SDL_RWFromFile(path, "rb");
+				char gogpath[MAX_OSPATH];
+				if (Sys_GetGOGQuakeEnhancedDir (gogpath, sizeof (gogpath)))
+				{
+					q_snprintf(path, sizeof(path), "%s/QuakeEX.kpf", gogpath);
+					rw = SDL_RWFromFile(path, "rb");
+				}
 			}
+			if (!rw)
+			{
+				char egspath[MAX_OSPATH];
+				if (EGS_FindGame (egspath, sizeof (egspath), QUAKE_EGS_NAMESPACE, QUAKE_EGS_ITEM_ID, QUAKE_EGS_APP_NAME))
+				{
+					q_snprintf(path, sizeof(path), "%s/QuakeEX.kpf", egspath);
+					rw = SDL_RWFromFile(path, "rb");
+				}
+			}
+			if (!rw) goto fail;
+			sz = SDL_RWsize(rw);
+			if (sz <= 0) goto fail;
+			archive.m_pRead = mz_zip_file_read_func;
+			archive.m_pIO_opaque = rw;
+			if (!mz_zip_reader_init(&archive, sz, 0)) goto fail;
+			localization.text = (char *) mz_zip_reader_extract_file_to_heap(&archive, file, &size, 0);
+			if (!localization.text) goto fail;
+			mz_zip_reader_end(&archive);
+			SDL_RWclose(rw);
+			localization.text = (char *) realloc(localization.text, size+1);
+			localization.text[size] = 0;
 		}
-		if (!rw) goto fail;
-		sz = SDL_RWsize(rw);
-		if (sz <= 0) goto fail;
-		archive.m_pRead = mz_zip_file_read_func;
-		archive.m_pIO_opaque = rw;
-		if (!mz_zip_reader_init(&archive, sz, 0)) goto fail;
-		localization.text = (char *) mz_zip_reader_extract_file_to_heap(&archive, file, &size, 0);
-		if (!localization.text) goto fail;
-		mz_zip_reader_end(&archive);
-		SDL_RWclose(rw);
-		localization.text = (char *) realloc(localization.text, size+1);
-		localization.text[size] = 0;
-	}
-	else
-	{
-		sz = SDL_RWsize(rw);
-		if (sz <= 0) goto fail;
-		localization.text = (char *) calloc(1, sz+1);
-		if (!localization.text)
+		else
 		{
-fail:			mz_zip_reader_end(&archive);
-			if (rw) SDL_RWclose(rw);
-			Con_Printf("Couldn't load '%s'\n", file);
-			return false;
+			sz = SDL_RWsize(rw);
+			if (sz <= 0) goto fail;
+			localization.text = (char *) calloc(1, sz+1);
+			if (!localization.text)
+			{
+fail:				mz_zip_reader_end(&archive);
+				if (rw) SDL_RWclose(rw);
+				Con_Printf("Couldn't load '%s'\n", file);
+				return false;
+			}
+			SDL_RWread(rw, localization.text, 1, sz);
+			SDL_RWclose(rw);
 		}
-		SDL_RWread(rw, localization.text, 1, sz);
-		SDL_RWclose(rw);
 	}
 
 	cursor = localization.text;
