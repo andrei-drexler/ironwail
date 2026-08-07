@@ -4112,17 +4112,17 @@ static qboolean MD5Anim_Load(md5animctx_t *ctx, boneinfo_t *bones, size_t numbon
 	{
 		//validate stuff
 		if (strcmp(bones[j].name, com_token))
-			Sys_Error ("%s: bone was renamed", fname);
+			MD5ERROR ("%s: bone %s was renamed\n", fname, bones[j].name);
 		buffer = COM_Parse(buffer);
 		if (bones[j].parent != MD5SINT())
-			Sys_Error ("%s: bone has wrong parent", fname);
+			MD5ERROR ("%s: bone %s has wrong parent\n", fname, bones[j].name);
 		//new info
 		ab[j].flags = MD5UINT();
 		if (ab[j].flags & ~63)
-			Sys_Error ("%s: bone has unsupported flags", fname);
+			MD5ERROR ("%s: bone %s has unsupported flags\n", fname, bones[j].name);
 		ab[j].offset = MD5UINT();
 		if (ab[j].offset > rawcount+6)
-			Sys_Error ("%s: bone has bad offset", fname);
+			MD5ERROR ("%s: bone %s has bad offset\n", fname, bones[j].name);
 	}
 	MD5EXPECT("}");
 	MD5EXPECT("bounds");
