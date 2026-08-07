@@ -165,6 +165,30 @@ int			scr_erase_center;
 
 /*
 ==============
+SCR_GetCenterPrintWrapLimit
+
+Returns the maximum number of chars to be printed on a single line.
+==============
+*/
+static int SCR_GetCenterPrintWrapLimit (void)
+{
+	drawtransform_t transform;
+	float left, top, right, bottom;
+	float width;
+
+	Draw_GetCanvasTransform (CANVAS_MENU, &transform);
+	Draw_GetTransformBounds (&transform, &left, &top, &right, &bottom);
+	width = right - left;
+
+	// avoid overlong lines
+	width = LERP (320.0f, width, 0.25f);
+	width = CLAMP (320.0f, width, 400.0f);
+
+	return ((int) width) >> 3;
+}
+
+/*
+==============
 SCR_CenterPrint
 
 Called for important messages that should stay in the center of the screen
@@ -175,7 +199,9 @@ void SCR_CenterPrint (const char *str) //update centerprint data
 {
 	int cols;
 
-	q_strlcpy (scr_centerstring, str, sizeof (scr_centerstring));
+	cols = scr_usekfont.value ? SCR_GetCenterPrintWrapLimit () : 0;
+	COM_WordWrap (scr_centerstring, str, sizeof (scr_centerstring), cols);
+
 	if (!scr_centerstring[0])
 	{
 		scr_center_lines = 0;

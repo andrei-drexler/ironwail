@@ -302,6 +302,9 @@ typedef struct
 
 qboolean COM_ParseLine (const char **str, stringview_t *line);
 qboolean COM_ParseMutableLine (char **str, char **line);
+int COM_WordLength (const char *text);
+void COM_WordWrap (char *dst, const char *src, size_t dstsize, int maxcols);
+int COM_AdvanceLineWrapped (const char **text, int maxchars);
 
 extern	int			com_argc;
 extern	const char	**com_argv;

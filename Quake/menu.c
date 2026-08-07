@@ -369,56 +369,6 @@ static void M_PrintDotFill (int x, int y, const char *text, int cols, qboolean c
 	GL_SetCanvasColor (1.f, 1.f, 1.f, 1.f);
 }
 
-static int M_WordLength (const char *text)
-{
-	const char *start = text;
-	while (*text && !q_isblank (*text))
-		text++;
-	return text - start;
-}
-
-static int M_LineWrap (const char **text, int maxchars)
-{
-	const char *str = *text;
-	int i;
-
-	for (i = 0; i < maxchars && str[i]; /**/)
-	{
-		if (str[i] == '\n')
-		{
-			*text += i + 1;
-			return i;
-		}
-
-		// new word
-		if (!q_isblank (str[i]) && (i == 0 || q_isblank (str[i - 1])))
-		{
-			int len = M_WordLength (str + i);
-			// split word if longer than given limit
-			if (len > maxchars)
-			{
-				*text += maxchars;
-				return maxchars;
-			}
-			// not enough space left? push word to next line
-			if (i + len > maxchars)
-			{
-				*text += i;
-				return i;
-			}
-			// word fits, continue
-			i += len;
-		}
-		else
-			i++;
-	}
-
-	// avoid starting next line with a space
-	*text += i + (q_isblank (str[i]) ? 1 : 0);
-
-	return i;
-}
-
 int M_PrintWordWrap (int x, int y, const char *text, int width, int height, qboolean color)
 {
 	int maxcols = width / 8;
@@ -428,7 +378,7 @@ int M_PrintWordWrap (int x, int y, const char *text, int width, int height, qboo
 	while (*text && numlines < maxlines)
 	{
 		const char *line = text;
-		int len = M_LineWrap (&text, maxcols);
+		int len = COM_AdvanceLineWrapped (&text, maxcols);
 		M_PrintSubstring (x, y + numlines * 8, line, len, color);
 		numlines++;
 	}
@@ -7014,7 +6964,7 @@ static void M_ModInfo_UpdateLayout (void)
 	str = modinfomenu.author;
 	while (*str && height < MODINFO_MAXAUTHORLINES)
 	{
-		M_LineWrap (&str, MODINFO_INFOCOLS);
+		COM_AdvanceLineWrapped (&str, MODINFO_INFOCOLS);
 		height++;
 	}
 
