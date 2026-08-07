@@ -32,7 +32,7 @@ static void Mod_LoadSpriteModel (qmodel_t *mod, void *buffer);
 static void Mod_LoadBrushModel (qmodel_t *mod, void *buffer);
 static void Mod_LoadAliasModel (qmodel_t *mod, void *buffer);
 static void Mod_LoadMD3Model (qmodel_t* mod, const char* buffer);
-static void Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer);
+static qboolean Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer);
 static qmodel_t *Mod_LoadModel (qmodel_t *mod, qboolean crash);
 
 static void Mod_Print (void);
@@ -3246,9 +3246,9 @@ qboolean loadMd5Replacement(qmodel_t* mod, char	*path)
 		char* md5buffer = (char*)COM_LoadMallocFile (path, NULL);
 		if (md5buffer)
 		{
-			Mod_LoadMD5MeshModel (mod, md5buffer);
+			qboolean result = Mod_LoadMD5MeshModel (mod, md5buffer);
 			free (md5buffer);
-			return true;
+			return result;
 		}
 	}
 	return false;
@@ -3778,7 +3778,9 @@ static double MD5_ParseFloat(const char **buffer)
 	*buffer = COM_Parse(*buffer);
 	return i;
 }
-#define MD5EXPECT(s) do{if (strcmp(com_token, s)) Sys_Error ("Mod_LoadMD5MeshModel(%s): Expected \"%s\"", fname, s); buffer = COM_Parse(buffer); }while(0)
+#define MD5ERROR(...) do { Con_Warning (__VA_ARGS__); goto error; } while(0)
+
+#define MD5EXPECT(s) do{if (strcmp(com_token, s)) MD5ERROR ("Mod_LoadMD5MeshModel(%s): expected \"%s\", found \"%s\"\n", fname, s, com_token); buffer = COM_Parse(buffer); }while(0)
 #define MD5UINT() MD5_ParseUInt(&buffer)
 #define MD5SINT() MD5_ParseSInt(&buffer)
 #define MD5FLOAT() MD5_ParseFloat(&buffer)
@@ -3869,7 +3871,7 @@ static void Matrix3x4_RM_Transform4(const float *matrix, const float *vector, fl
 	product[1] = matrix[4]*vector[0] + matrix[5]*vector[1] + matrix[6]*vector[2] + matrix[7]*vector[3];
 	product[2] = matrix[8]*vector[0] + matrix[9]*vector[1] + matrix[10]*vector[2] + matrix[11]*vector[3];
 }
-static void MD5_BakeInfluences(const char *fname, bonepose_t *outposes, iqmvert_t *vert, md5vertinfo_t *vinfo, md5weightinfo_t *weight, size_t numverts, size_t numweights)
+static qboolean MD5_BakeInfluences(const char *fname, bonepose_t *outposes, iqmvert_t *vert, md5vertinfo_t *vinfo, md5weightinfo_t *weight, size_t numverts, size_t numweights)
 {
 	size_t v, i, lowidx, k;
 	md5weightinfo_t *w;
@@ -3889,7 +3891,7 @@ static void MD5_BakeInfluences(const char *fname, bonepose_t *outposes, iqmvert_
 		vert->idx[0] = vert->idx[1] = vert->idx[2] = vert->idx[3] = 0;
 
 		if (vinfo->firstweight + vinfo->count > numweights)
-			Sys_Error ("%s: weight index out of bounds", fname);
+			MD5ERROR ("%s: weight index out of bounds\n", fname);
 		if (maxinfluences < vinfo->count)
 			maxinfluences = vinfo->count;
 		w = weight + vinfo->firstweight;
@@ -3937,6 +3939,10 @@ static void MD5_BakeInfluences(const char *fname, bonepose_t *outposes, iqmvert_
 	}
 	if (maxinfluences > countof(vert->weight))
 		Con_DWarning("%s uses up to %u influences per vertex (weakest: %g)\n", fname, maxinfluences, scaleimprecision);
+	return true;
+
+error:
+	return false;
 }
 
 static uint32_t HashVert (const vec3_t v)
@@ -4039,7 +4045,7 @@ typedef struct
 	bonepose_t *posedata;
 } md5animctx_t;
 //This is split into two because aliashdr_t has silly trailing framegroup info.
-static void MD5Anim_Begin(md5animctx_t *ctx, const char *fname)
+static qboolean MD5Anim_Begin(md5animctx_t *ctx, const char *fname)
 {
 	//Load an md5anim into it, if we can.
 	COM_StripExtension(fname, ctx->fname, sizeof(ctx->fname));
@@ -4059,32 +4065,37 @@ static void MD5Anim_Begin(md5animctx_t *ctx, const char *fname)
 		MD5EXPECT("frameRate"); /*irrelevant here*/
 
 		if (ctx->numposes <= 0)
-			Sys_Error ("%s has no poses", fname);
+			MD5ERROR ("%s has no poses\n", fname);
 
 		ctx->buffer = buffer;
 	}
+	return true;
+
+error:
+	free (ctx->animfile);
+	return false;
 }
-static void MD5Anim_Load(md5animctx_t *ctx, boneinfo_t *bones, size_t numbones)
+static qboolean MD5Anim_Load(md5animctx_t *ctx, boneinfo_t *bones, size_t numbones)
 {
 	typedef struct { unsigned int flags, offset;} md5animbase_t;
 	const char *fname = ctx->fname;
-	md5animbase_t *ab;
+	md5animbase_t *ab = NULL;
 	size_t rawcount;
-	float *raw, *r;
-	bonepose_t *outposes, *frameposes;
+	float *raw = NULL, *r;
+	bonepose_t *outposes = NULL, *frameposes = NULL;
 	const char *buffer = COM_Parse(ctx->buffer);
 	size_t j;
 
 	if (!buffer)
 	{
 		free(ctx->animfile);
-		return;
+		return false;
 	}
 
 	MD5EXPECT("numAnimatedComponents");	rawcount = MD5UINT();
 
 	if (ctx->numjoints != numbones)
-		Sys_Error ("%s has incorrect bone count", fname);
+		MD5ERROR ("%s has incorrect bone count (expected %d, found %d)\n", fname, (int)numbones, (int)ctx->numjoints);
 
 	raw = (float *) Z_Malloc(sizeof(*raw)*(rawcount+6));
 	ab = (md5animbase_t *) Z_Malloc(sizeof(*ab)*ctx->numjoints);
@@ -4152,7 +4163,7 @@ static void MD5Anim_Load(md5animctx_t *ctx, boneinfo_t *bones, size_t numbones)
 	{
 		size_t idx = MD5UINT();
 		if (idx >= ctx->numposes)
-			Sys_Error ("%s: invalid pose index", fname);
+			MD5ERROR ("%s: invalid pose index %d (max=%d)\n", fname, (int)idx, (int)ctx->numposes);
 		MD5EXPECT("{");
 		for (j = 0; j < rawcount; j++)
 			raw[j] = MD5FLOAT();
@@ -4195,27 +4206,109 @@ static void MD5Anim_Load(md5animctx_t *ctx, boneinfo_t *bones, size_t numbones)
 	Z_Free(ab);
 	free(frameposes);
 	free(ctx->animfile);
+	return true;
+
+error:
+	if (raw)
+		Z_Free(raw);
+	if (ab)
+		Z_Free(ab);
+	free(frameposes);
+	free(ctx->animfile);
+	return false;
 }
-static void Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer)
+
+static void Mod_LoadMD5Skins (qmodel_t *mod, aliashdr_t *surf, const char *shader)
+{
+	char texname[MAX_QPATH];
+
+	//MD5 violation: the skin is a single material. adding prefixes/postfixes here is the wrong thing to do.
+	//but we do so anyway, because rerelease compat.
+	for (surf->numskins = 0; surf->numskins < MAX_SKINS; surf->numskins++)
+	{
+		unsigned int fwidth, fheight, f;
+		enum srcformat fmt = SRC_RGBA;
+		void *data;
+		int mark = Hunk_LowMark ();
+		for (f = 0; f < countof(surf->gltextures[0]); f++)
+		{
+			q_snprintf(texname, sizeof(texname), "progs/%s_%02u_%02u", shader, surf->numskins, f);
+
+			data = Image_LoadImage (texname, (int*)&fwidth, (int*)&fheight, &fmt);
+			//now load whatever we found
+			if (data) //load external image
+			{
+				surf->gltextures[surf->numskins][f] = TexMgr_LoadImage (mod, texname, fwidth, fheight, fmt, data, texname, 0, TEXPREF_ALPHA|TEXPREF_NOBRIGHT|TEXPREF_MIPMAP );
+				surf->fbtextures[surf->numskins][f] = NULL;
+				if (fmt == SRC_INDEXED)
+				{	//8bit base texture. use it for fullbrights.
+					if (Mod_CheckFullbrights (data, fwidth*fheight))
+						surf->fbtextures[surf->numskins][f] = TexMgr_LoadImage (mod, va("%s_luma", texname), fwidth, fheight, fmt, data, texname, 0, TEXPREF_ALPHA|TEXPREF_FULLBRIGHT|TEXPREF_MIPMAP );
+				}
+				else
+				{	//we found a 32bit base texture.
+					if (!surf->fbtextures[surf->numskins][f])
+					{
+						q_snprintf(texname, sizeof(texname), "progs/%s_%02u_%02u_glow", shader, surf->numskins, f);
+						surf->fbtextures[surf->numskins][f] = TexMgr_LoadImage(mod, texname, surf->skinwidth, surf->skinheight, SRC_RGBA, NULL, texname, 0, TEXPREF_MIPMAP);
+					}
+					if (!surf->fbtextures[surf->numskins][f])
+					{
+						q_snprintf(texname, sizeof(texname), "progs/%s_%02u_%02u_luma", shader, surf->numskins, f);
+						surf->fbtextures[surf->numskins][f] = TexMgr_LoadImage(mod, texname, surf->skinwidth, surf->skinheight, SRC_RGBA, NULL, texname, 0, TEXPREF_MIPMAP);
+					}
+				}
+
+				//now try to load glow/luma image from the same place
+				Hunk_FreeToLowMark (mark);
+			}
+			else
+				break;
+		}
+		if (f == 0)
+			break;	//no images loaded...
+
+		//this stuff is hideous.
+		if (f < 2)
+		{
+			surf->gltextures[surf->numskins][1] = surf->gltextures[surf->numskins][0];
+			surf->fbtextures[surf->numskins][1] = surf->fbtextures[surf->numskins][0];
+		}
+		if (f == 3)
+			Con_Warning("progs/%s_%02u_##: 3 skinframes found...\n", shader, surf->numskins);
+		if (f < 4)
+		{
+			surf->gltextures[surf->numskins][3] = surf->gltextures[surf->numskins][1];
+			surf->gltextures[surf->numskins][2] = surf->gltextures[surf->numskins][0];
+
+			surf->fbtextures[surf->numskins][3] = surf->fbtextures[surf->numskins][1];
+			surf->fbtextures[surf->numskins][2] = surf->fbtextures[surf->numskins][0];
+		}
+	}
+	surf->skinwidth = surf->gltextures[0][0]?surf->gltextures[0][0]->width:1;
+	surf->skinheight = surf->gltextures[0][0]?surf->gltextures[0][0]->height:1;
+}
+
+static qboolean Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer)
 {
 	const char			*fname = mod->name;
 	unsigned short		*poutindexes;
 	iqmvert_t			*poutvert;
 	int					start, end, total;
-	aliashdr_t			*outhdr, *surf;
+	aliashdr_t			*outhdr = NULL, *surf;
 	size_t				hdrsize;
 
-	bonepose_t			*outposes;
+	bonepose_t			*outposes = NULL;
 	boneinfo_t			*outbones;
 
 	size_t				numjoints, j;
-	size_t				nummeshes, m;
-	char				texname[MAX_QPATH];
-	md5vertinfo_t		*vinfo;
-	md5weightinfo_t		*weight;
+	size_t				nummeshes = 0, m;
+	md5vertinfo_t		*vinfo = NULL;
+	md5weightinfo_t		*weight = NULL;
 	size_t				numweights;
 
 	md5animctx_t		anim = {NULL};
+	char				*shaders = NULL, *s;
 
 	start = Hunk_LowMark ();
 
@@ -4228,14 +4321,16 @@ static void Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer)
 	MD5EXPECT("numMeshes");	nummeshes = MD5UINT();
 
 	if (numjoints <= 0)
-		Sys_Error ("%s has no bones", mod->name);
+		MD5ERROR ("%s has no bones\n", mod->name);
 	if (nummeshes <= 0)
-		Sys_Error ("%s has no meshes", mod->name);
+		MD5ERROR ("%s has no meshes\n", mod->name);
 
-	if (strcmp(com_token, "joints")) Sys_Error ("Mod_LoadMD5MeshModel(%s): Expected \"%s\"", fname, "joints");
-	MD5Anim_Begin(&anim, fname);
+	if (strcmp(com_token, "joints")) MD5ERROR ("Mod_LoadMD5MeshModel(%s): Expected \"%s\"\n", fname, "joints");
+	if (!MD5Anim_Begin(&anim, fname))
+		return false;
+
 	if (anim.numposes <= 0)
-		Sys_Error ("MD5 anim %s has no poses", fname);
+		MD5ERROR ("%s has no poses\n", fname);
 	buffer = COM_Parse(buffer);
 
 	hdrsize = sizeof(*outhdr) - sizeof(outhdr->frames);
@@ -4252,8 +4347,8 @@ static void Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer)
 		vec4_t quat;
 		q_strlcpy(outbones[j].name, com_token, sizeof(outbones[j].name));	buffer = COM_Parse(buffer);
 		outbones[j].parent = MD5SINT();
-		if (outbones[j].parent < -1 && outbones[j].parent >= (int)numjoints)
-			Sys_Error ("bone index out of bounds");
+		if (outbones[j].parent < -1 || outbones[j].parent >= (int)numjoints)
+			MD5ERROR ("%s: bone index %d out of bounds (max=%d)\n", fname, outbones[j].parent, (int)numjoints);
 		MD5EXPECT("(");
 		pos[0] = MD5FLOAT();
 		pos[1] = MD5FLOAT();
@@ -4273,8 +4368,9 @@ static void Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer)
 		Matrix3x4_Invert_Simple(outposes[j].mat, outbones[j].inverse.mat);	//absolute, so we can just invert now.
 	}
 
-	if (strcmp(com_token, "}")) Sys_Error ("Mod_LoadMD5MeshModel(%s): Expected \"%s\"", fname, "}");
-	MD5Anim_Load(&anim, outbones, numjoints);
+	if (strcmp(com_token, "}")) MD5ERROR ("Mod_LoadMD5MeshModel(%s): Expected \"%s\"\n", fname, "}");
+	if (!MD5Anim_Load(&anim, outbones, numjoints))
+		goto error;
 	buffer = COM_Parse(buffer);
 
 	for (m = 0; m < nummeshes; m++)
@@ -4313,71 +4409,8 @@ static void Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer)
 		}
 
 		MD5EXPECT("shader");
-		//MD5 violation: the skin is a single material. adding prefixes/postfixes here is the wrong thing to do.
-		//but we do so anyway, because rerelease compat.
-		for (surf->numskins = 0; surf->numskins < MAX_SKINS; surf->numskins++)
-		{
-			unsigned int fwidth, fheight, f;
-			enum srcformat fmt = SRC_RGBA;
-			void *data;
-			int mark = Hunk_LowMark ();
-			for (f = 0; f < countof(surf->gltextures[0]); f++)
-			{
-				q_snprintf(texname, sizeof(texname), "progs/%s_%02u_%02u", com_token, surf->numskins, f);
+		MultiString_Append (&shaders, com_token);
 
-				data = Image_LoadImage (texname, (int*)&fwidth, (int*)&fheight, &fmt);
-				//now load whatever we found
-				if (data) //load external image
-				{
-					surf->gltextures[surf->numskins][f] = TexMgr_LoadImage (mod, texname, fwidth, fheight, fmt, data, texname, 0, TEXPREF_ALPHA|TEXPREF_NOBRIGHT|TEXPREF_MIPMAP );
-					surf->fbtextures[surf->numskins][f] = NULL;
-					if (fmt == SRC_INDEXED)
-					{	//8bit base texture. use it for fullbrights.
-						if (Mod_CheckFullbrights (data, fwidth*fheight))
-							surf->fbtextures[surf->numskins][f] = TexMgr_LoadImage (mod, va("%s_luma", texname), fwidth, fheight, fmt, data, texname, 0, TEXPREF_ALPHA|TEXPREF_FULLBRIGHT|TEXPREF_MIPMAP );
-					}
-					else
-					{	//we found a 32bit base texture.
-						if (!surf->fbtextures[surf->numskins][f])
-						{
-							q_snprintf(texname, sizeof(texname), "progs/%s_%02u_%02u_glow", com_token, surf->numskins, f);
-							surf->fbtextures[surf->numskins][f] = TexMgr_LoadImage(mod, texname, surf->skinwidth, surf->skinheight, SRC_RGBA, NULL, texname, 0, TEXPREF_MIPMAP);
-						}
-						if (!surf->fbtextures[surf->numskins][f])
-						{
-							q_snprintf(texname, sizeof(texname), "progs/%s_%02u_%02u_luma", com_token, surf->numskins, f);
-							surf->fbtextures[surf->numskins][f] = TexMgr_LoadImage(mod, texname, surf->skinwidth, surf->skinheight, SRC_RGBA, NULL, texname, 0, TEXPREF_MIPMAP);
-						}
-					}
-
-					//now try to load glow/luma image from the same place
-					Hunk_FreeToLowMark (mark);
-				}
-				else
-					break;
-			}
-			if (f == 0)
-				break;	//no images loaded...
-
-			//this stuff is hideous.
-			if (f < 2)
-			{
-				surf->gltextures[surf->numskins][1] = surf->gltextures[surf->numskins][0];
-				surf->fbtextures[surf->numskins][1] = surf->fbtextures[surf->numskins][0];
-			}
-			if (f == 3)
-				Con_Warning("progs/%s_%02u_##: 3 skinframes found...\n", com_token, surf->numskins);
-			if (f < 4)
-			{
-				surf->gltextures[surf->numskins][3] = surf->gltextures[surf->numskins][1];
-				surf->gltextures[surf->numskins][2] = surf->gltextures[surf->numskins][0];
-
-				surf->fbtextures[surf->numskins][3] = surf->fbtextures[surf->numskins][1];
-				surf->fbtextures[surf->numskins][2] = surf->fbtextures[surf->numskins][0];
-			}
-		}
-		surf->skinwidth = surf->gltextures[0][0]?surf->gltextures[0][0]->width:1;
-		surf->skinheight = surf->gltextures[0][0]?surf->gltextures[0][0]->height:1;
 		buffer = COM_Parse(buffer);
 		MD5EXPECT("numverts");
 		surf->numverts_vbo = surf->numverts = MD5UINT();
@@ -4389,7 +4422,7 @@ static void Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer)
 		{
 			size_t idx = MD5UINT();
 			if (idx >= (size_t)surf->numverts)
-				Sys_Error ("vertex index out of bounds");
+				MD5ERROR ("%s: vertex index %d out of bounds (max=%d)\n", fname, (int)idx, surf->numverts);
 			MD5EXPECT("(");
 			poutvert[idx].st[0] = MD5FLOAT();
 			poutvert[idx].st[1] = MD5FLOAT();
@@ -4406,13 +4439,13 @@ static void Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer)
 		{
 			size_t idx = MD5UINT();
 			if (idx >= (size_t)surf->numtris)
-				Sys_Error ("triangle index out of bounds");
+				MD5ERROR ("%s: triangle index %d out of bounds (max=%d)\n", fname, (int)idx, surf->numtris);
 			idx *= 3;
 			for (j = 0; j < 3; j++)
 			{
 				size_t t = MD5UINT();
 				if (t >= (size_t)surf->numverts)
-					Sys_Error ("vertex index out of bounds");
+					MD5ERROR ("%s: vertex index %d out of bounds (max=%d)\n", fname, (int)t, surf->numverts);
 				poutindexes[idx+j] = t;
 			}
 		}
@@ -4425,11 +4458,11 @@ static void Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer)
 		{
 			size_t idx = MD5UINT();
 			if (idx >= numweights)
-				Sys_Error ("weight index out of bounds");
+				MD5ERROR ("%s: weight index %d out of bounds (max=%d)\n", fname, (int)idx, (int)numweights);
 
 			weight[idx].bone = MD5UINT();
 			if (weight[idx].bone >= numjoints)
-				Sys_Error ("bone index out of bounds");
+				MD5ERROR ("%s: bone index %d out of bounds (max=%d)\n", fname, (int)weight[idx].bone, (int)numjoints);
 			weight[idx].pos[3] = MD5FLOAT();
 			MD5EXPECT("(");
 			weight[idx].pos[0] = MD5FLOAT()*weight[idx].pos[3];
@@ -4438,7 +4471,8 @@ static void Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer)
 			MD5EXPECT(")");
 		}
 		//so make it gpu-friendly.
-		MD5_BakeInfluences(fname, outposes, poutvert, vinfo, weight, surf->numverts, numweights);
+		if (!MD5_BakeInfluences(fname, outposes, poutvert, vinfo, weight, surf->numverts, numweights))
+			goto error;
 		//and now make up the normals that the format lacks. we'll still probably have issues from seams, but then so did qme, so at least its faithful... :P
 		MD5_ComputeNormals(poutvert, surf->numverts, poutindexes, surf->numindexes);
 
@@ -4448,6 +4482,7 @@ static void Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer)
 		MD5EXPECT("}");
 	}
 	Z_Free(outposes);
+	outposes = NULL;
 
 	GLMesh_LoadVertexBuffer (mod, outhdr);
 
@@ -4458,6 +4493,14 @@ static void Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer)
 
 	Mod_CalcAliasBounds (outhdr); //johnfitz
 
+	// Load textures after parsing and validation to avoid having to free them on error
+	for (m = 0, s = shaders; m < nummeshes; m++, s += strlen (s) + 1)
+	{
+		surf = (aliashdr_t*)((byte*)outhdr + m*hdrsize);
+		Mod_LoadMD5Skins (mod, surf, s); 
+	}
+	VEC_FREE (shaders);
+
 	//
 	// move the complete, relocatable alias model to the cache
 	//
@@ -4466,10 +4509,18 @@ static void Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer)
 
 	Cache_Alloc (&mod->cache, total, loadname);
 	if (!mod->cache.data)
-		return;
+		return false;
 	memcpy (mod->cache.data, outhdr, total);
 
 	Hunk_FreeToLowMark (start);
+	return true;
+
+error:
+	VEC_FREE (shaders);
+	if (outposes)
+		Z_Free (outposes);
+	Hunk_FreeToLowMark (start);
+	return false;
 }
 
 // =======================================================================
