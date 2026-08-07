@@ -399,6 +399,7 @@ typedef enum {mod_brush, mod_alias, mod_sprite, mod_numtypes} modtype_t;
 #define	MOD_NOLERP		256		//don't lerp when animating
 #define	MOD_NOSHADOW	512		//don't cast a shadow
 #define	MOD_FBRIGHTHACK	1024	//when fullbrights are disabled, use a hack to render this model brighter
+#define	MOD_ALPHASURFS	2048    //model has RGBA skin(s) 
 //johnfitz
 
 //

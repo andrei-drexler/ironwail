@@ -456,15 +456,22 @@ void R_TranslateNewPlayerSkin (int playernum); //johnfitz -- this handles cases 
 
 void R_UploadFrameData (void);
 
+
+enum aliaspass_t
+{
+	ALIASPASS_OPAQUE,
+	ALIASPASS_TRANSLUCENT
+};
+
 void R_DrawBrushModels (entity_t **ents, int count);
 void R_DrawBrushModels_Water (entity_t **ents, int count, qboolean translucent);
 void R_DrawBrushModels_SkyLayers (entity_t **ents, int count);
 void R_DrawBrushModels_SkyCubemap (entity_t **ents, int count);
 void R_DrawBrushModels_SkyStencil (entity_t **ents, int count);
-void R_DrawAliasModels (entity_t **ents, int count);
+void R_DrawAliasModels (entity_t **ents, int count, enum aliaspass_t pass);
 void R_DrawSpriteModels (entity_t **ents, int count);
 void R_DrawBrushModels_ShowTris (entity_t **ents, int count);
-void R_DrawAliasModels_ShowTris (entity_t **ents, int count);
+void R_DrawAliasModels_ShowTris (entity_t **ents, int count, enum aliaspass_t pass);
 void R_DrawSpriteModels_ShowTris (entity_t **ents, int count);
 
 entity_t **R_GetVisEntities (modtype_t type, qboolean translucent, int *outcount);
