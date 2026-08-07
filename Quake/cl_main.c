@@ -52,11 +52,7 @@ cvar_t	cl_minpitch = {"cl_minpitch", "-90", CVAR_ARCHIVE}; //johnfitz -- variabl
 cvar_t	cl_mwheelpitch = {"cl_mwheelpitch", "5", CVAR_ARCHIVE};
 
 cvar_t	cl_startdemos = {"cl_startdemos", "1", CVAR_ARCHIVE};
-cvar_t	cl_confirmquit = {"cl_confirmquit", "0", CVAR_ARCHIVE};
- 
-extern cvar_t cl_weaponwheel_slowdown;
-extern cvar_t host_timescale;
-
+cvar_t	cl_confirmquit = {"cl_confirmquit", "2", CVAR_ARCHIVE}; // 0=off; 1=simple; 2=classic
 
 client_static_t	cls;
 client_state_t	cl;
@@ -73,6 +69,8 @@ entity_t		*cl_visedicts[MAX_VISEDICTS];
 
 extern cvar_t	r_lerpmodels, r_lerpmove; //johnfitz
 extern float	host_netinterval;	//Spike
+extern cvar_t cl_weaponwheel_slowdown;
+extern cvar_t host_timescale;
 
 extern vec3_t	v_punchangles[2];
 

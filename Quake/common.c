@@ -42,8 +42,6 @@ cvar_t	language = {"language","auto",CVAR_ARCHIVE}; /* for 2021 rerelease text *
 
 static qboolean		com_modified;	// set true if using non-id files
 
-qboolean		fitzmode;
-
 static void COM_Path_f (void);
 
 // if a packfile directory differs from this, it is assumed to be hacked
@@ -1465,6 +1463,111 @@ qboolean COM_ParseMutableLine (char **str, char **line)
 
 /*
 ================
+COM_WordLength
+================
+*/
+int COM_WordLength (const char *text)
+{
+	const char *start = text;
+	while (*text && !q_isspace (*text))
+		text++;
+	return text - start;
+}
+
+/*
+================
+COM_AdvanceLineWrapped
+
+Advances text by as much as possible until the maxchars limit is hit,
+avoiding splitting words if possible.
+
+Returns the length of the consumed text, excluding a potential trailing space or newline.
+================
+*/
+int COM_AdvanceLineWrapped (const char **text, int maxchars)
+{
+	const char *str = *text;
+	int i;
+
+	for (i = 0; i < maxchars && str[i]; /**/)
+	{
+		if (str[i] == '\n')
+		{
+			*text += i + 1;
+			return i;
+		}
+
+		// new word
+		if (!q_isspace (str[i]) && (i == 0 || q_isspace (str[i - 1])))
+		{
+			int len = COM_WordLength (str + i);
+			// split word if longer than given limit
+			if (len > maxchars)
+			{
+				*text += maxchars;
+				return maxchars;
+			}
+			// not enough space left? push word to next line
+			if (i + len > maxchars)
+			{
+				*text += i;
+				return i;
+			}
+			// word fits, continue
+			i += len;
+		}
+		else
+			i++;
+	}
+
+	// avoid starting next line with a space
+	*text += i + (q_isspace (str[i]) ? 1 : 0);
+
+	return i;
+}
+
+/*
+================
+COM_WordWrap
+
+Copies src to dst by word-wrapping lines longer than maxcols, preserving existing linefeeds.
+If maxcols <= 0 no wrapping is performed (plain string copy).
+dst is always NUL terminated if dstsize > 0.
+================
+*/
+void COM_WordWrap (char *dst, const char *src, size_t dstsize, int maxcols)
+{
+	size_t ofs;
+
+	if (maxcols <= 0)
+	{
+		q_strlcpy (dst, src, dstsize);
+		return;
+	}
+
+	if (!dstsize)
+		return;
+	// reserve space for terminating NUL
+	--dstsize;
+
+	ofs = 0;
+	while (*src)
+	{
+		const char *start = src;
+		size_t len = (size_t) COM_AdvanceLineWrapped (&src, maxcols);
+		size_t remaining = dstsize - ofs;
+		len = q_min (len, remaining);
+		memcpy (dst + ofs, start, len);
+		ofs += len;
+		if (ofs + 1 < dstsize && *src)
+			dst[ofs++] = '\n';
+	}
+
+	dst[ofs++] = '\0';
+}
+
+/*
+================
 COM_CheckParm
 
 Returns the position (1 to argc-1) in the program's argument list
@@ -1624,8 +1727,6 @@ COM_Init
 */
 void COM_Init (void)
 {
-	if (COM_CheckParm("-fitz"))
-		fitzmode = true;
 }
 
 
@@ -2452,7 +2553,7 @@ void COM_AddGameDirectory (const char *dir)
 			com_searchpaths = search;
 
 			// add engine pak after pak0.pak
-			if (i == 0 && j == 0 && path_id == 1u && !fitzmode)
+			if (i == 0 && j == 0 && path_id == 1u)
 				COM_AddEnginePak ();
 		}
 	}
@@ -3601,78 +3702,84 @@ qboolean LOC_LoadFile (const char *file)
 		return false;
 
 	memset(&archive, 0, sizeof(archive));
-	for (i = com_numbasedirs - 1; i >= 0; i--)
-	{
-		q_snprintf(path, sizeof(path), "%s/%s", com_basedirs[i], file);
-		rw = SDL_RWFromFile(path, "rb");
-		if (rw)
-			break;
-	}
-	if (!rw)
+
+	localization.text = (char *) COM_LoadMallocFile (file, NULL);
+
+	if (!localization.text)
 	{
 		for (i = com_numbasedirs - 1; i >= 0; i--)
 		{
-			q_snprintf(path, sizeof(path), "%s/QuakeEX.kpf", com_basedirs[i]);
+			q_snprintf(path, sizeof(path), "%s/%s", com_basedirs[i], file);
 			rw = SDL_RWFromFile(path, "rb");
 			if (rw)
 				break;
 		}
 		if (!rw)
 		{
-			steamgame_t steamquake;
-			char steampath[MAX_OSPATH];
-			if (Steam_FindGame (&steamquake, QUAKE_STEAM_APPID) &&
-				Steam_ResolvePath (steampath, sizeof (steampath), &steamquake))
+			for (i = com_numbasedirs - 1; i >= 0; i--)
 			{
-				q_snprintf(path, sizeof(path), "%s/rerelease/QuakeEX.kpf", steampath);
+				q_snprintf(path, sizeof(path), "%s/QuakeEX.kpf", com_basedirs[i]);
 				rw = SDL_RWFromFile(path, "rb");
+				if (rw)
+					break;
 			}
-		}
-		if (!rw)
-		{
-			char gogpath[MAX_OSPATH];
-			if (Sys_GetGOGQuakeEnhancedDir (gogpath, sizeof (gogpath)))
+			if (!rw)
 			{
-				q_snprintf(path, sizeof(path), "%s/QuakeEX.kpf", gogpath);
-				rw = SDL_RWFromFile(path, "rb");
+				steamgame_t steamquake;
+				char steampath[MAX_OSPATH];
+				if (Steam_FindGame (&steamquake, QUAKE_STEAM_APPID) &&
+					Steam_ResolvePath (steampath, sizeof (steampath), &steamquake))
+				{
+					q_snprintf(path, sizeof(path), "%s/rerelease/QuakeEX.kpf", steampath);
+					rw = SDL_RWFromFile(path, "rb");
+				}
 			}
-		}
-		if (!rw)
-		{
-			char egspath[MAX_OSPATH];
-			if (EGS_FindGame (egspath, sizeof (egspath), QUAKE_EGS_NAMESPACE, QUAKE_EGS_ITEM_ID, QUAKE_EGS_APP_NAME))
+			if (!rw)
 			{
-				q_snprintf(path, sizeof(path), "%s/QuakeEX.kpf", egspath);
-				rw = SDL_RWFromFile(path, "rb");
+				char gogpath[MAX_OSPATH];
+				if (Sys_GetGOGQuakeEnhancedDir (gogpath, sizeof (gogpath)))
+				{
+					q_snprintf(path, sizeof(path), "%s/QuakeEX.kpf", gogpath);
+					rw = SDL_RWFromFile(path, "rb");
+				}
 			}
+			if (!rw)
+			{
+				char egspath[MAX_OSPATH];
+				if (EGS_FindGame (egspath, sizeof (egspath), QUAKE_EGS_NAMESPACE, QUAKE_EGS_ITEM_ID, QUAKE_EGS_APP_NAME))
+				{
+					q_snprintf(path, sizeof(path), "%s/QuakeEX.kpf", egspath);
+					rw = SDL_RWFromFile(path, "rb");
+				}
+			}
+			if (!rw) goto fail;
+			sz = SDL_RWsize(rw);
+			if (sz <= 0) goto fail;
+			archive.m_pRead = mz_zip_file_read_func;
+			archive.m_pIO_opaque = rw;
+			if (!mz_zip_reader_init(&archive, sz, 0)) goto fail;
+			localization.text = (char *) mz_zip_reader_extract_file_to_heap(&archive, file, &size, 0);
+			if (!localization.text) goto fail;
+			mz_zip_reader_end(&archive);
+			SDL_RWclose(rw);
+			localization.text = (char *) realloc(localization.text, size+1);
+			localization.text[size] = 0;
 		}
-		if (!rw) goto fail;
-		sz = SDL_RWsize(rw);
-		if (sz <= 0) goto fail;
-		archive.m_pRead = mz_zip_file_read_func;
-		archive.m_pIO_opaque = rw;
-		if (!mz_zip_reader_init(&archive, sz, 0)) goto fail;
-		localization.text = (char *) mz_zip_reader_extract_file_to_heap(&archive, file, &size, 0);
-		if (!localization.text) goto fail;
-		mz_zip_reader_end(&archive);
-		SDL_RWclose(rw);
-		localization.text = (char *) realloc(localization.text, size+1);
-		localization.text[size] = 0;
-	}
-	else
-	{
-		sz = SDL_RWsize(rw);
-		if (sz <= 0) goto fail;
-		localization.text = (char *) calloc(1, sz+1);
-		if (!localization.text)
+		else
 		{
-fail:			mz_zip_reader_end(&archive);
-			if (rw) SDL_RWclose(rw);
-			Con_Printf("Couldn't load '%s'\n", file);
-			return false;
+			sz = SDL_RWsize(rw);
+			if (sz <= 0) goto fail;
+			localization.text = (char *) calloc(1, sz+1);
+			if (!localization.text)
+			{
+fail:				mz_zip_reader_end(&archive);
+				if (rw) SDL_RWclose(rw);
+				Con_Printf("Couldn't load '%s'\n", file);
+				return false;
+			}
+			SDL_RWread(rw, localization.text, 1, sz);
+			SDL_RWclose(rw);
 		}
-		SDL_RWread(rw, localization.text, 1, sz);
-		SDL_RWclose(rw);
 	}
 
 	cursor = localization.text;
