@@ -264,6 +264,7 @@ OBJS = strlcat.o \
 	crc.o \
 	cvar.o \
 	cfgfile.o \
+	filesys.o \
 	host.o \
 	host_cmd.o \
 	mathlib.o \
