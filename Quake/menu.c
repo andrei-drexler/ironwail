@@ -66,6 +66,7 @@ extern cvar_t r_alphasort;
 extern cvar_t r_enhancedmodels;
 extern cvar_t r_lerpmodels;
 extern cvar_t r_lerpmove;
+extern cvar_t r_pixelaspect;
 extern cvar_t snd_waterfx;
 extern cvar_t joy_deadzone_look;
 extern cvar_t joy_deadzone_move;
@@ -1871,7 +1872,7 @@ void M_Maps_Draw (void)
 
 				M_PrintScroll (x + namecols*8, y + i*8, desccols*8, buf,
 					selected ? mapsmenu.ticker.scroll_time : 0.0, true);
-				
+
 				if (!message)
 					GL_SetCanvasColor (1, 1, 1, 1);
 			}
@@ -3115,6 +3116,7 @@ void M_Menu_Gamepad_f (void)
 	begin_menu (GRAPHICS_OPTIONS, m_graphics, TITLE("Graphics"))		\
 		item (OPT_SOFTEMU,				"8-bit Mode")					\
 		item (OPT_SOFTEMU_MDL,			"Model Warping")				\
+		item (OPT_PIXELASPECT,          "Pixels")                       \
 		item (OPT_ENHANCEDMODELS,		"Models")						\
 		item (OPT_ANIMLERP,				"Animations")					\
 		item (OPT_TEXFILTER,			"Textures")						\
@@ -3131,7 +3133,7 @@ void M_Menu_Gamepad_f (void)
 	end_menu ()															\
 	begin_menu (INTERFACE_OPTIONS, m_interface, TITLE("Interface"))		\
 		item (OPT_UISCALE,				"Scale")						\
-		item (OPT_PIXELASPECT,			"Pixels")						\
+		item (OPT_PIXELASPECT_GUI,		"Pixels")						\
 		item (OPT_UIMOUSE,				"Mouse")						\
 		item (SPACER,					"")								\
 		item (OPT_HUDSTYLE,				"HUD Layout")					\
@@ -3199,7 +3201,7 @@ void M_Menu_Gamepad_f (void)
 
 #define PP_IGNORE_ARGS(...)
 
-enum 
+enum
 {
 	// Add option id's and BEGIN values
 	#define BEGIN_MENU_OPT(prefix, state, desc)		prefix##_BEGIN, _##prefix##_REWIND = prefix##_BEGIN - 1,
@@ -3613,8 +3615,11 @@ void M_AdjustSliders (int dir)
 		else if(f < 100)	f = 100;
 		Cvar_SetValue ("viewsize", f);
 		break;
-	case OPT_PIXELASPECT:	// 2D pixel aspect ratio
+	case OPT_PIXELASPECT_GUI:	// 2D pixel aspect ratio
 		Cvar_Set ("scr_pixelaspect", vid.guipixelaspect == 1.f ? "5:6" : "1");
+		break;
+	case OPT_PIXELASPECT: // 3D pixel aspect ratio
+		Cvar_Set ("r_pixelaspect", vid.pixelaspect == 1.f ? "5:6" : "1");
 		break;
 	case OPT_CROSSHAIR:		// crosshair
 		Cvar_SetValueQuick (&crosshair, ((int) q_max (crosshair.value, 0.f) + 3 + dir) % 3);
@@ -3680,9 +3685,9 @@ void M_AdjustSliders (int dir)
 			curr_alwaysrun = ALWAYSRUN_VANILLA;
 		else
 			curr_alwaysrun = ALWAYSRUN_OFF;
-			
+
 		target_alwaysrun = (ALWAYSRUN_ITEMS + curr_alwaysrun + dir) % ALWAYSRUN_ITEMS;
-			
+
 		if (target_alwaysrun == ALWAYSRUN_VANILLA)
 		{
 			Cvar_SetValue ("cl_alwaysrun", 0);
@@ -4216,8 +4221,12 @@ static void M_Options_DrawItem (int y, int item)
 		M_DrawSlider (x, y, r, str);
 		break;
 
-	case OPT_PIXELASPECT:
+	case OPT_PIXELASPECT_GUI:
 		M_Print (x, y, vid.guipixelaspect == 1.f ? "Square" : "Stretched");
+		break;
+
+	case OPT_PIXELASPECT:
+		M_Print (x, y, vid.pixelaspect == 1.f ? "Square" : "Stretched");
 		break;
 
 	case OPT_CROSSHAIR:
@@ -4280,7 +4289,7 @@ static void M_Options_DrawItem (int y, int item)
 		r = vid_contrast.value - 1.0;
 		M_DrawSlider (x, y, r, va ("%.0f", 10.f * r));
 		break;
-	
+
 	case OPT_MOUSESPEED:
 		r = (sensitivity.value - 1)/10;
 		M_DrawSlider (x, y, r, va ("%.1f", sensitivity.value));
@@ -4657,7 +4666,7 @@ void M_Options_Draw (void)
 
 	M_Options_UpdateLayout ();
 	M_List_Update (&optionsmenu.list);
-	
+
 	if (*optionsmenu.last_cursor != optionsmenu.list.cursor)
 	{
 		*optionsmenu.last_cursor = optionsmenu.list.cursor;
@@ -5462,14 +5471,14 @@ int		msgNumber;
 enum m_state_e	m_quit_prevstate;
 qboolean	wasInMenus;
 
-const char*const quitMessage [] = 
+const char*const quitMessage [] =
 {
 /* .........1.........2.... */
   "  Are you gonna quit    ",
   "  this game just like   ",
   "   everything else?     ",
   "                        ",
- 
+
   " Milord, methinks that  ",
   "   thou art a lowly     ",
   " quitter. Is this true? ",
@@ -5484,22 +5493,22 @@ const char*const quitMessage [] =
   "   for trying to quit!  ",
   "     Press Y to get     ",
   "      smacked out.      ",
- 
+
   " Press Y to quit like a ",
   "   big loser in life.   ",
   "  Press N to stay proud ",
   "    and successful!     ",
- 
+
   "   If you press Y to    ",
   "  quit, I will summon   ",
   "  Satan all over your   ",
   "      hard drive!       ",
- 
+
   "  Um, Asmodeus dislikes ",
   " his children trying to ",
   " quit. Press Y to return",
   "   to your Tinkertoys.  ",
- 
+
   "  If you quit now, I'll ",
   "  throw a blanket-party ",
   "   for you next time!   ",
@@ -6960,7 +6969,7 @@ static void M_ModInfo_UpdateLayout (void)
 	int			width = strlen (modinfomenu.title) * 12 + 16;
 	int			height = 0;
 	const char	*str;
-	
+
 	str = modinfomenu.author;
 	while (*str && height < MODINFO_MAXAUTHORLINES)
 	{
@@ -7719,4 +7728,3 @@ void M_CheckMods (void)
 	m_skill_usecustomtitle = M_CheckCustomGfx ("gfx/p_skill.lmp",
 		"gfx/ttl_sgl.lmp", 6728, sgl_hashes, countof (sgl_hashes));
 }
-
