@@ -1216,6 +1216,11 @@ void Draw_GetCanvasTransform (canvastype type, drawtransform_t *transform)
 		s = CLAMP (1.0f, scr_menuscale.value, s);
 		Draw_Transform (320, 200, s, CANVAS_ALIGN_CENTERX, CANVAS_ALIGN_CENTERY, transform);
 		break;
+	case CANVAS_INFO:
+		s = q_min((float)vid.guiwidth / 320.0f, (float)vid.guiheight / 200.0f);
+		s = CLAMP (1.0f, scr_infoscale.value, s);
+		Draw_Transform (320, 200, s, CANVAS_ALIGN_CENTERX, CANVAS_ALIGN_CENTERY, transform);
+		break;
 	case CANVAS_CSQC:
 		s = CLAMP (1.0f, scr_sbarscale.value, vid.guiwidth / 320.0f);
 		Draw_Transform (vid.guiwidth/s, vid.guiheight/s, s, CANVAS_ALIGN_CENTERX, CANVAS_ALIGN_CENTERY, transform);

@@ -57,6 +57,7 @@ typedef enum {
 	CANVAS_DEFAULT,
 	CANVAS_CONSOLE,
 	CANVAS_MENU,
+	CANVAS_INFO,
 	CANVAS_SBAR,
 	CANVAS_SBAR_QW_INV,
 	CANVAS_SBAR2,
@@ -105,8 +106,8 @@ extern	cvar_t		scr_conwidth;
 extern	cvar_t		scr_conscale;
 extern	cvar_t		scr_conalpha;
 extern	cvar_t		scr_conbrightness;
-extern	cvar_t		scr_scale;
 extern	cvar_t		scr_crosshairscale;
+extern	cvar_t		scr_infoscale;
 //johnfitz
 
 typedef enum hudstyle_t

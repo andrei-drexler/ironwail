@@ -89,6 +89,7 @@ cvar_t		scr_sbaralpha = {"scr_sbaralpha", "0.75", CVAR_ARCHIVE};
 cvar_t		scr_conwidth = {"scr_conwidth", "0", CVAR_ARCHIVE};
 cvar_t		scr_conscale = {"scr_conscale", "1", CVAR_ARCHIVE};
 cvar_t		scr_crosshairscale = {"scr_crosshairscale", "1", CVAR_ARCHIVE};
+cvar_t		scr_infoscale = {"scr_infoscale", "2.0", CVAR_ARCHIVE};
 cvar_t		scr_pixelaspect = {"scr_pixelaspect", "1", CVAR_ARCHIVE};
 cvar_t		scr_showfps = {"scr_showfps", "0", CVAR_ARCHIVE};
 cvar_t		scr_showspeed = {"scr_showspeed", "0", CVAR_ARCHIVE};
@@ -661,6 +662,7 @@ void SCR_Init (void)
 	Cvar_RegisterVariable (&scr_conwidth);
 	Cvar_RegisterVariable (&scr_conscale);
 	Cvar_RegisterVariable (&scr_crosshairscale);
+	Cvar_RegisterVariable (&scr_infoscale);
 	Cvar_RegisterVariable (&scr_showfps);
 	Cvar_RegisterVariable (&scr_showspeed);
 	Cvar_RegisterVariable (&scr_showspeed_ofs);
@@ -1392,7 +1394,7 @@ static void SCR_DrawEdictInfo (void)
 	if (VEC_SIZE (bbox_linked) == 0 && VEC_SIZE (r_pointfile) == 0)
 		return;
 
-	GL_SetCanvas (CANVAS_BOTTOMRIGHT);
+	GL_SetCanvas (CANVAS_INFO);
 	SCR_SetupProjToCanvasMap (&proj2canvas);
 	VectorMA (r_origin, 8.f, vpn, crosshair);
 
