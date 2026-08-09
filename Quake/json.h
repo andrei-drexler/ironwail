@@ -53,11 +53,13 @@ typedef struct json_s
 	int				numentries;
 	jsonentry_t		*root;
 	const char		*strings;
+	size_t			memsize;
 } json_t;
 
 
 json_t				*JSON_Parse (const char *text);
 void				JSON_Free (json_t *json);
+qboolean			JSON_IsInternalPointer (const json_t *json, const void *ptr);
 const jsonentry_t	*JSON_Find (const jsonentry_t *entry, const char *name, jsontype_t type);
 const char			*JSON_FindString (const jsonentry_t *entry, const char *name);
 const double		*JSON_FindNumber (const jsonentry_t *entry, const char *name);

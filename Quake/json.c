@@ -184,6 +184,7 @@ json_t *JSON_Parse (const char *text)
 	json->numentries = numtokens;
 	json->root = entries;
 	json->strings = strings;
+	json->memsize = sizeof (json_t) + sizeof (jsonentry_t) * numtokens + len;
 
 	for (i = 0; i < numtokens; i++)
 	{
@@ -254,6 +255,17 @@ JSON_Free
 void JSON_Free (json_t *json)
 {
 	free (json);
+}
+
+/*
+==================
+JSON_IsInternalPointer
+==================
+*/
+qboolean JSON_IsInternalPointer (const json_t *json, const void *ptr)
+{
+	const byte *begin = (const byte *) json, *end = begin + json->memsize;
+	return PTR_IN_RANGE (ptr, begin, end);
 }
 
 /*
