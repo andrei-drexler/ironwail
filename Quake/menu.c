@@ -4585,16 +4585,20 @@ M_Options_UpdatePreview
 */
 static void M_Options_UpdatePreview (void)
 {
+	// ignore hitches (such as when toggling enhanced models),
+	// otherwise the preview fraction would change abruptly
+	double frametime = q_min (host_rawframetime, 1.0/30.0);
+
 	if (optionsmenu.preview.frac != optionsmenu.preview.frac_target)
 	{
 		if (optionsmenu.preview.frac < optionsmenu.preview.frac_target)
 		{
-			optionsmenu.preview.frac += host_rawframetime / PREVIEW_FADEOUT_TIME;
+			optionsmenu.preview.frac += frametime / PREVIEW_FADEOUT_TIME;
 			optionsmenu.preview.frac = q_min (optionsmenu.preview.frac, optionsmenu.preview.frac_target);
 		}
 		else
 		{
-			optionsmenu.preview.frac -= host_rawframetime / PREVIEW_FADEIN_TIME;
+			optionsmenu.preview.frac -= frametime / PREVIEW_FADEIN_TIME;
 			optionsmenu.preview.frac = q_max (optionsmenu.preview.frac, optionsmenu.preview.frac_target);
 			if (optionsmenu.preview.frac == optionsmenu.preview.frac_target)
 			{
@@ -4606,7 +4610,7 @@ static void M_Options_UpdatePreview (void)
 	}
 	else if (optionsmenu.preview.hold_time > 0.f && !slider_grab)
 	{
-		optionsmenu.preview.hold_time -= host_rawframetime;
+		optionsmenu.preview.hold_time -= frametime;
 		if (optionsmenu.preview.hold_time <= 0.f)
 		{
 			optionsmenu.preview.hold_time = 0.f;
