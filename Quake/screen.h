@@ -108,6 +108,7 @@ extern	cvar_t		scr_conalpha;
 extern	cvar_t		scr_conbrightness;
 extern	cvar_t		scr_crosshairscale;
 extern	cvar_t		scr_infoscale;
+extern	cvar_t		scr_usekfont;
 //johnfitz
 
 typedef enum hudstyle_t

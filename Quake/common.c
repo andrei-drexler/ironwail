@@ -60,7 +60,7 @@ const char	**com_argv;
 #define CMDLINE_LENGTH	256		/* johnfitz -- mirrored in cmd.c */
 char	com_cmdline[CMDLINE_LENGTH];
 
-qboolean standard_quake = true, rogue, hipnotic, quake64;
+qboolean standard_quake = true, rogue, hipnotic, quake64, mg3;
 
 // this graphic needs to be in the pak file to use registered features
 static unsigned short pop[] =
@@ -2519,6 +2519,9 @@ void COM_AddGameDirectory (const char *dir)
 	if (!q_strcasecmp(dir,"q64")) {
 		quake64 = true;
 	}
+	if (!q_strcasecmp(dir,"mg3")) {
+		mg3 = true;
+	}
 
 	// assign a path_id to this game directory
 	if (com_searchpaths)
@@ -2579,6 +2582,7 @@ void COM_ResetGameDirectories(const char *newgamedirs)
 	hipnotic = false;
 	rogue = false;
 	quake64 = false;
+	mg3 = false;
 	standard_quake = true;
 	//wipe the list of mod gamedirs
 	*com_gamenames = 0;
@@ -2710,9 +2714,13 @@ void COM_SwitchGame (const char *paths)
 	M_CheckMods ();
 	Cvar_SetQuick (&max_edicts, max_edicts.default_string);
 
+	// 2026 update compat: enable scr_usekfont (for word wrapping) in case mg3 is used with original id1 data.
+	Cvar_SetValueQuick (&scr_usekfont, mg3 ? 1.0f : 0.0f);
+
 	Con_Printf("\n%s\n\"game\" changed to \"%s\"\n", Con_Quakebar (40), COM_GetGameNames(true));
 
 	VID_Lock ();
+
 	Cbuf_AddText ("unaliasall\n");
 	Cbuf_AddText ("exec quake.rc\n");
 	Cbuf_AddText ("vid_unlock\n");
