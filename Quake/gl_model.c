@@ -4337,7 +4337,7 @@ static qboolean Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer)
 	hdrsize += sizeof(outhdr->frames)*anim.numposes;
 	outhdr = (aliashdr_t *) Hunk_Alloc(hdrsize*nummeshes);
 	outbones = (boneinfo_t *) Hunk_Alloc(sizeof(*outbones)*numjoints);
-	outposes = (bonepose_t *) Z_Malloc(sizeof(*outposes)*numjoints);
+	outposes = (bonepose_t *) Hunk_Alloc(sizeof(*outposes)*numjoints);
 
 	MD5EXPECT("{");
 	for (j = 0; j < numjoints; j++)
@@ -4393,6 +4393,7 @@ static qboolean Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer)
 
 		surf->numbones = numjoints;
 		surf->boneinfo = (byte*)outbones-(byte*)surf;
+		surf->bindpose = (byte*)outposes-(byte*)surf;
 
 		if (anim.numposes)
 		{
@@ -4481,8 +4482,6 @@ static qboolean Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer)
 
 		MD5EXPECT("}");
 	}
-	Z_Free(outposes);
-	outposes = NULL;
 
 	GLMesh_LoadVertexBuffer (mod, outhdr);
 
@@ -4517,8 +4516,6 @@ static qboolean Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer)
 
 error:
 	VEC_FREE (shaders);
-	if (outposes)
-		Z_Free (outposes);
 	Hunk_FreeToLowMark (start);
 	return false;
 }

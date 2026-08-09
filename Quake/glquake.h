@@ -466,8 +466,17 @@ void R_DrawSpriteModels (entity_t **ents, int count);
 void R_DrawBrushModels_ShowTris (entity_t **ents, int count);
 void R_DrawAliasModels_ShowTris (entity_t **ents, int count);
 void R_DrawSpriteModels_ShowTris (entity_t **ents, int count);
+void R_DrawAliasModels_ShowSkel (entity_t **ents, int count);
 
 entity_t **R_GetVisEntities (modtype_t type, qboolean translucent, int *outcount);
+
+// Debug drawing
+void R_SetDebugGeometryZTest (qboolean ztest);
+void R_EmitLine (const vec3_t a, const vec3_t b, uint32_t color);
+void R_EmitWirePoint (const vec3_t origin, uint32_t color);
+void R_EmitWireBox (const vec3_t mins, const vec3_t maxs, uint32_t color);
+void R_EmitArrow (const vec3_t from, const vec3_t to, uint32_t color);
+void R_FlushDebugGeometry (void);
 
 void R_ClearBoundingBoxes (void);
 

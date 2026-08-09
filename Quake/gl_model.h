@@ -330,6 +330,7 @@ typedef struct {
 	intptr_t			nextsurface;		//spike
 	int					numbones;			//spike -- for iqm
 	intptr_t			boneinfo;			//spike -- for iqm, boneinfo_t[numbones]
+	intptr_t			bindpose;			//      -- for iqm, bonepose_t[numbones]
 	intptr_t			boneposedata;		//spike -- for iqm, bonepose_t[numboneposes*numbones]
 	enum
 	{

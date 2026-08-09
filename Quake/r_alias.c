@@ -35,6 +35,8 @@ const float	r_avertexnormals[NUMVERTEXNORMALS][3] = {
 #include "anorms.h"
 };
 
+typedef enum { ALIAS_STANDARD, ALIAS_SHOWTRIS, ALIAS_SHOWSKEL, } aliasmode_t;
+
 extern vec3_t	lightcolor; //johnfitz -- replaces "float shadelight" for lit support
 
 static float	entalpha; //johnfitz
@@ -488,12 +490,79 @@ static qboolean R_Alias_CanAddToBatch (const entity_t *e)
 	return true;
 }
 
+static void R_GetBonePose (const bonepose_t *root, const bonepose_t *bindpose, const bonepose_t *animpose, bonepose_t *out)
+{
+	bonepose_t objectpose;
+	R_ConcatTransforms ((void *) animpose, (void *) bindpose, (void *) &objectpose);
+	R_ConcatTransforms ((void *) root, (void *) &objectpose, (void *) out);
+}
+
+static void R_ExtractPosePosition (const bonepose_t *pose, vec3_t out)
+{
+	out[0] = pose->mat[3];
+	out[1] = pose->mat[7];
+	out[2] = pose->mat[11];
+}
+
+// TODO: optimize
+static void R_GetBonePosition (const bonepose_t *root, const bonepose_t *bindpose, const bonepose_t *animpose, vec3_t out)
+{
+	bonepose_t worldpose;
+	R_GetBonePose (root, bindpose, animpose, &worldpose);
+	R_ExtractPosePosition (&worldpose, out);
+}
+
+static void R_GetLerpedBonePosition (const bonepose_t *root, const bonepose_t *bindpose, const bonepose_t *frame1, const bonepose_t *frame2, float t, vec3_t out)
+{
+	vec3_t pos1, pos2;
+	R_GetBonePosition (root, bindpose, frame1, pos1);
+	R_GetBonePosition (root, bindpose, frame2, pos2);
+	VectorLerp (pos1, pos2, t, out); 
+}
+
+static void R_DrawSkeleton (const aliashdr_t *paliashdr, const float model_matrix[16], const lerpdata_t *lerpdata)
+{
+	bonepose_t root;
+	const bonepose_t *bindpose;
+	const bonepose_t *animdata;
+	const bonepose_t *frame1, *frame2;
+	const boneinfo_t *boneinfo;
+	int i;
+
+	if (paliashdr->poseverttype != PV_IQM)
+		return;
+
+	bindpose = (const bonepose_t *) ((const byte *) paliashdr + paliashdr->bindpose);
+	boneinfo = (const boneinfo_t *) ((const byte *) paliashdr + paliashdr->boneinfo);
+	animdata = (const bonepose_t *) ((const byte *) paliashdr + paliashdr->boneposedata);
+	frame1 = animdata + paliashdr->numbones * lerpdata->pose1;
+	frame2 = animdata + paliashdr->numbones * lerpdata->pose2;
+
+	root.mat[0] = model_matrix[0]; root.mat[1] = model_matrix[4]; root.mat[2] = model_matrix[8]; root.mat[3] = model_matrix[12];
+	root.mat[4] = model_matrix[1]; root.mat[5] = model_matrix[5]; root.mat[6] = model_matrix[9]; root.mat[7] = model_matrix[13];
+	root.mat[8] = model_matrix[2]; root.mat[9] = model_matrix[6]; root.mat[10] = model_matrix[10]; root.mat[11] = model_matrix[14];
+
+	for (i = 0; i < paliashdr->numbones; i++)
+	{
+		vec3_t pos, parentpos;
+		int parent = boneinfo[i].parent;
+		if (parent < 0)
+			continue;
+		// skip lines starting from root (can get too busy for models with multiple parts, e.g. ogre)
+		if (boneinfo[parent].parent < 0)
+			continue;
+		R_GetLerpedBonePosition (&root, bindpose + i, frame1 + i, frame2 + i, lerpdata->blend, pos);
+		R_GetLerpedBonePosition (&root, bindpose + parent, frame1 + parent, frame2 + parent, lerpdata->blend, parentpos);
+		R_EmitLine (pos, parentpos, 0xFFFF00FFu);
+	}
+}
+
 /*
 =================
 R_DrawAliasModel_Real
 =================
 */
-static void R_DrawAliasModel_Real (entity_t *e, qboolean showtris)
+static void R_DrawAliasModel_Real (entity_t *e, aliasmode_t mode)
 {
 	aliashdr_t	*paliashdr, *hdr;
 	lerpdata_t	lerpdata;
@@ -553,6 +622,12 @@ static void R_DrawAliasModel_Real (entity_t *e, qboolean showtris)
 	if (entalpha == 0)
 		return;
 
+	if (mode == ALIAS_SHOWSKEL)
+	{
+		R_DrawSkeleton (paliashdr, model_matrix, &lerpdata);
+		return;
+	}
+
 	//
 	// set up lighting
 	//
@@ -563,14 +638,14 @@ static void R_DrawAliasModel_Real (entity_t *e, qboolean showtris)
 	// draw it
 	//
 
-	if (r_fullbright_cheatsafe || showtris)
+	if (r_fullbright_cheatsafe || mode == ALIAS_SHOWTRIS)
 		lightcolor[0] = lightcolor[1] = lightcolor[2] = 0.5f;
 
-	if (showtris)
+	if (mode == ALIAS_SHOWTRIS)
 		entalpha = 1.f;
 
 	if (!R_Alias_CanAddToBatch (e))
-		R_FlushAliasInstances (showtris);
+		R_FlushAliasInstances (mode == ALIAS_SHOWTRIS);
 
 	if (!ibuf.count)
 		ibuf.ent = e;
@@ -611,7 +686,7 @@ void R_DrawAliasModels (entity_t **ents, int count)
 {
 	int i;
 	for (i = 0; i < count; i++)
-		R_DrawAliasModel_Real (ents[i], false);
+		R_DrawAliasModel_Real (ents[i], ALIAS_STANDARD);
 	R_FlushAliasInstances (false);
 }
 
@@ -624,6 +699,18 @@ void R_DrawAliasModels_ShowTris (entity_t **ents, int count)
 {
 	int i;
 	for (i = 0; i < count; i++)
-		R_DrawAliasModel_Real (ents[i], true);
+		R_DrawAliasModel_Real (ents[i], ALIAS_SHOWTRIS);
 	R_FlushAliasInstances (true);
+}
+
+/*
+=================
+R_DrawAliasModels_ShowSkel
+=================
+*/
+void R_DrawAliasModels_ShowSkel (entity_t **ents, int count)
+{
+	int i;
+	for (i = 0; i < count; i++)
+		R_DrawAliasModel_Real (ents[i], ALIAS_SHOWSKEL);
 }
