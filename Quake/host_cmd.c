@@ -778,14 +778,17 @@ static void Modlist_RegisterAddons (void *param)
 		if (!info->json)
 		{
 			info->json = entry;
-			// If the addon has a non-localized name, convert it in-place from UTF-8
-			if (name && name[0] && name[0] != '$')
+			if (!info->full_name) // don't overwrite custom descript.ion names for installed add-ons
 			{
-				char utf8name[1024];
-				q_strlcpy (utf8name, name, sizeof (utf8name));
-				UTF8_ToQuake ((char *)name, strlen (name) + 1, utf8name);
+				// If the addon has a non-localized name, convert it in-place from UTF-8
+				if (name && name[0] && name[0] != '$')
+				{
+					char utf8name[1024];
+					q_strlcpy (utf8name, name, sizeof (utf8name));
+					UTF8_ToQuake ((char *)name, strlen (name) + 1, utf8name);
+				}
+				info->full_name = name;
 			}
-			info->full_name = name;
 			info->download = download;
 			if (size)
 				info->bytes_total = *size;
@@ -1096,40 +1099,41 @@ static void Modlist_Add (const char *name)
 	int				i;
 	unsigned int	path_id;
 
-	memset (&info, 0, sizeof (info));
 	item = FileList_AddWithData (name, NULL, sizeof (*info), &modlist);
 
 	info = (modinfo_t *) (item + 1);
 	info->status.value = MODSTATUS_INSTALLED;
 
 	// look for descript.ion file in mod dir and use first non-empty line as full name
-	if (!info->full_name)
+	// Note: local descript.ion file takes precedence add-on server data
+	for (i = com_numbasedirs - 1; i >= 0; i--)
 	{
-		for (i = com_numbasedirs - 1; i >= 0; i--)
+		char	path[MAX_OSPATH];
+		char	*buf, *description, *end;
+
+		if (q_snprintf (path, sizeof (path), "%s/%s/descript.ion", com_basedirs[i], name) >= sizeof (path))
+			continue;
+
+		buf = (char *) COM_LoadMallocFile_TextMode_OSPath (path, NULL);
+		if (!buf)
+			continue;
+
+		description = buf;
+		while (q_isspace (*description))
+			++description;
+		end = strchr (description, '\n');
+		if (end)
+			*end = '\0';
+		if (*description)
 		{
-			char	path[MAX_OSPATH];
-			char	*buf, *description, *end;
-
-			if (q_snprintf (path, sizeof (path), "%s/%s/descript.ion", com_basedirs[i], name) >= sizeof (path))
-				continue;
-
-			buf = (char *) COM_LoadMallocFile_TextMode_OSPath (path, NULL);
-			if (!buf)
-				continue;
-
-			description = buf;
-			while (q_isspace (*description))
-				++description;
-			end = strchr (description, '\n');
-			if (end)
-				*end = '\0';
-			if (*description)
-				info->full_name = strdup (description);
-			free (buf);
-
 			if (info->full_name)
-				break;
+				free ((void *) info->full_name);
+			info->full_name = strdup (description);
 		}
+		free (buf);
+
+		if (info->full_name)
+			break;
 	}
 
 	// look for mapdb.json file
