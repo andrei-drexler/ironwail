@@ -2720,6 +2720,7 @@ void COM_SwitchGame (const char *paths)
 	Con_Printf("\n%s\n\"game\" changed to \"%s\"\n", Con_Quakebar (40), COM_GetGameNames(true));
 
 	VID_Lock ();
+	LOC_Load ();
 
 	Cbuf_AddText ("unaliasall\n");
 	Cbuf_AddText ("exec quake.rc\n");
@@ -3989,7 +3990,7 @@ static const char *userlang = "english";
 LOC_Load
 ================
 */
-void LOC_Load(void)
+void LOC_Load (void)
 {
 	if (!LOC_LoadFile(va("localization/loc_%s.txt", userlang)))
 		LOC_LoadFile("localization/loc_english.txt");
