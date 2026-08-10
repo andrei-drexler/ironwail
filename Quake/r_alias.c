@@ -490,13 +490,6 @@ static qboolean R_Alias_CanAddToBatch (const entity_t *e)
 	return true;
 }
 
-static void R_GetBonePose (const bonepose_t *root, const bonepose_t *bindpose, const bonepose_t *animpose, bonepose_t *out)
-{
-	bonepose_t objectpose;
-	R_ConcatTransforms ((void *) animpose, (void *) bindpose, (void *) &objectpose);
-	R_ConcatTransforms ((void *) root, (void *) &objectpose, (void *) out);
-}
-
 static void R_ExtractPosePosition (const bonepose_t *pose, vec3_t out)
 {
 	out[0] = pose->mat[3];
@@ -504,12 +497,12 @@ static void R_ExtractPosePosition (const bonepose_t *pose, vec3_t out)
 	out[2] = pose->mat[11];
 }
 
-// TODO: optimize
 static void R_GetBonePosition (const bonepose_t *root, const bonepose_t *bindpose, const bonepose_t *animpose, vec3_t out)
 {
-	bonepose_t worldpose;
-	R_GetBonePose (root, bindpose, animpose, &worldpose);
-	R_ExtractPosePosition (&worldpose, out);
+	vec3_t base, anim;
+	R_ExtractPosePosition (bindpose, base);
+	Matrix3x4_RM_Transform3 (animpose->mat, base, anim);
+	Matrix3x4_RM_Transform3 (root->mat, anim, out);
 }
 
 static void R_GetLerpedBonePosition (const bonepose_t *root, const bonepose_t *bindpose, const bonepose_t *frame1, const bonepose_t *frame2, float t, vec3_t out)
@@ -527,10 +520,14 @@ static void R_DrawSkeleton (const aliashdr_t *paliashdr, const float model_matri
 	const bonepose_t *animdata;
 	const bonepose_t *frame1, *frame2;
 	const boneinfo_t *boneinfo;
-	int i;
+	vec3_t *positions;
+	int i, mark;
 
 	if (paliashdr->poseverttype != PV_IQM)
 		return;
+
+	mark = Hunk_LowMark ();
+	positions = (vec3_t *) Hunk_AllocNoFill (sizeof (*positions) * paliashdr->numbones);
 
 	bindpose = (const bonepose_t *) ((const byte *) paliashdr + paliashdr->bindpose);
 	boneinfo = (const boneinfo_t *) ((const byte *) paliashdr + paliashdr->boneinfo);
@@ -543,18 +540,20 @@ static void R_DrawSkeleton (const aliashdr_t *paliashdr, const float model_matri
 	root.mat[8] = model_matrix[2]; root.mat[9] = model_matrix[6]; root.mat[10] = model_matrix[10]; root.mat[11] = model_matrix[14];
 
 	for (i = 0; i < paliashdr->numbones; i++)
+		R_GetLerpedBonePosition (&root, bindpose + i, frame1 + i, frame2 + i, lerpdata->blend, positions[i]);
+
+	for (i = 0; i < paliashdr->numbones; i++)
 	{
-		vec3_t pos, parentpos;
 		int parent = boneinfo[i].parent;
 		if (parent < 0)
 			continue;
 		// skip lines starting from root (can get too busy for models with multiple parts, e.g. ogre)
 		if (boneinfo[parent].parent < 0)
 			continue;
-		R_GetLerpedBonePosition (&root, bindpose + i, frame1 + i, frame2 + i, lerpdata->blend, pos);
-		R_GetLerpedBonePosition (&root, bindpose + parent, frame1 + parent, frame2 + parent, lerpdata->blend, parentpos);
-		R_EmitLine (pos, parentpos, 0xFFFF00FFu);
+		R_EmitLine (positions[parent], positions[i], 0xFFFF00FFu);
 	}
+
+	Hunk_FreeToLowMark (mark);
 }
 
 /*

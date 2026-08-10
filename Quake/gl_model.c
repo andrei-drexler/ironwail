@@ -3865,12 +3865,6 @@ static void Matrix3x4_Invert_Simple (const float *in1, float *out)
 	out[11] = -(in1[3] * out[8] + in1[7] * out[9] + in1[11] * out[10]);
 }
 
-static void Matrix3x4_RM_Transform4(const float *matrix, const float *vector, float *product)
-{
-	product[0] = matrix[0]*vector[0] + matrix[1]*vector[1] + matrix[2]*vector[2] + matrix[3]*vector[3];
-	product[1] = matrix[4]*vector[0] + matrix[5]*vector[1] + matrix[6]*vector[2] + matrix[7]*vector[3];
-	product[2] = matrix[8]*vector[0] + matrix[9]*vector[1] + matrix[10]*vector[2] + matrix[11]*vector[3];
-}
 static qboolean MD5_BakeInfluences(const char *fname, bonepose_t *outposes, iqmvert_t *vert, md5vertinfo_t *vinfo, md5weightinfo_t *weight, size_t numverts, size_t numweights)
 {
 	size_t v, i, lowidx, k;
