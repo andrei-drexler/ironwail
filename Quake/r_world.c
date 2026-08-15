@@ -387,10 +387,11 @@ typedef enum {
 R_DrawBrushModels_Real
 =============
 */
-static void R_DrawBrushModels_Real (entity_t **ents, int count, brushpass_t pass, qboolean translucent)
+static void R_DrawBrushModels_Real (entity_t **ents, size_t count, brushpass_t pass, qboolean translucent)
 {
-	int i, j;
-	int totalinst, baseinst;
+	size_t i;
+	int j;
+	size_t totalinst, baseinst;
 	unsigned state;
 	GLuint program;
 	GLuint buf;
@@ -403,7 +404,7 @@ static void R_DrawBrushModels_Real (entity_t **ents, int count, brushpass_t pass
 
 	if (count > countof(bmodel_instances))
 	{
-		Con_DWarning ("bmodel instance overflow: %d > %d\n", count, (int)countof(bmodel_instances));
+		Con_DWarning ("bmodel instance overflow: %" SDL_PRIu64 " > %" SDL_PRIu64 "\n", (uint64_t)count, (uint64_t)countof(bmodel_instances));
 		count = countof(bmodel_instances);
 	}
 
@@ -529,7 +530,7 @@ void R_DrawBrushModels_Water (entity_t **ents, int count, qboolean translucent)
 	GLbyte *ofs;
 	qboolean oit;
 
-	if (count > countof(bmodel_instances))
+	if ((size_t)count > countof(bmodel_instances))
 	{
 		Con_DWarning ("bmodel instance overflow: %d > %d\n", count, (int)countof(bmodel_instances));
 		count = countof(bmodel_instances);

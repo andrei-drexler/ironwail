@@ -1961,16 +1961,16 @@ int PR_Markup_Parse(struct markup_s *mu)
 
 static void PF_cl_getstat_int(void)
 {
-	int stnum = G_FLOAT(OFS_PARM0);
-	if (stnum < 0 || stnum >= countof(cl.stats))
+	size_t stnum = G_FLOAT(OFS_PARM0);
+	if (stnum >= countof(cl.stats))
 		G_INT(OFS_RETURN) = 0;
 	else
 		G_INT(OFS_RETURN) = cl.stats[stnum];
 }
 static void PF_cl_getstat_float(void)
 {
-	int stnum = G_FLOAT(OFS_PARM0);
-	if (stnum < 0 || stnum >= countof(cl.stats))
+	size_t stnum = G_FLOAT(OFS_PARM0);
+	if (stnum >= countof(cl.stats))
 		G_FLOAT(OFS_RETURN) = 0;
 	else if (qcvm->argc > 1)
 	{
@@ -1983,8 +1983,8 @@ static void PF_cl_getstat_float(void)
 }
 static void PF_cl_getstat_string(void)
 {
-	int stnum = G_FLOAT(OFS_PARM0);
-	if (stnum < 0 || stnum >= countof(cl.statss) || !cl.statss[stnum])
+	size_t stnum = G_FLOAT(OFS_PARM0);
+	if (stnum >= countof(cl.statss) || !cl.statss[stnum])
 		G_INT(OFS_RETURN) = 0;
 	else
 	{

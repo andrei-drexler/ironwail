@@ -316,10 +316,10 @@ extern	dlight_t		cl_dlights[MAX_DLIGHTS];
 extern	entity_t		cl_temp_entities[MAX_TEMP_ENTITIES];
 extern	beam_t			cl_beams[MAX_BEAMS];
 extern	entity_t		*cl_visedicts[MAX_VISEDICTS];
-extern	int				cl_numvisedicts;
+extern	size_t				cl_numvisedicts;
 
 extern	entity_t		*cl_entities; //johnfitz -- was a static array, now on hunk
-extern	int				cl_max_edicts; //johnfitz -- only changes when new map loads
+extern	size_t				cl_max_edicts; //johnfitz -- only changes when new map loads
 
 //=============================================================================
 

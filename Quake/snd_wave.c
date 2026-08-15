@@ -237,7 +237,7 @@ int S_WAV_CodecReadStream(snd_stream_t *stream, int bytes, void *buffer)
 	if (bytes > remaining)
 		bytes = remaining;
 	stream->fh.pos += bytes;
-	if (fread(buffer, 1, bytes, stream->fh.file) != bytes)
+	if (fread(buffer, 1, bytes, stream->fh.file) != (size_t)bytes)
 		Sys_Error ("S_WAV_CodecReadStream: read error on %d bytes (%s)", bytes, stream->name);
 	if (stream->info.width == 2)
 	{

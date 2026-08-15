@@ -62,9 +62,9 @@ lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 dlight_t		cl_dlights[MAX_DLIGHTS];
 
 entity_t		*cl_entities; //johnfitz -- was a static array, now on hunk
-int				cl_max_edicts; //johnfitz -- only changes when new map loads
+size_t				cl_max_edicts; //johnfitz -- only changes when new map loads
 
-int				cl_numvisedicts;
+size_t				cl_numvisedicts;
 entity_t		*cl_visedicts[MAX_VISEDICTS];
 
 extern cvar_t	r_lerpmodels, r_lerpmove; //johnfitz
@@ -749,7 +749,7 @@ int CL_ReadFromServer (void)
 
 	//visedicts
 	if (cl_numvisedicts > 256 && dev_peakstats.visedicts <= 256)
-		Con_DWarning ("%i visedicts exceeds standard limit of 256 (max = %d).\n", cl_numvisedicts, MAX_VISEDICTS);
+		Con_DWarning ("%" SDL_PRIu64 " visedicts exceeds standard limit of 256 (max = %d).\n", (uint64_t)cl_numvisedicts, MAX_VISEDICTS);
 	dev_stats.visedicts = cl_numvisedicts;
 	dev_peakstats.visedicts = q_max(cl_numvisedicts, dev_peakstats.visedicts);
 

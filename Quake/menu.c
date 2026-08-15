@@ -2854,18 +2854,17 @@ chooses next fps limit in order, then updates host_maxfps cvar
 static void VID_Menu_ChooseNextFPSLimit (int dir)
 {
 	static const int values[] = {0, 60, 72, 100, 120, 144, 165, 180, 200, 240, 300, 360, 500};
-	int i, current = (int)host_maxfps.value;
+	size_t i;
+	int current = (int)host_maxfps.value;
 
 	if (dir < 0)
 		for (i = 0; i < countof (values) && values[i] <= current; i++)
 			;
 	else
-		for (i = countof (values) - 1; i >= 0 && values[i] >= current; i--)
+		for (i = countof (values) - 1; values[i] >= current; i--)
 			;
 
-	if (i < 0)
-		i = countof (values) - 1;
-	else if (i == countof (values))
+	if (i == countof (values))
 		i = 0;
 
 	Cvar_SetValueQuick (&host_maxfps, values[i]);
@@ -4967,7 +4966,7 @@ static qboolean	bind_grab;
 
 static void M_Keys_AddCustomEntry (const char *cmd, const char *desc)
 {
-	int i;
+	size_t i;
 	menukeybind_t new_item;
 
 	// bindlist format uses "-" as separator, convert to empty string

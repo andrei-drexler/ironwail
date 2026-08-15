@@ -1096,7 +1096,7 @@ static void Modlist_Add (const char *name)
 {
 	filelist_item_t	*item;
 	modinfo_t		*info;
-	int				i;
+	size_t				i;
 	unsigned int	path_id;
 
 	item = FileList_AddWithData (name, NULL, sizeof (*info), &modlist);
@@ -1106,12 +1106,12 @@ static void Modlist_Add (const char *name)
 
 	// look for descript.ion file in mod dir and use first non-empty line as full name
 	// Note: local descript.ion file takes precedence add-on server data
-	for (i = com_numbasedirs - 1; i >= 0; i--)
+	for (i = 0; i < com_numbasedirs; i++)
 	{
 		char	path[MAX_OSPATH];
 		char	*buf, *description, *end;
 
-		if (q_snprintf (path, sizeof (path), "%s/%s/descript.ion", com_basedirs[i], name) >= sizeof (path))
+		if (q_snprintf (path, sizeof (path), "%s/%s/descript.ion", com_basedirs[i], name) >= (int)sizeof (path))
 			continue;
 
 		buf = (char *) COM_LoadMallocFile_TextMode_OSPath (path, NULL);
@@ -1233,7 +1233,7 @@ static qboolean Modlist_Check (const char *modname, const char *base)
 
 static void Modlist_FindLocal (void)
 {
-	int			i;
+	size_t			i;
 	findfile_t	*find;
 
 	for (i = 0; i < com_numbasedirs; i++)
@@ -1261,7 +1261,8 @@ static void Modlist_FindLocal (void)
 static void Modlist_FindOnline (void)
 {
 	const char *suffixes[] = {ADDON_MANIFEST_FILE, "index.htm", "index.html"};
-	int i, p, l;
+	size_t i;
+	int p, l;
 
 	if (COM_CheckParm ("-noaddons"))
 	{

@@ -377,7 +377,7 @@ typedef struct lightmap_s
 	int			yofs;
 } lightmap_t;
 extern lightmap_t *lightmaps;
-extern int lightmap_count;	//allocated lightmaps
+extern size_t lightmap_count;	//allocated lightmaps
 
 extern qboolean r_fullbright_cheatsafe, r_lightmap_cheatsafe, r_drawworld_cheatsafe; //johnfitz
 

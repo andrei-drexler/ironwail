@@ -179,7 +179,7 @@ TODO: support BGRA and BGR formats (since opengl can return them, and we don't h
 */
 qboolean Image_WriteTGA (const char *name, byte *data, int width, int height, int bpp, qboolean upsidedown)
 {
-	int		i, size, temp, bytes;
+	size_t		i, size, temp, bytes;
 	char	pathname[MAX_OSPATH];
 	byte	header[TARGAHEADERSIZE];
 	FILE	*file;
@@ -359,7 +359,7 @@ static byte *Image_LoadLMP (FILE *f, int *width, int *height)
 
 	pix = qpic.width*qpic.height;
 
-	if (com_filesize != sizeof (qpic) + pix)
+	if (com_filesize != (qfileofs_t)(sizeof (qpic) + pix))
 	{
 		fclose (f);
 		return NULL;

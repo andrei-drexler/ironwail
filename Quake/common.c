@@ -1313,7 +1313,7 @@ The mode argument controls how overflow is handled:
 const char *COM_ParseEx (const char *data, cpe_mode mode)
 {
 	int		c;
-	int		len;
+	size_t		len;
 
 	len = 0;
 	com_token[0] = 0;
@@ -1796,7 +1796,7 @@ typedef struct
 char	com_gamenames[1024];	//eg: "hipnotic;quoth;warp" ... no id1
 char	com_gamedir[MAX_OSPATH];
 char	com_basedirs[MAX_BASEDIRS][MAX_OSPATH];
-int		com_numbasedirs;
+size_t		com_numbasedirs;
 char	com_nightdivedir[MAX_OSPATH];
 char	com_userprefdir[MAX_OSPATH];
 THREAD_LOCAL int	file_from_pak;		// ZOID: global indicating that file came from a pak
@@ -2336,7 +2336,7 @@ const char *COM_ParseFloatNewline(const char *buffer, float *value)
 
 const char *COM_ParseStringNewline(const char *buffer)
 {
-	int i;
+	size_t i;
 	for (i = 0; i < countof (com_token) - 1; i++)
 		if (!buffer[i] || q_isspace (buffer[i]))
 			break;
@@ -2448,7 +2448,7 @@ COM_AddEnginePak
 */
 static void COM_AddEnginePak (void)
 {
-	int			i;
+	size_t			i;
 	char		pakfile[MAX_OSPATH];
 	pack_t		*pak = NULL;
 	qboolean	modified = com_modified;
@@ -2496,7 +2496,7 @@ COM_AddGameDirectory -- johnfitz -- modified based on topaz's tutorial
 void COM_AddGameDirectory (const char *dir)
 {
 	const char *base;
-	int i, j;
+	size_t i, j;
 	unsigned int path_id;
 	searchpath_t *search;
 	pack_t *pak;
@@ -2544,7 +2544,7 @@ void COM_AddGameDirectory (const char *dir)
 		// add any pak files in the format pak0.pak pak1.pak, ...
 		for (i = 0; ; i++)
 		{
-			q_snprintf (pakfile, sizeof(pakfile), "%s/pak%i.pak", com_gamedir, i);
+			q_snprintf (pakfile, sizeof(pakfile), "%s/pak%i.pak", com_gamedir, (int)i);
 			pak = COM_LoadPackFile (pakfile);
 			if (!pak)
 				break;
@@ -2564,7 +2564,7 @@ void COM_AddGameDirectory (const char *dir)
 
 void COM_ResetGameDirectories(const char *newgamedirs)
 {
-	const char *newpath, *path;
+	const char *newpath,*path;
 	searchpath_t *search;
 	//Kill the extra game if it is loaded
 	while (com_searchpaths != com_base_searchpaths)
@@ -2591,7 +2591,7 @@ void COM_ResetGameDirectories(const char *newgamedirs)
 
 	for(newpath = newgamedirs; newpath && *newpath; )
 	{
-		char *e = strchr(newpath, ';');
+		char *e = (char*)strchr(newpath, ';');
 		if (e)
 			*e++ = 0;
 
@@ -2622,7 +2622,7 @@ Checks if a gamedir exists in any basedir
 */
 static qboolean COM_GameDirExists (const char *game)
 {
-	int i;
+	size_t i;
 
 	for (i = 0; i < com_numbasedirs; i++)
 		if (Sys_FileType (va ("%s/%s", com_basedirs[i], game)) == FS_ENT_DIRECTORY)
@@ -2822,7 +2822,7 @@ COM_AddBaseDir
 static void COM_AddBaseDir (const char *path)
 {
 	if (com_numbasedirs >= countof (com_basedirs))
-		Sys_Error ("Too many basedirs (%d)", com_numbasedirs);
+		Sys_Error ("Too many basedirs (%d)", (int)com_numbasedirs);
 	if ((size_t) q_strlcpy (com_basedirs[com_numbasedirs++], path, sizeof (com_basedirs[0])) >= sizeof (com_basedirs[0]))
 		Sys_Error ("Basedir too long (%d characters, max %d):\n%s\n", (int)strlen (path), (int)sizeof (com_basedirs[0]), path);
 }
@@ -2996,7 +2996,7 @@ static qboolean COM_PatchCmdLine (const char *fullpath)
 	const char	*relpath;
 	const char	*sep;
 	int			type;
-	int			i;
+	size_t			i;
 
 	// The path (file or directory) must exist
 	type = Sys_FileType (fullpath);
@@ -3948,7 +3948,7 @@ fail:				mz_zip_reader_end(&archive);
 	for (i = 0; i < localization.numentries; i++)
 	{
 		locentry_t *entry = &localization.entries[i];
-		unsigned pos = COM_HashString(entry->key) % localization.numindices, end = pos;
+		size_t pos = COM_HashString(entry->key) % localization.numindices, end = pos;
 
 		for (;;)
 		{
@@ -3959,7 +3959,7 @@ fail:				mz_zip_reader_end(&archive);
 			}
 
 			++pos;
-			if (pos == localization.numindices)
+			if (pos == (size_t)localization.numindices)
 				pos = 0;
 
 			if (pos == end)
@@ -4115,7 +4115,7 @@ const char* LOC_GetRawString (const char *key)
 			return entry->value;
 
 		++pos;
-		if (pos == localization.numindices)
+		if (pos == (size_t)localization.numindices)
 			pos = 0;
 	} while (pos != end);
 

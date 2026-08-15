@@ -651,7 +651,7 @@ static const char *Sys_GetExeDir (void)
 {
 	char *argv0 = host_parms->argv[0];
 	char *slash = argv0 ? strrchr (argv0, '/') : NULL;
-	if (!slash || slash - argv0 >= countof (exedir))
+	if (!slash || (size_t)(slash - argv0) >= countof (exedir))
 		return NULL;
 
 	memcpy (exedir, argv0, slash - argv0);
@@ -697,7 +697,7 @@ findfile_t *Sys_FindFirst (const char *dir, const char *ext)
 	else if (*ext == '.')
 		++ext;
 
-	if (Q_strlen (ext) >= countof (ret->filter))
+	if ((size_t)Q_strlen (ext) >= countof (ret->filter))
 		Sys_Error ("Sys_FindFirst: extension too long '%s'", ext);
 
 	handle = opendir (dir);

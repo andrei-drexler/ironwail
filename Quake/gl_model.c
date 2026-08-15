@@ -2625,7 +2625,8 @@ qboolean Mod_LoadMapDescription (char *desc, size_t maxchars, const char *map)
 	FILE		*f;
 	lump_t		*entlump;
 	dheader_t	header;
-	int			i, filesize;
+	size_t			i;
+	qfileofs_t		filesize;
 	qboolean	ret = false;
 
 	if (!maxchars)
@@ -2676,7 +2677,7 @@ qboolean Mod_LoadMapDescription (char *desc, size_t maxchars, const char *map)
 
 	// if the entity lump is large enough we assume the map is playable
 	// and only try to parse the first entity (worldspawn) for the map title
-	if (entlump->filelen >= sizeof (buf))
+	if ((size_t)entlump->filelen >= sizeof (buf))
 	{
 		ret = true;
 		entlump->filelen = sizeof (buf) - 1;
