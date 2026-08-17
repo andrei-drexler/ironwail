@@ -179,13 +179,10 @@ static int S_MP3_CodecReadStream (snd_stream_t *stream, int bytes, void *buffer)
 	mp3_priv_t *priv = (mp3_priv_t *) stream->priv;
 	size_t bytes_read = 0;
 	int res = mpg123_read (priv->handle, (unsigned char *)buffer, (size_t)bytes, &bytes_read);
-	switch (res) {
-	case MPG123_DONE:
+	if(res == MPG123_DONE)
 		Con_DPrintf("mp3 EOF\n");
-	case MPG123_OK:
-		return (int)bytes_read;
-	}
-	return -1; /* error */
+
+	return ((res == MPG123_OK) || (res == MPG123_DONE)) ? (int)bytes_read : -1; /* error */
 }
 
 static void S_MP3_CodecCloseStream (snd_stream_t *stream)

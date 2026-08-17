@@ -635,7 +635,7 @@ R_SortEntities
 */
 static void R_SortEntities (void)
 {
-	int i, j, pass;
+	size_t i, j, pass;
 	int bins[1 << (MODSORT_BITS/2)];
 	int typebins[mod_numtypes*2];
 	alphamode_t alphamode = R_GetEffectiveAlphaMode ();
@@ -1231,9 +1231,9 @@ void R_SetDebugGeometryZTest (qboolean ztest)
 R_AddDebugGeometry
 ================
 */
-static void R_AddDebugGeometry (const debugvert_t verts[], int numverts, const uint16_t idx[], int numidx)
+static void R_AddDebugGeometry (const debugvert_t verts[], size_t numverts, const uint16_t idx[], size_t numidx)
 {
-	int i;
+	size_t i;
 
 	if (numdebugverts + numverts > countof (debugverts) ||
 		numdebugidx + numidx > countof (debugidx))

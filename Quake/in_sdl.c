@@ -474,7 +474,7 @@ static qboolean IN_RemapJoystick (void)
 
 void IN_StartupJoystick (void)
 {
-    int i;
+    size_t i;
     int nummappings;
     char controllerdb[MAX_OSPATH];
 

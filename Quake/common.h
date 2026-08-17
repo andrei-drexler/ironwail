@@ -408,7 +408,7 @@ struct cache_user_s;
 
 #define MAX_BASEDIRS 64
 
-extern	int		com_numbasedirs;
+extern	size_t		com_numbasedirs;
 extern	char	com_basedirs[MAX_BASEDIRS][MAX_OSPATH];
 extern	char	com_gamedir[MAX_OSPATH];
 extern	char	com_nightdivedir[MAX_OSPATH];

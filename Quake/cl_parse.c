@@ -122,7 +122,7 @@ entity_t	*CL_EntityNum (int num)
 
 	if (num >= cl.num_entities)
 	{
-		if (num >= cl_max_edicts) //johnfitz -- no more MAX_EDICTS
+		if ((size_t)num >= cl_max_edicts) //johnfitz -- no more MAX_EDICTS
 			Host_Error ("CL_EntityNum: %i is an invalid number",num);
 		while (cl.num_entities<=num)
 		{
@@ -145,8 +145,8 @@ CL_ParseStartSoundPacket
 void CL_ParseStartSoundPacket(void)
 {
 	vec3_t	pos;
-	int	channel, ent;
-	int	sound_num;
+	size_t	channel, ent;
+	size_t	sound_num;
 	int	volume;
 	int	field_mask;
 	float	attenuation;
@@ -185,11 +185,11 @@ void CL_ParseStartSoundPacket(void)
 
 	//johnfitz -- check soundnum
 	if (sound_num >= MAX_SOUNDS)
-		Host_Error ("CL_ParseStartSoundPacket: %i > MAX_SOUNDS", sound_num);
+		Host_Error ("CL_ParseStartSoundPacket: %" SDL_PRIu64 " > MAX_SOUNDS", (uint64_t)sound_num);
 	//johnfitz
 
 	if (ent > cl_max_edicts) //johnfitz -- no more MAX_EDICTS
-		Host_Error ("CL_ParseStartSoundPacket: ent = %i", ent);
+		Host_Error ("CL_ParseStartSoundPacket: ent = %" SDL_PRIu64, (uint64_t)ent);
 
 	for (i = 0; i < 3; i++)
 		pos[i] = MSG_ReadCoord (cl.protocolflags);
@@ -209,7 +209,7 @@ void CL_ParseLocalSound(void)
 	field_mask = MSG_ReadByte();
 	sound_num = (field_mask&SND_LARGESOUND) ? MSG_ReadShort() : MSG_ReadByte();
 	if (sound_num >= MAX_SOUNDS)
-		Host_Error ("CL_ParseLocalSound: %i > MAX_SOUNDS", sound_num);
+		Host_Error ("CL_ParseLocalSound: %" SDL_PRIu64 " > MAX_SOUNDS", (uint64_t)sound_num);
 
 	S_LocalSound (cl.sound_precache[sound_num]->name);
 }

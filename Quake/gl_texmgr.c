@@ -1838,7 +1838,7 @@ void GL_BindTextures (GLuint first, GLsizei count, gltexture_t **textures)
 	GLuint handles[8];
 	GLsizei i;
 
-	if (gl_multi_bind_able && count < countof (handles))
+	if (gl_multi_bind_able && count < (GLsizei)countof (handles))
 	{
 		for (i = 0; i < count; i++)
 		{
@@ -1892,7 +1892,7 @@ from our per-TMU cached texture binding table.
 */
 void GL_DeleteNativeTexture (GLuint texnum)
 {
-	int i;
+	size_t i;
 	for (i = 0; i < countof(currenttexture); i++)
 		if (texnum == currenttexture[i])
 			currenttexture[i] = 0;
@@ -1924,7 +1924,7 @@ GL_ClearBindings -- ericw
 */
 void GL_ClearBindings(void)
 {
-	int i;
+	size_t i;
 
 	memset (&currenttexture, 0, sizeof (currenttexture));
 	if (gl_multi_bind_able)

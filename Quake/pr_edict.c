@@ -71,7 +71,7 @@ PR_HashGet
 */
 static int PR_HashGet (prhashtable_t *table, const char *key)
 {
-	unsigned pos = COM_HashString (key) % table->capacity, end = pos;
+	int pos = COM_HashString (key) % table->capacity, end = pos;
 
 	do
 	{
@@ -98,7 +98,7 @@ PR_HashAdd
 static void PR_HashAdd (prhashtable_t *table, int skey, int value)
 {
 	const char *name = PR_GetString (skey);
-	unsigned pos = COM_HashString (name) % table->capacity, end = pos;
+	int pos = COM_HashString (name) % table->capacity, end = pos;
 
 	do
 	{

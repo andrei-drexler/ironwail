@@ -703,7 +703,7 @@ GL_DeleteBuffer
 */
 void GL_DeleteBuffer (GLuint buffer)
 {
-	int i;
+	size_t i;
 
 	if (buffer == current_array_buffer)
 		current_array_buffer = 0;
@@ -731,7 +731,7 @@ invalid (e.g. manually binding, destroying the context).
 */
 void GL_ClearBufferBindings (void)
 {
-	int i;
+	size_t i;
 
 	current_array_buffer = 0;
 	current_element_array_buffer = 0;
@@ -796,7 +796,7 @@ GL_AllocFrameResources
 */
 static void GL_AllocFrameResources (frameres_bits_t bits)
 {
-	int i;
+	size_t i;
 	for (i = 0; i < countof (frameres); i++)
 	{
 		char name[64];
@@ -818,7 +818,7 @@ static void GL_AllocFrameResources (frameres_bits_t bits)
 
 			GL_GenBuffersFunc (1, &frame->host_buffer);
 			GL_BindBuffer (GL_ARRAY_BUFFER, frame->host_buffer);
-			q_snprintf (name, sizeof (name), "dynamic host buffer %d", i);
+			q_snprintf (name, sizeof (name), "dynamic host buffer %" SDL_PRIu64, (uint64_t)i);
 			GL_ObjectLabelFunc (GL_BUFFER, frame->host_buffer, -1, name);
 			if (gl_buffer_storage_able)
 			{
@@ -840,7 +840,7 @@ static void GL_AllocFrameResources (frameres_bits_t bits)
 
 			GL_GenBuffersFunc (1, &frame->device_buffer);
 			GL_BindBuffer (GL_SHADER_STORAGE_BUFFER, frame->device_buffer);
-			q_snprintf (name, sizeof (name), "dynamic device buffer %d", i);
+			q_snprintf (name, sizeof (name), "dynamic device buffer %" SDL_PRIu64, (uint64_t)i);
 			GL_ObjectLabelFunc (GL_BUFFER, frame->device_buffer, -1, name);
 			GL_BufferDataFunc (GL_SHADER_STORAGE_BUFFER, frameres_device_buffer_size, NULL, GL_STREAM_DRAW);
 		}

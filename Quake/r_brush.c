@@ -37,12 +37,12 @@ typedef struct {
 
 #define MAX_SANITY_LIGHTMAPS (1u<<20)
 lightmap_t		*lightmaps;
-int				lightmap_count;
-int				last_lightmap_allocated;
+size_t				lightmap_count;
+size_t				last_lightmap_allocated;
 chart_t			lightmap_chart;
 msurface_t		**lit_surfs;
 int				*lit_surf_order[2];
-int				num_lightmap_samples;
+size_t				num_lightmap_samples;
 unsigned		*lightmap_data;
 gltexture_t		*lightmap_texture;
 int				lightmap_width;
@@ -172,7 +172,7 @@ AllocBlock -- returns a texture number and the position inside it
 */
 static int AllocBlock (int w, int h, short *x, short *y)
 {
-	int		texnum;
+	size_t		texnum;
 
 	// ericw -- rather than searching starting at lightmap 0 every time,
 	// start at the last lightmap we allocated a surface in.
@@ -323,7 +323,8 @@ GL_PackLitSurfaces
 */
 static void GL_PackLitSurfaces (void)
 {
-	int			i, j, k, pass, bins[256];
+	size_t			i, j, k;
+	int pass, bins[256];
 	int			maxblack[2] = {0, 0};
 	short		blackofs[2];
 	int			blacklm;
@@ -337,7 +338,7 @@ static void GL_PackLitSurfaces (void)
 			break;
 		if (m->name[0] == '*')
 			continue;
-		for (i=0, surf=m->surfaces ; i<m->numsurfaces ; i++, surf++)
+		for (i=0, surf=m->surfaces ; i<(size_t)m->numsurfaces ; i++, surf++)
 		{
 			int w, h;
 			if (surf->flags & SURF_DRAWTILED)
@@ -440,7 +441,8 @@ with all the surfaces from all brush models
 */
 void GL_BuildLightmaps (void)
 {
-	int			i, j, xblocks, yblocks, lmsize;
+	size_t			i, j, lmsize;
+	int xblocks, yblocks;
 	lightmap_t	*lm;
 
 	r_framecount = 1; // no dlightcache
@@ -481,9 +483,9 @@ void GL_BuildLightmaps (void)
 	}
 
 	Con_DPrintf (
-		"Lightmap size:   %d x %d (%d/%d blocks)\n"
+		"Lightmap size:   %d x %d (%" SDL_PRIu64 "/%d blocks)\n"
 		"Lightmap memory: %.1lf MB (%.1lf%% efficiency)\n",
-		lightmap_width, lightmap_height, lightmap_count, xblocks * yblocks,
+		lightmap_width, lightmap_height, (uint64_t)lightmap_count, xblocks * yblocks,
 		(lightmap_bytes * lmsize) / (float)0x100000, 100.0 * num_lightmap_samples / lmsize
 	);
 
@@ -522,7 +524,7 @@ void GL_BuildLightmaps (void)
 	//given that we are using lightmap_count of LMBLOCK_WIDTH x LMBLOCK_HEIGHT
 	i = lightmap_count * ((LMBLOCK_WIDTH / 128) * (LMBLOCK_HEIGHT / 128));
 	if (i > 64)
-		Con_DWarning("%i lightmaps exceeds standard limit of 64.\n",i);
+		Con_DWarning("%" SDL_PRIu64 " lightmaps exceeds standard limit of 64.\n",(uint64_t)i);
 	//johnfitz
 }
 

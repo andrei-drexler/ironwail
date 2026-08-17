@@ -205,7 +205,7 @@ static GLuint GL_CreateProgramFromSources (int count, const GLchar **sources, co
 {
 	char macros[1024];
 	char eval[256];
-	char *pipe;
+	const char *pipe;
 	int i, realcount;
 	GLuint shaders[2];
 

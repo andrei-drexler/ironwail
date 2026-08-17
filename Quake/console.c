@@ -2261,7 +2261,7 @@ static void Con_DrawSelectionHighlight (int x, int y, int line, float alpha)
 	end.col = len;
 
 	// Highlight line ends (as in Notepad, Visual Studio etc.)
-	if (end.line != selend.line && end.col == len)
+	if (end.line != selend.line && (size_t)end.col == len)
 		end.col++;
 
 	// ...unless we would end up overlapping the console margin
