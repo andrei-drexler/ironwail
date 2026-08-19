@@ -35,7 +35,7 @@ typedef struct {
 	int				*allocated;
 } chart_t;
 
-#define MAX_SANITY_LIGHTMAPS (1u<<20)
+const int MAX_SANITY_LIGHTMAPS = (1u<<20);
 lightmap_t		*lightmaps;
 int				lightmap_count;
 int				last_lightmap_allocated;
@@ -388,7 +388,7 @@ static void GL_PackLitSurfaces (void)
 		}
 
 		// generate offsets (prefix sum)
-		for (i = 0, j = 0; i < countof(bins); i++)
+		for (i = 0, j = 0; i < (int)countof(bins); i++)
 		{
 			int tmp = bins[i];
 			bins[i] = j;

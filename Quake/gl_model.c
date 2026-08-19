@@ -2067,53 +2067,46 @@ Mod_LoadMarksurfaces
 */
 static void Mod_LoadMarksurfaces (lump_t *l, int bsp2)
 {
-	int		i, j, count;
-	int		*out;
-	if (bsp2)
+	int32_t		i, count;
+	void *in = mod_base + l->fileofs;
+
+	if (l->filelen % (bsp2 ? sizeof(int32_t) : sizeof(int16_t)))
+		Host_Error ("Mod_LoadMarksurfaces: funny lump size in %s",loadmodel->name);
+
+	count = l->filelen / (bsp2 ? sizeof(int32_t) : sizeof(int16_t));
+	loadmodel->marksurfaces = (int32_t*)Hunk_AllocNameNoFill ( count*sizeof(int32_t), loadname );
+	loadmodel->nummarksurfaces = count;
+
+	if (count > INT16_MAX)
+		Con_Warning ("%i marksurfaces exceeds standard limit of %d.\n", count, INT16_MAX);
+
+	switch(bsp2)
 	{
-		unsigned int *in = (unsigned int *)(mod_base + l->fileofs);
-
-		if (l->filelen % sizeof(*in))
-			Host_Error ("Mod_LoadMarksurfaces: funny lump size in %s",loadmodel->name);
-
-		count = l->filelen / sizeof(*in);
-		out = (int*)Hunk_AllocNameNoFill ( count*sizeof(*out), loadname);
-
-		loadmodel->marksurfaces = out;
-		loadmodel->nummarksurfaces = count;
-
-		for (i=0 ; i<count ; i++)
+		case 0:
 		{
-			j = LittleLong(in[i]);
-			if (j >= loadmodel->numsurfaces)
-				Host_Error ("Mod_LoadMarksurfaces: bad surface number");
-			out[i] = j;
+			for (i=0 ; i<count ; i++)
+			{
+				loadmodel->marksurfaces[i] = (int32_t)(uint16_t)LittleShort(((int16_t*)in)[i]);
+				if ((loadmodel->marksurfaces[i] < 0) || (loadmodel->marksurfaces[i] >= loadmodel->numsurfaces))
+				{
+					Con_Warning ("%i/%i bad marksurface uint16 number: %d\n", i, count, loadmodel->marksurfaces[i]);
+					loadmodel->marksurfaces[i] = INT32_MAX;
+				}
+			}
+			break;
 		}
-	}
-	else
-	{
-		short *in = (short *)(mod_base + l->fileofs);
-
-		if (l->filelen % sizeof(*in))
-			Host_Error ("Mod_LoadMarksurfaces: funny lump size in %s",loadmodel->name);
-
-		count = l->filelen / sizeof(*in);
-		out = (int*)Hunk_AllocNameNoFill ( count*sizeof(*out), loadname);
-
-		loadmodel->marksurfaces = out;
-		loadmodel->nummarksurfaces = count;
-
-		//johnfitz -- warn mappers about exceeding old limits
-		if (count > 32767)
-			Con_DWarning ("%i marksurfaces exceeds standard limit of 32767.\n", count);
-		//johnfitz
-
-		for (i=0 ; i<count ; i++)
+		default:
 		{
-			j = (unsigned short)LittleShort(in[i]); //johnfitz -- explicit cast as unsigned short
-			if (j >= loadmodel->numsurfaces)
-				Sys_Error ("Mod_LoadMarksurfaces: bad surface number");
-			out[i] = j;
+			for (i=0 ; i<count ; i++)
+			{
+				loadmodel->marksurfaces[i] = (int32_t)LittleLong(((int32_t*)in)[i]);
+				if ((loadmodel->marksurfaces[i] < 0) || (loadmodel->marksurfaces[i] >= loadmodel->numsurfaces))
+				{
+					Con_Warning ("%i/%i bad marksurface int32 number: %d\n", i, count, loadmodel->marksurfaces[i]);
+					loadmodel->marksurfaces[i] = INT32_MAX;
+				}
+			}
+			break;
 		}
 	}
 }
@@ -2676,10 +2669,10 @@ qboolean Mod_LoadMapDescription (char *desc, size_t maxchars, const char *map)
 
 	// if the entity lump is large enough we assume the map is playable
 	// and only try to parse the first entity (worldspawn) for the map title
-	if (entlump->filelen >= sizeof (buf))
+	if (entlump->filelen >= (int)sizeof (buf))
 	{
 		ret = true;
-		entlump->filelen = sizeof (buf) - 1;
+		entlump->filelen = (int)sizeof (buf) - 1;
 	}
 
 	fseek (f, entlump->fileofs - sizeof (header), SEEK_CUR);

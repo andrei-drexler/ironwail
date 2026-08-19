@@ -115,25 +115,32 @@ typedef struct texture_s
 #define SURF_DRAWWATER		0x2000
 
 // !!! if this is changed, it must be changed in asm_draw.h too !!!
+#pragma pack(push,1)
 typedef struct
 {
 	unsigned int	v[2];
 } medge_t;
+#pragma pack(pop)
 
+#pragma pack(push,1)
 typedef struct
 {
 	float		vecs[2][4];
 	int			texnum;
 	int			flags;
 } mtexinfo_t;
+#pragma pack(pop)
 
+#pragma pack(push,1)
 typedef struct glvert_s {
 	vec3_t		pos;
 	float		st[4];
 	float		lmofs;
 	unsigned	styles;
 } glvert_t;
+#pragma pack(pop)
 
+#pragma pack(push,1)
 typedef struct msurface_s
 {
 	mplane_t	*plane;
@@ -155,7 +162,9 @@ typedef struct msurface_s
 	int			texturemins[2];
 	mtexinfo_t	*texinfo;
 } msurface_t;
+#pragma pack(pop)
 
+#pragma pack(push,1)
 typedef struct mnode_s
 {
 // common with leaf
@@ -173,9 +182,9 @@ typedef struct mnode_s
 	unsigned int		firstsurface;
 	unsigned int		numsurfaces;
 } mnode_t;
+#pragma pack(pop)
 
-
-
+#pragma pack(push,1)
 typedef struct mleaf_s
 {
 // common with node
@@ -189,21 +198,26 @@ typedef struct mleaf_s
 // leaf specific
 	byte		*compressed_vis;
 
-	int			*firstmarksurface;
-	int			nummarksurfaces;
+	int32_t			*firstmarksurface;
+	int32_t			nummarksurfaces;
 	int			key;			// BSP sequence number for leaf's contents
 	byte		ambient_sound_level[NUM_AMBIENTS];
 } mleaf_t;
+#pragma pack(pop)
 
 //johnfitz -- for clipnodes>32k
+#pragma pack(push,1)
 typedef struct mclipnode_s
 {
 	int			planenum;
 	int			children[2]; // negative numbers are contents
 } mclipnode_t;
+#pragma pack(pop)
+
 //johnfitz
 
 // !!! if this is changed, it must be changed in asm_i386.h too !!!
+#pragma pack(push,1)
 typedef struct
 {
 	mclipnode_t	*clipnodes; //johnfitz -- was dclipnode_t
@@ -213,6 +227,7 @@ typedef struct
 	vec3_t		clip_mins;
 	vec3_t		clip_maxs;
 } hull_t;
+#pragma pack(pop)
 
 /*
 ==============================================================================
@@ -224,6 +239,7 @@ SPRITE MODELS
 
 
 // FIXME: shorten these?
+#pragma pack(push,1)
 typedef struct mspriteframe_s
 {
 	int					width, height;
@@ -231,20 +247,26 @@ typedef struct mspriteframe_s
 	float				smax, tmax; //johnfitz -- image might be padded
 	struct gltexture_s	*gltexture;
 } mspriteframe_t;
+#pragma pack(pop)
 
+#pragma pack(push,1)
 typedef struct
 {
 	int				numframes;
 	float			*intervals;
 	mspriteframe_t	*frames[1];
 } mspritegroup_t;
+#pragma pack(pop)
 
+#pragma pack(push,1)
 typedef struct
 {
 	spriteframetype_t	type;
 	mspriteframe_t		*frameptr;
 } mspriteframedesc_t;
+#pragma pack(pop)
 
+#pragma pack(push,1)
 typedef struct
 {
 	int					type;
@@ -253,7 +275,7 @@ typedef struct
 	int					numframes;
 	mspriteframedesc_t	frames[1];
 } msprite_t;
-
+#pragma pack(pop)
 
 /*
 ==============================================================================
@@ -266,24 +288,31 @@ Alias models are position independent, so the cache manager can move them.
 
 //-- from RMQEngine
 // split out to keep vertex sizes down
+#pragma pack(push,1)
 typedef struct aliasmesh_s
 {
 	short st[2];
 	unsigned short vertindex;
 } aliasmesh_t;
+#pragma pack(pop)
 
+#pragma pack(push,1)
 typedef struct meshxyz_s
 {
 	byte xyz[4];
 	signed char normal[4];
 } meshxyz_t;
+#pragma pack(pop)
 
+#pragma pack(push,1)
 typedef struct meshst_s
 {
 	float st[2];
 } meshst_t;
+#pragma pack(pop)
 //--
 
+#pragma pack(push,1)
 typedef struct
 {
 	int					firstpose;
@@ -294,8 +323,10 @@ typedef struct
 	int					frame;
 	char				name[16];
 } maliasframedesc_t;
+#pragma pack(pop)
 
 #define	MAX_SKINS	32
+#pragma pack(push,1)
 typedef struct {
 	int			ident;
 	int			version;
@@ -343,9 +374,10 @@ typedef struct {
 	int					texels[MAX_SKINS];	// only for player skins
 	maliasframedesc_t	frames[1];	// variable sized
 } aliashdr_t;
-
+#pragma pack(pop)
 static inline aliashdr_t *Mod_NextSurface (aliashdr_t *hdr) { return hdr->nextsurface ? (aliashdr_t*)((byte*)hdr + hdr->nextsurface) : NULL; }
 
+#pragma pack(push,1)
 typedef struct
 {
 	float		xyz[3];
@@ -354,21 +386,32 @@ typedef struct
 	uint8_t		weight[4];
 	uint8_t		idx[4];
 } iqmvert_t;
+#pragma pack(pop)
+
+#pragma pack(push,1)
 typedef struct
 {
 	float mat[12];
 } bonepose_t; //pose data for a single bone.
+#pragma pack(pop)
+
+#pragma pack(push,1)
 typedef struct
 {
 	int parent; //-1 for a root bone
 	char name[32];
 	bonepose_t inverse;
 } boneinfo_t;
+#pragma pack(pop)
+
+#pragma pack(push,1)
 typedef struct
 {
 	uint16_t	xyz[3];
 	uint8_t		normal[2]; // spherical coords
 } md3pose_t; // Total size is now 8 bytes
+#pragma pack(pop)
+
 #define	MAXALIASVERTS		0x7fff //16-bit index buffer + onseam duplication
 #define	MAXALIASVERTS_QS	2000 //johnfitz -- was 1024
 #define	MAXALIASFRAMES		1024 //spike -- was 256
@@ -418,6 +461,7 @@ enum
 	MODSORT_ALIAS_ALPHATEST		= 1 << (MODSORT_BITS - 1),
 };
 
+#pragma pack(push,1) 
 typedef struct qmodel_s
 {
 	char		name[MAX_QPATH];
@@ -476,13 +520,13 @@ typedef struct qmodel_s
 	msurface_t	*surfaces;
 
 	int			numsurfedges;
-	int			*surfedges;
+	int		*surfedges;
 
 	int			numclipnodes;
 	mclipnode_t	*clipnodes; //johnfitz -- was dclipnode_t
 
-	int			nummarksurfaces;
-	int			*marksurfaces;
+	int32_t			nummarksurfaces;
+	int32_t		*marksurfaces;
 
 	hull_t		hulls[MAX_MAP_HULLS];
 
@@ -516,6 +560,7 @@ typedef struct qmodel_s
 	cache_user_t	cache;		// only access through Mod_Extradata
 
 } qmodel_t;
+#pragma pack(pop)
 
 //
 // MD3 structs
