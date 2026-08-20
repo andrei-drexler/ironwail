@@ -22,14 +22,7 @@
 #ifndef __CFGFILE_H
 #define __CFGFILE_H
 
-int CFG_OpenConfig (const char *cfg_name);
-// opens the given config file. only one open config file is
-// kept: previosly opened one, if any, will be closed.
-
-void CFG_CloseConfig (void);
-// closes the currently open config file.
-
-void CFG_ReadCvars (const char **vars, int num_vars);
+void CFG_ReadCvars (const char *cfg_name, const char **vars, int num_vars);
 // reads the values of cvars in the given list from the opened
 // config file.
 
