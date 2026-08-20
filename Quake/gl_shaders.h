@@ -165,8 +165,8 @@ static const char warpscale_fragment_shader[] =
 "	coord &= 15;\n"\
 "	coord.y ^= coord.x;\n"\
 "	uint v = uint(coord.y | (coord.x << 8));	// 0  0  0  0 | x3 x2 x1 x0 |  0  0  0  0 | y3 y2 y1 y0\n"\
-"	v = (v ^ (v << 2)) & 0x3333;				// 0  0 x3 x2 |  0  0 x1 x0 |  0  0 y3 y2 |  0  0 y1 y0\n"\
-"	v = (v ^ (v << 1)) & 0x5555;				// 0 x3  0 x2 |  0 x1  0 x0 |  0 y3  0 y2 |  0 y1  0 y0\n"\
+"	v = (v ^ (v << 2)) & 0x3333u;				// 0  0 x3 x2 |  0  0 x1 x0 |  0  0 y3 y2 |  0  0 y1 y0\n"\
+"	v = (v ^ (v << 1)) & 0x5555u;				// 0 x3  0 x2 |  0 x1  0 x0 |  0 y3  0 y2 |  0 y1  0 y0\n"\
 "	v |= v >> 7;								// 0 x3  0 x2 |  0 x1  0 x0 | x3 y3 x2 y2 | x1 y1 x0 y0\n"\
 "	v = bitfieldReverse(v) >> 24;				// 0  0  0  0 |  0  0  0  0 | y0 x0 y1 x1 | y2 x2 y3 x3\n"\
 "	return float(v) * (1.0/256.0);\n"\
@@ -1106,7 +1106,7 @@ ALIAS_INSTANCE_BUFFER
 "#if POSEVERTTYPE == 2 // PV_MD3\n"
 "		PoseVertex ret;\n"
 "		ret.pos = vec3((ivec3(data.xxy >> uvec3(0, 16, 0)) & 65535) - 32768);\n"
-"		vec2 spherical = vec2((data.yy >> uvec2(16, 24)) & 255) * (2.0 * 3.14159265 / 255.0);\n"
+"		vec2 spherical = vec2((data.yy >> uvec2(16, 24)) & 255u) * (2.0 * 3.14159265 / 255.0);\n"
 "		float sinlat = sin(spherical.x);\n"
 "		float coslat = cos(spherical.x);\n"
 "		float sinlng = sin(spherical.y);\n"
@@ -1116,7 +1116,7 @@ ALIAS_INSTANCE_BUFFER
 "		ret.nor.z = coslat;\n"
 "		return ret;\n"
 "#else // PV_QUAKE1\n"
-"		return PoseVertex(vec3((data.xxx >> uvec3(0, 8, 16)) & 255), unpackSnorm4x8(data.y).xyz);\n"
+"		return PoseVertex(vec3((data.xxx >> uvec3(0, 8, 16)) & 255u), unpackSnorm4x8(data.y).xyz);\n"
 "#endif // POSEVERTTYPE\n"
 "	}\n"
 "\n"
