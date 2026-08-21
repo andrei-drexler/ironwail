@@ -1,0 +1,12 @@
+#!/usr/bin/env xdg-open
+[Desktop Entry]
+Name=Ironwail
+Comment=A modernised fork of the Quake engine
+Exec=ironwail
+Icon=io.github.andrei_drexler.ironwail
+StartupNotify=true
+PrefersNonDefaultGPU=true
+Terminal=false
+Type=Application
+Categories=Game;Shooter;
+Keywords=quake;first;person;shooter;
