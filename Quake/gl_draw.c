@@ -1254,10 +1254,6 @@ void Draw_GetCanvasTransform (canvastype type, drawtransform_t *transform)
 		s = (float)vid.guiwidth/vid.conwidth; //use console scale
 		Draw_Transform (320, 200, s, CANVAS_ALIGN_LEFT, CANVAS_ALIGN_BOTTOM, transform);
 		break;
-	case CANVAS_BOTTOMRIGHT: //used by fps/clock
-		s = (float)vid.guiwidth/vid.conwidth; //use console scale
-		Draw_Transform (320, 200, s, CANVAS_ALIGN_RIGHT, CANVAS_ALIGN_BOTTOM, transform);
-		break;
 	case CANVAS_TOPRIGHT: //used by disc
 		s = (float)vid.guiwidth/vid.conwidth; //use console scale
 		Draw_Transform (320, 200, s, CANVAS_ALIGN_RIGHT, CANVAS_ALIGN_TOP, transform);

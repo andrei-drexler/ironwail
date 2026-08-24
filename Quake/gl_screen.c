@@ -766,21 +766,10 @@ static void SCR_DrawFPS (void)
 			sprintf (st, "%4.0f fps", lastfps);
 		else
 			sprintf (st, "%.2f ms", 1000.f / lastfps);
-		x = 320 - (strlen(st)<<3);
-		if (hudstyle != HUD_CLASSIC)
-		{
-			x = 320 - 16 - (strlen(st)<<3);
-			y = 8;
-			if (SCR_IsClockVisible ()) y += 8; //make room for clock
-			GL_SetCanvas (CANVAS_TOPRIGHT);
-		}
-		else
-		{
-			x = 320 - (strlen(st)<<3);
-			y = 200 - 8;
-			if (SCR_IsClockVisible ()) y -= 8; //make room for clock
-			GL_SetCanvas (CANVAS_BOTTOMRIGHT);
-		}
+		x = 320 - 16 - (strlen(st)<<3);
+		y = 8;
+		if (SCR_IsClockVisible ()) y += 8; //make room for clock
+		GL_SetCanvas (CANVAS_TOPRIGHT);
 		Draw_String (x, y, st);
 		scr_tileclear_updates = 0;
 	}
@@ -860,16 +849,8 @@ static void SCR_DrawClock (void)
 		return;
 
 	//draw it
-	if (hudstyle == HUD_CLASSIC)
-	{
-		GL_SetCanvas (CANVAS_BOTTOMRIGHT);
-		Draw_String (320 - (strlen(str)<<3), 200 - 8, str);
-	}
-	else
-	{
-		GL_SetCanvas (CANVAS_TOPRIGHT);
-		Draw_String (320 - 16 - (strlen(str)<<3), 8, str);
-	}
+	GL_SetCanvas (CANVAS_TOPRIGHT);
+	Draw_String (320 - 16 - (strlen(str)<<3), 8, str);
 
 	scr_tileclear_updates = 0;
 }
