@@ -476,7 +476,8 @@ static void R_DrawBrushModels_Real (entity_t **ents, int count, brushpass_t pass
 		qmodel_t *model = e->model;
 		qboolean isworld = (e == &cl_entities[0]);
 		qboolean isstatic = PTR_IN_RANGE (e, cl_static_entities, cl_static_entities + MAX_STATIC_ENTITIES);
-		qboolean zfix = !isworld && !isstatic;
+		qboolean isdecal = isstatic && pass == BP_ALPHATEST;
+		qboolean zfix = !isworld && !isdecal;
 		int frame = isworld ? 0 : e->frame;
 		int numtex = model->texofs[texend] - model->texofs[texbegin];
 
