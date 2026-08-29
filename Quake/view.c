@@ -32,30 +32,30 @@ when crossing a water boudnary.
 
 */
 
-cvar_t	scr_ofsx = {"scr_ofsx","0", CVAR_NONE};
-cvar_t	scr_ofsy = {"scr_ofsy","0", CVAR_NONE};
-cvar_t	scr_ofsz = {"scr_ofsz","0", CVAR_NONE};
+cvar_t	scr_ofsx = {"scr_ofsx","0", CVAR_ARCHIVE};
+cvar_t	scr_ofsy = {"scr_ofsy","0", CVAR_ARCHIVE};
+cvar_t	scr_ofsz = {"scr_ofsz","0", CVAR_ARCHIVE};
 
-cvar_t	cl_rollspeed = {"cl_rollspeed", "200", CVAR_NONE};
+cvar_t	cl_rollspeed = {"cl_rollspeed", "200", CVAR_ARCHIVE};
 cvar_t	cl_rollangle = {"cl_rollangle", "2.0", CVAR_ARCHIVE};
 
 cvar_t	cl_bob = {"cl_bob","0.02", CVAR_ARCHIVE};
-cvar_t	cl_bobcycle = {"cl_bobcycle","0.6", CVAR_NONE};
-cvar_t	cl_bobup = {"cl_bobup","0.5", CVAR_NONE};
+cvar_t	cl_bobcycle = {"cl_bobcycle","0.6", CVAR_ARCHIVE};
+cvar_t	cl_bobup = {"cl_bobup","0.5", CVAR_ARCHIVE};
 
-cvar_t	v_kicktime = {"v_kicktime", "0.5", CVAR_NONE};
-cvar_t	v_kickroll = {"v_kickroll", "0.6", CVAR_NONE};
-cvar_t	v_kickpitch = {"v_kickpitch", "0.6", CVAR_NONE};
+cvar_t	v_kicktime = {"v_kicktime", "0.5", CVAR_ARCHIVE};
+cvar_t	v_kickroll = {"v_kickroll", "0.6", CVAR_ARCHIVE};
+cvar_t	v_kickpitch = {"v_kickpitch", "0.6", CVAR_ARCHIVE};
 cvar_t	v_gunkick = {"v_gunkick", "2", CVAR_ARCHIVE}; //johnfitz
 
-cvar_t	v_iyaw_cycle = {"v_iyaw_cycle", "2", CVAR_NONE};
-cvar_t	v_iroll_cycle = {"v_iroll_cycle", "0.5", CVAR_NONE};
-cvar_t	v_ipitch_cycle = {"v_ipitch_cycle", "1", CVAR_NONE};
-cvar_t	v_iyaw_level = {"v_iyaw_level", "0.3", CVAR_NONE};
-cvar_t	v_iroll_level = {"v_iroll_level", "0.1", CVAR_NONE};
-cvar_t	v_ipitch_level = {"v_ipitch_level", "0.3", CVAR_NONE};
+cvar_t	v_iyaw_cycle = {"v_iyaw_cycle", "2", CVAR_ARCHIVE};
+cvar_t	v_iroll_cycle = {"v_iroll_cycle", "0.5", CVAR_ARCHIVE};
+cvar_t	v_ipitch_cycle = {"v_ipitch_cycle", "1", CVAR_ARCHIVE};
+cvar_t	v_iyaw_level = {"v_iyaw_level", "0.3", CVAR_ARCHIVE};
+cvar_t	v_iroll_level = {"v_iroll_level", "0.1", CVAR_ARCHIVE};
+cvar_t	v_ipitch_level = {"v_ipitch_level", "0.3", CVAR_ARCHIVE};
 
-cvar_t	v_idlescale = {"v_idlescale", "0", CVAR_NONE};
+cvar_t	v_idlescale = {"v_idlescale", "0", CVAR_ARCHIVE};
 
 cvar_t	crosshair = {"crosshair", "0", CVAR_ARCHIVE};
 char	crosshair_char = '\0';
