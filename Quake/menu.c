@@ -4886,11 +4886,23 @@ void M_Options_Mousemove (float cx, float cy)
 //=============================================================================
 /* KEYS MENU */
 
+typedef enum
+{
+	MBF_KBM_ONLY			= 1 << 0,
+	MBF_GAMEPAD_ONLY		= 1 << 1,
+	MBF_DEVICE_MASK			= MBF_KBM_ONLY | MBF_GAMEPAD_ONLY,
+
+	// QSS/FTE compat: we merge the entries in bindlist.lst files with the engine-defined ones,
+	// whereas QSS/FTE complete replace theirs. To avoid having bind list files that break
+	// QSS/FTE, we mark certain keybinds as required and ignore files without them.
+	MBF_REQUIRED			= 1 << 2,
+} menubindflags_t;
+
 typedef struct
 {
 	const char			*command;
 	const char			*description;
-	keydevicemask_t		devicemask;
+	menubindflags_t		flags;
 } menukeybind_t;
 
 #define QUICKSAVE "echo Quicksaving...; wait; save quick"
@@ -4899,55 +4911,58 @@ typedef struct
 static const menukeybind_t default_keybinds[] =
 {
 	/* Standard movement/looking bindings *************************************/
-	{"+forward",		"Move forward",			KDM_KEYBOARD_AND_MOUSE},
-	{"+back",			"Move backward",		KDM_KEYBOARD_AND_MOUSE},
-	{"+moveleft",		"Move left",			KDM_KEYBOARD_AND_MOUSE},
-	{"+moveright",		"Move right",			KDM_KEYBOARD_AND_MOUSE},
-	{"+jump",			"Jump / swim up",		KDM_ANY},
-	{"+moveup",			"Swim up",				KDM_ANY},
-	{"+movedown",		"Swim down",			KDM_ANY},
-	{"+speed",			"Run",					KDM_KEYBOARD_AND_MOUSE},
-	{"+strafe",			"Sidestep",				KDM_KEYBOARD_AND_MOUSE},
-	{"",				"",						KDM_ANY},
-	{"+left",			"Turn left",			KDM_KEYBOARD_AND_MOUSE},
-	{"+right",			"Turn right",			KDM_KEYBOARD_AND_MOUSE},
-	{"+lookup",			"Look up",				KDM_KEYBOARD_AND_MOUSE},
-	{"+lookdown",		"Look down",			KDM_KEYBOARD_AND_MOUSE},
-	{"centerview",		"Center view",			KDM_ANY},
-	{"zoom_in",			"Toggle zoom",			KDM_ANY},
-	{"+zoom",			"Quick zoom",			KDM_ANY},
-	{"+gyroaction",		"Gyro switch",			KDM_GAMEPAD},
-	{"+altmodifier",	"Alt modifier",			KDM_GAMEPAD},
-	{"",				"",						KDM_ANY},
+	{"+forward",		"Move forward",			MBF_REQUIRED | MBF_KBM_ONLY},
+	{"+back",			"Move backward",		MBF_REQUIRED | MBF_KBM_ONLY},
+	{"+moveleft",		"Move left",			MBF_REQUIRED | MBF_KBM_ONLY},
+	{"+moveright",		"Move right",			MBF_REQUIRED | MBF_KBM_ONLY},
+	{"+jump",			"Jump / swim up",		MBF_REQUIRED},
+	{"+moveup",			"Swim up",				MBF_REQUIRED},
+	{"+movedown",		"Swim down",			MBF_REQUIRED},
+	{"+speed",			"Run",					MBF_REQUIRED | MBF_KBM_ONLY},
+	{"+strafe",			"Sidestep",				MBF_REQUIRED | MBF_KBM_ONLY},
+	{"",				"",						0},
+	{"+left",			"Turn left",			MBF_REQUIRED | MBF_KBM_ONLY},
+	{"+right",			"Turn right",			MBF_REQUIRED | MBF_KBM_ONLY},
+	{"+lookup",			"Look up",				MBF_REQUIRED | MBF_KBM_ONLY},
+	{"+lookdown",		"Look down",			MBF_REQUIRED | MBF_KBM_ONLY},
+	{"centerview",		"Center view",			MBF_REQUIRED},
+	{"zoom_in",			"Toggle zoom",			0},
+	{"+zoom",			"Quick zoom",			0},
+	{"+gyroaction",		"Gyro switch",			MBF_GAMEPAD_ONLY},
+	{"+altmodifier",	"Alt modifier",			MBF_GAMEPAD_ONLY},
+	{"",				"",						0},
 	/* Weapons / insertion point for bindlist.lst entries *********************/
 	{"*",				"",						0},
-	{"",				"",						KDM_ANY},
-	{"+attack",			"Attack",				KDM_ANY},
-	{"impulse 10",		"Next weapon",			KDM_ANY},
-	{"impulse 12",		"Previous weapon",		KDM_ANY},
-	{"impulse 1",		"Axe",					KDM_ANY},
-	{"impulse 2",		"Shotgun",				KDM_ANY},
-	{"impulse 3",		"Super Shotgun",		KDM_ANY},
-	{"impulse 4",		"Nailgun",				KDM_ANY},
-	{"impulse 5",		"Super Nailgun",		KDM_ANY},
-	{"impulse 6",		"Grenade Launcher",		KDM_ANY},
-	{"impulse 7",		"Rocket Launcher",		KDM_ANY},
-	{"impulse 8",		"Thunderbolt",			KDM_ANY},
-	{"impulse 225",		"Laser Cannon",			KDM_ANY},
-	{"impulse 226",		"Mjolnir",				KDM_ANY},
-	{"",				"",						KDM_ANY},
-	/* Miscelaneous entries ***************************************************/
+	{"",				"",						0},
+	{"+attack",			"Attack",				0},
+	{"impulse 10",		"Next weapon",			0},
+	{"impulse 12",		"Previous weapon",		0},
+	{"impulse 1",		"Axe",					0},
+	{"impulse 2",		"Shotgun",				0},
+	{"impulse 3",		"Super Shotgun",		0},
+	{"impulse 4",		"Nailgun",				0},
+	{"impulse 5",		"Super Nailgun",		0},
+	{"impulse 6",		"Grenade Launcher",		0},
+	{"impulse 7",		"Rocket Launcher",		0},
+	{"impulse 8",		"Thunderbolt",			0},
+	{"impulse 225",		"Laser Cannon",			0},
+	{"impulse 226",		"Mjolnir",				0},
+	{"",				"",						0},
+	/* Miscellaneous entries **************************************************/
 	{"*",				"",						0},
-	{"",				"",						KDM_ANY},
-	{QUICKSAVE,			"Quick save",			KDM_ANY},
-	{QUICKLOAD,			"Quick load",			KDM_ANY},
-	{"menu_load",		"Load menu",			KDM_ANY},
-	{"menu_save",		"Save menu",			KDM_ANY},
-	{"menu_maps",		"Maps menu",			KDM_ANY},
-	{"menu_options",	"Options menu",			KDM_ANY},
-	{"screenshot",		"Screenshot",			KDM_ANY},
-	{"+showscores",		"Show score",			KDM_ANY},
-	{"messagemode",		"Text chat",			KDM_KEYBOARD_AND_MOUSE},
+	{"",				"",						0},
+	{QUICKSAVE,			"Quick save",			0},
+	{QUICKLOAD,			"Quick load",			0},
+	{"menu_load",		"Load menu",			0},
+	{"menu_save",		"Save menu",			0},
+	{"menu_maps",		"Maps menu",			0},
+	{"menu_options",	"Options menu",			0},
+	{"screenshot",		"Screenshot",			0},
+	{"+showscores",		"Show score",			0},
+	{"messagemode",		"Text chat",			MBF_REQUIRED | MBF_KBM_ONLY},
+	// only here to enforce QSS/FTE bindlist compat
+	// (filtered out from UI due to unsupported command/alias)
+	{"+voip",			"Voice chat",			MBF_REQUIRED},
 };
 
 #define KEYLIST_TOP		56						// title plaque, tabs, scroll ellipsis bar
@@ -4983,20 +4998,12 @@ static void M_Keys_AddCustomEntry (const char *cmd, const char *desc)
 		};
 		qboolean filter_enabled = true;
 
-		// skip unsupported entries, e.g. +voip in Mjolnir's bindlist.lst
-		COM_Parse (cmd);
-		if (!Cmd_Exists (com_token) && !Cmd_AliasExists (com_token))
-		{
-			Con_DPrintf ("Skipping unsupported key binding: \"%s\" = \"%s\"\n", desc, cmd);
-			return;
-		}
-
 		// skip deprecated entries, e.g. +klook in Mjolnir's bindlist.lst
 		for (i = 0; i < Q_COUNTOF (deprecated); i++)
 		{
 			if (strcmp (deprecated[i], cmd) == 0)
 			{
-				Con_DPrintf ("Skipping deprecated key binding: \"%s\" = \"%s\"\n", desc, cmd);
+				Con_DPrintf ("Skipping deprecated key binding: \"%s\" \"%s\"\n", cmd, desc);
 				return;
 			}
 		}
@@ -5020,7 +5027,7 @@ static void M_Keys_AddCustomEntry (const char *cmd, const char *desc)
 	// add custom key binding
 	new_item.command = strdup (cmd);
 	new_item.description = strdup (desc);
-	new_item.devicemask = KDM_ANY;
+	new_item.flags = 0;
 	VEC_PUSH (keysmenu.custom_items, new_item);
 }
 
@@ -5051,17 +5058,32 @@ static qboolean M_Keys_Match (int index)
 	return q_strcasestr (name, keysmenu.list.search.text) != NULL;
 }
 
+static keydevicemask_t M_Keys_GetItemDeviceMask (const menukeybind_t *item)
+{
+	int mask = item->flags & MBF_DEVICE_MASK;
+	if (mask & MBF_GAMEPAD_ONLY)
+		return KDM_GAMEPAD;
+	if (mask & MBF_KBM_ONLY)
+		return KDM_KEYBOARD_AND_MOUSE;
+	return KDM_ANY;
+}
+
 static void M_Keys_AddItem (const menukeybind_t *item)
 {
 	size_t i;
 
 	// filter by device type
-	if (!(keysmenu.devicemask & item->devicemask))
+	if (!(keysmenu.devicemask & M_Keys_GetItemDeviceMask (item)))
 		return;
 
-	// skip duplicate entries
 	if (item->command[0])
 	{
+		// skip unsupported entries, e.g. +voip
+		COM_Parse (item->command);
+		if (!Cmd_Exists (com_token) && !Cmd_AliasExists (com_token))
+			return;
+
+		// skip duplicate entries
 		for (i = 0; i < VEC_SIZE (keysmenu.filtered_items); i++)
 		{
 			const menukeybind_t *existimg_item = &keysmenu.filtered_items[i];
@@ -5113,11 +5135,10 @@ static void M_Keys_Populate (void)
 	keysmenu.list.scroll = 0;
 }
 
-void M_Menu_Keys_f (void)
+static void M_Keys_LoadBindList (void)
 {
 	size_t i;
 	char *file;
-	keydevice_t lastactive = IN_GetLastActiveDeviceType ();
 
 	// free custom items
 	for (i = 0; i < VEC_SIZE (keysmenu.custom_items); i++)
@@ -5128,12 +5149,18 @@ void M_Menu_Keys_f (void)
 	}
 	VEC_CLEAR (keysmenu.custom_items);
 
-	// load custom items from bindlist.lst
 	file = (char*) COM_LoadMallocFile ("bindlist.lst", NULL);
 	if (file)
 	{
+		uint32_t missing_mask[BITARRAY_DWORDS (Q_COUNTOF (default_keybinds))];
+		int missing;
 		char *text = file;
 		char *line;
+
+		memset (missing_mask, 0, sizeof (missing_mask));
+		for (i = 0; i < Q_COUNTOF (default_keybinds); i++)
+			if (default_keybinds[i].flags & MBF_REQUIRED)
+				SetBit (missing_mask, i);
 
 		while (COM_ParseMutableLine (&text, &line))
 		{
@@ -5143,11 +5170,50 @@ void M_Menu_Keys_f (void)
 			desc = Cmd_Argv (1);
 			/*tip = Cmd_Argv(2); unused in quakespasm*/
 
+			// skip blank/comment-only lines, separators must be explicitly marked with "-"
+			if (!cmd[0])
+				continue;
+
+			if (cmd[0] != '-')
+				for (i = 0; i < Q_COUNTOF (default_keybinds); i++)
+					if ((default_keybinds[i].flags & MBF_REQUIRED) != 0 && strcmp (default_keybinds[i].command, cmd) == 0)
+						ClearBit (missing_mask, i);
+
 			M_Keys_AddCustomEntry( cmd, desc );
 		}
 
 		free (file);
+
+		for (i = 0, missing = 0; i < Q_COUNTOF (default_keybinds); i++)
+			if (GetBit (missing_mask, i))
+				missing++;
+
+		if (missing)
+		{
+			VEC_CLEAR (keysmenu.custom_items);
+			if (!developer.value)
+			{
+				Con_Warning ("ignoring incomplete bindlist.lst\n(use developer 1 for more details)\n");
+			}
+			else
+			{
+				const menukeybind_t *item;
+				Con_SafePrintf ("\n");
+				Con_Warning ("bindlist.lst is missing %d required %s:\n", missing, missing == 1 ? "entry" : "entries");
+				for (i = 0, item = &default_keybinds[0]; i < Q_COUNTOF (default_keybinds); i++, item++)
+					if (GetBit (missing_mask, i))
+						Con_SafePrintf ("\"%s\" \"%s\"\n", item->command, item->description);
+				Con_SafePrintf ("\n");
+			}
+		}
 	}
+}
+
+void M_Menu_Keys_f (void)
+{
+	keydevice_t lastactive = IN_GetLastActiveDeviceType ();
+
+	M_Keys_LoadBindList ();
 
 	// hacky: determine the maximum number of items by populating the item list for both kb/m & gamepad
 	// (easy way to properly account for the quirky item deduplication logic)
