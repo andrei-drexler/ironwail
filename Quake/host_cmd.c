@@ -2093,6 +2093,7 @@ Goes to a new map, taking all clients along
 static void Host_Changelevel_f (void)
 {
 	char	level[MAX_QPATH];
+	char	*ch;
 
 	if (Cmd_Argc() != 2)
 	{
@@ -2112,6 +2113,11 @@ static void Host_Changelevel_f (void)
 	//johnfitz
 
 	q_strlcpy (level, Cmd_Argv(1), sizeof(level));
+
+	// Normalize map name to lowercase so we don't get multiple copies of autosave
+	for (ch = level; *ch != 0; ++ch)
+		*ch = q_tolower(*ch);
+
 	if (!strcmp (sv.name, level) && Host_AutoLoad ())
 		return;
 
