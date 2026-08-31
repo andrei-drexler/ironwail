@@ -504,21 +504,25 @@ qboolean Steam_Init (const steamgame_t *game)
 	{
 		Sys_Printf ("Steam not running\n");
 
-		SDL_ShowSimpleMessageBox (
-			SDL_MESSAGEBOX_INFORMATION,
-			"Steam not running",
-			"Steam must be running in order to update achievements,\n"
-			"track total time played, and show in-game status to your friends.\n"
-			"\n"
-			"If this functionality is important to you, please start Steam\n"
-			"before continuing.\n",
-			NULL
-		);
+		// -nosteamwarn: skip the blocking dialog; Steam API init still attempted below
+		if (!COM_CheckParm ("-nosteamwarn"))
+		{
+			SDL_ShowSimpleMessageBox (
+				SDL_MESSAGEBOX_INFORMATION,
+				"Steam not running",
+				"Steam must be running in order to update achievements,\n"
+				"track total time played, and show in-game status to your friends.\n"
+				"\n"
+				"If this functionality is important to you, please start Steam\n"
+				"before continuing.\n",
+				NULL
+			);
 
-		if (SteamAPI_IsSteamRunning_Func ())
-			Sys_Printf ("Steam is now running, continuing\n");
-		else
-			Sys_Printf ("Steam is still not running\n");
+			if (SteamAPI_IsSteamRunning_Func ())
+				Sys_Printf ("Steam is now running, continuing\n");
+			else
+				Sys_Printf ("Steam is still not running\n");
+		}
 	}
 
 	if (!SteamAPI_Init_Func ())
