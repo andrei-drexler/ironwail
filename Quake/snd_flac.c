@@ -69,7 +69,7 @@ typedef size_t   FLAC_SIZE_T;
 
 typedef struct {
 	FLAC__StreamDecoder *decoder;
-	fshandle_t *file;
+	qfshandle_t *file;
 	snd_info_t *info;
 	byte *buffer;
 	int size, pos, error;
@@ -92,9 +92,7 @@ flac_read_func (const FLAC__StreamDecoder *decoder, FLAC__byte buffer[],
 	flacfile_t *ff = (flacfile_t *) client_data;
 	if (*bytes > 0)
 	{
-		*bytes = FS_fread(buffer, 1, *bytes, ff->file);
-		if (FS_ferror(ff->file))
-			return FLAC__STREAM_DECODER_READ_STATUS_ABORT;
+		*bytes = (FLAC_SIZE_T)QFS_ReadFile(ff->file, buffer, (size_t)*bytes);
 		if (*bytes == 0)
 			return FLAC__STREAM_DECODER_READ_STATUS_END_OF_STREAM;
 		return FLAC__STREAM_DECODER_READ_STATUS_CONTINUE;
@@ -107,7 +105,7 @@ flac_seek_func (const FLAC__StreamDecoder *decoder,
 		FLAC__uint64 absolute_byte_offset, void *client_data)
 {
 	flacfile_t *ff = (flacfile_t *) client_data;
-	if (FS_fseek(ff->file, (long)absolute_byte_offset, SEEK_SET) < 0)
+	if (QFS_Seek(ff->file, (qfileofs_t)absolute_byte_offset, SEEK_SET) < 0)
 		return FLAC__STREAM_DECODER_SEEK_STATUS_ERROR;
 	return FLAC__STREAM_DECODER_SEEK_STATUS_OK;
 }
@@ -117,7 +115,7 @@ flac_tell_func (const FLAC__StreamDecoder *decoder,
 		FLAC__uint64 *absolute_byte_offset, void *client_data)
 {
 	flacfile_t *ff = (flacfile_t *) client_data;
-	long pos = FS_ftell (ff->file);
+	qfileofs_t pos = QFS_Tell (ff->file);
 	if (pos < 0) return FLAC__STREAM_DECODER_TELL_STATUS_ERROR;
 	*absolute_byte_offset = (FLAC__uint64) pos;
 	return FLAC__STREAM_DECODER_TELL_STATUS_OK;
@@ -128,7 +126,7 @@ flac_length_func (const FLAC__StreamDecoder *decoder,
 		  FLAC__uint64 *stream_length, void *client_data)
 {
 	flacfile_t *ff = (flacfile_t *) client_data;
-	*stream_length = (FLAC__uint64) FS_filelength (ff->file);
+	*stream_length = (FLAC__uint64) QFS_FileSize (ff->file);
 	return FLAC__STREAM_DECODER_LENGTH_STATUS_OK;
 }
 
@@ -136,7 +134,7 @@ static FLAC__bool
 flac_eof_func (const FLAC__StreamDecoder *decoder, void *client_data)
 {
 	flacfile_t *ff = (flacfile_t *) client_data;
-	if (FS_feof (ff->file)) return true;
+	if (QFS_Eof (ff->file)) return true;
 	return false;
 }
 
@@ -249,7 +247,7 @@ static qboolean S_FLAC_CodecOpenStream (snd_stream_t *stream)
 
 	stream->priv = ff;
 	ff->info = & stream->info;
-	ff->file = & stream->fh;
+	ff->file = stream->fh;
 	ff->info->dataofs = -1; /* check for STREAMINFO metadata existence */
 
 #ifdef LEGACY_FLAC
