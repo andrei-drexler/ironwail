@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "arch_def.h"
 #include "quakedef.h"
 #include "steam.h"
+#include "sys.h"
 
 #include <sys/types.h>
 #include <errno.h>
@@ -31,6 +32,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <string.h>
 #if defined(PLATFORM_OSX) || defined(PLATFORM_HAIKU)
 #include <libgen.h>	/* dirname() and basename() */
+#endif
+#if defined(PLATFORM_UNIX)
+#include <elf.h>
 #endif
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -59,6 +63,12 @@ static qboolean		stdinIsATTY;	/* from ioquake3 source */
 
 static double rcp_counter_freq;
 
+#ifdef __LP64__
+#define WANTED_ELFCLASS ELFCLASS64
+#else
+#define WANTED_ELFCLASS ELFCLASS32
+#endif
+
 static int findhandle (void)
 {
 	int i;
@@ -70,6 +80,30 @@ static int findhandle (void)
 	}
 	Sys_Error ("out of handles");
 	return -1;
+}
+
+static qboolean Sys_IsELFClass(const char *path, int elfclass)
+{
+	unsigned char ident[EI_NIDENT];
+	FILE *f;
+
+	f = fopen(path, "rb");
+	if (!f)
+		return false;
+
+	if (fread(ident, 1, EI_NIDENT, f) != EI_NIDENT)
+	{
+		fclose(f);
+		return false;
+	}
+
+	fclose(f);
+
+	return ident[EI_MAG0] == ELFMAG0 &&
+		   ident[EI_MAG1] == ELFMAG1 &&
+		   ident[EI_MAG2] == ELFMAG2 &&
+		   ident[EI_MAG3] == ELFMAG3 &&
+		   ident[EI_CLASS] == elfclass;
 }
 
 FILE *Sys_fopen (const char *path, const char *mode)
@@ -347,49 +381,29 @@ qboolean Sys_GetSteamQuakeUserDir (char *path, size_t pathsize, const char *libr
 
 qboolean Sys_GetSteamAPILibraryPath (char *path, size_t pathsize, const steamgame_t *game)
 {
-	char		config_info_path[MAX_OSPATH];
-	char		*line = NULL;
-	size_t		line_size = 0;
-	ssize_t		bytes_read = 0;
-	FILE		*config_info;
-	int			read_lines;
-	qboolean	result;
+	char candidate[MAX_OSPATH];
 
-	if ((size_t) q_snprintf (config_info_path, sizeof (config_info_path), "%s/steamapps/compatdata/%d/config_info", game->library, game->appid) >= pathsize)
-		return false;
-
-	config_info = Sys_fopen (config_info_path, "r");
-	if (!config_info)
-		return false;
-
-	// lib dir is on line 3, lib64 on line 4
-	read_lines = sizeof (void *) == 4 ? 3 : 4;
-	while (read_lines-- > 0)
+	if (Sys_GetSteamDir(candidate, sizeof(candidate)))
 	{
-		if ((bytes_read = getline (&line, &line_size, config_info)) == -1)
+#ifdef __LP64__
+		const char *rel = "steamrt64/libsteam_api.so";
+#else
+		const char *rel = "steamrt32/libsteam_api.so";
+#endif
+
+		if ((size_t)q_snprintf(
+				path,
+				pathsize,
+				"%s/%s",
+				candidate,
+				rel) < pathsize &&
+			Sys_FileType(path) == FS_ENT_FILE)
 		{
-			fclose (config_info);
-			free (line);
-			return false;
+			return true;
 		}
 	}
 
-	fclose (config_info);
-	if (!line)
-		return false;
-
-	line_size = strlen (line);
-
-	if (line_size > 0 && line[line_size - 1] == '\n')
-		line[--line_size] = '\0';
-	if (line_size > 0 && line[line_size - 1] == '/')
-		line[--line_size] = '\0';
-
-	result = (size_t) q_snprintf (path, pathsize, "%s/libsteam_api.so", line) < pathsize;
-
-	free (line);
-
-	return result;
+	return false;
 }
 
 qboolean Sys_GetGOGQuakeDir (char *path, size_t pathsize)
