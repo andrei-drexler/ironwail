@@ -63,12 +63,6 @@ static qboolean		stdinIsATTY;	/* from ioquake3 source */
 
 static double rcp_counter_freq;
 
-#ifdef __LP64__
-#define WANTED_ELFCLASS ELFCLASS64
-#else
-#define WANTED_ELFCLASS ELFCLASS32
-#endif
-
 static int findhandle (void)
 {
 	int i;
@@ -80,30 +74,6 @@ static int findhandle (void)
 	}
 	Sys_Error ("out of handles");
 	return -1;
-}
-
-static qboolean Sys_IsELFClass(const char *path, int elfclass)
-{
-	unsigned char ident[EI_NIDENT];
-	FILE *f;
-
-	f = fopen(path, "rb");
-	if (!f)
-		return false;
-
-	if (fread(ident, 1, EI_NIDENT, f) != EI_NIDENT)
-	{
-		fclose(f);
-		return false;
-	}
-
-	fclose(f);
-
-	return ident[EI_MAG0] == ELFMAG0 &&
-		   ident[EI_MAG1] == ELFMAG1 &&
-		   ident[EI_MAG2] == ELFMAG2 &&
-		   ident[EI_MAG3] == ELFMAG3 &&
-		   ident[EI_CLASS] == elfclass;
 }
 
 FILE *Sys_fopen (const char *path, const char *mode)

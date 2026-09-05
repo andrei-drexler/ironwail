@@ -71,6 +71,11 @@ STEAMAPI_LEGACY_FUNCTIONS(STEAMAPI_DECLARE_FUNCTION)
 
 #undef STEAMAPI_DECLARE_FUNCTION
 
+#define STEAMAPI_LEGACY_CLIENT_VERSION		"SteamClient015"
+#define STEAMAPI_LEGACY_FRIENDS_VERSION		"SteamFriends017"
+#define STEAMAPI_LEGACY_USERSTATS_VERSION	"STEAMUSERSTATS_INTERFACE_VERSION012"
+#define STEAMAPI_LEGACY_SCREENSHOTS_VERSION	"STEAMSCREENSHOTS_INTERFACE_VERSION003"
+
 typedef struct
 {
 	void		**address;
@@ -561,7 +566,7 @@ static qboolean Steam_LocalInitLegacy (void)
     hsteamuser = SteamAPI_GetHSteamUser_Func ();
     hsteampipe = SteamAPI_GetHSteamPipe_Func ();
 
-    steamapi.client = SteamInternal_CreateInterface_Func ("SteamClient015");
+    steamapi.client = SteamInternal_CreateInterface_Func (STEAMAPI_LEGACY_CLIENT_VERSION);
 
     if (!steamapi.client)
     {
@@ -574,21 +579,21 @@ static qboolean Steam_LocalInitLegacy (void)
             steamapi.client,
             hsteamuser,
             hsteampipe,
-            "SteamFriends017");
+            STEAMAPI_LEGACY_FRIENDS_VERSION);
 
     steamapi.userstats =
         SteamAPI_ISteamClient_GetISteamUserStats_Func (
             steamapi.client,
             hsteamuser,
             hsteampipe,
-            "STEAMUSERSTATS_INTERFACE_VERSION012");
+            STEAMAPI_LEGACY_USERSTATS_VERSION);
 
     steamapi.screenshots =
         SteamAPI_ISteamClient_GetISteamScreenshots_Func (
             steamapi.client,
             hsteamuser,
             hsteampipe,
-            "STEAMSCREENSHOTS_INTERFACE_VERSION003");
+            STEAMAPI_LEGACY_SCREENSHOTS_VERSION);
 
     if (!steamapi.friends ||
         !steamapi.userstats ||
