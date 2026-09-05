@@ -37,22 +37,38 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define STEAMAPI
 #endif
 
-#define STEAMAPI_FUNCTIONS(x) \
-	x(int,      SteamAPI_IsSteamRunning,                    (void)) \
-	x(int,      SteamAPI_InitFlat,                          (void *pOutErrMsg)) \
-	x(void,     SteamAPI_Shutdown,                          (void)) \
-	x(void *,   SteamAPI_SteamFriends_v018,                 (void)) \
-	x(void *,   SteamAPI_SteamUserStats_v013,               (void)) \
-	x(void *,   SteamAPI_SteamScreenshots_v003,             (void)) \
-	x(void,     SteamAPI_ISteamFriends_ClearRichPresence,   (void *friends)) \
-	x(int,      SteamAPI_ISteamFriends_SetRichPresence,     (void *friends, const char *key, const char *value)) \
-	x(int,      SteamAPI_ISteamUserStats_SetAchievement,    (void *userstats, const char *name)) \
-	x(int,      SteamAPI_ISteamUserStats_StoreStats,        (void *userstats)) \
-	x(int,      SteamAPI_ISteamScreenshots_HookScreenshots, (void *screenshots, int hook)) \
-	x(uint32_t, SteamAPI_ISteamScreenshots_WriteScreenshot, (void *screenshots, const void *data, uint32_t size, int width, int height))
+#define STEAMAPI_COMMON_FUNCTIONS(x) \
+    x(int,      SteamAPI_IsSteamRunning,                    (void)) \
+    x(void,     SteamAPI_Shutdown,                          (void)) \
+    x(void,     SteamAPI_ISteamFriends_ClearRichPresence,   (void *friends)) \
+    x(int,      SteamAPI_ISteamFriends_SetRichPresence,     (void *friends, const char *key, const char *value)) \
+    x(int,      SteamAPI_ISteamUserStats_SetAchievement,    (void *userstats, const char *name)) \
+    x(int,      SteamAPI_ISteamUserStats_StoreStats,        (void *userstats)) \
+    x(int,      SteamAPI_ISteamScreenshots_HookScreenshots, (void *screenshots, int hook)) \
+    x(uint32_t, SteamAPI_ISteamScreenshots_WriteScreenshot, (void *screenshots, const void *data, uint32_t size, int width, int height))
 
-#define STEAMAPI_DECLARE_FUNCTION(ret, name, args)		static ret (STEAMAPI *name##_Func) args;
-STEAMAPI_FUNCTIONS (STEAMAPI_DECLARE_FUNCTION)
+#define STEAMAPI_MODERN_FUNCTIONS(x) \
+    x(int,      SteamAPI_InitFlat,                          (char *pOutErrMsg)) \
+    x(void *,   SteamAPI_SteamFriends_v018,                 (void)) \
+    x(void *,   SteamAPI_SteamUserStats_v013,               (void)) \
+    x(void *,   SteamAPI_SteamScreenshots_v003,             (void))
+
+#define STEAMAPI_LEGACY_FUNCTIONS(x) \
+    x(int,      SteamAPI_Init,                              (void)) \
+    x(int,      SteamAPI_GetHSteamUser,                    	(void)) \
+    x(int,      SteamAPI_GetHSteamPipe,                    	(void)) \
+    x(void*,	SteamInternal_CreateInterface, 				(const char *which))\
+    x(void *,   SteamAPI_ISteamClient_GetISteamFriends,     (void *client, int huser, int hpipe, const char *version)) \
+    x(void *,   SteamAPI_ISteamClient_GetISteamUserStats,   (void *client, int huser, int hpipe, const char *version)) \
+    x(void *,   SteamAPI_ISteamClient_GetISteamScreenshots,	(void *client, int huser, int hpipe, const char *version))
+
+#define STEAMAPI_DECLARE_FUNCTION(ret, name, args) \
+    static ret (STEAMAPI *name##_Func) args;
+
+STEAMAPI_COMMON_FUNCTIONS(STEAMAPI_DECLARE_FUNCTION)
+STEAMAPI_MODERN_FUNCTIONS(STEAMAPI_DECLARE_FUNCTION)
+STEAMAPI_LEGACY_FUNCTIONS(STEAMAPI_DECLARE_FUNCTION)
+
 #undef STEAMAPI_DECLARE_FUNCTION
 
 typedef struct
@@ -61,16 +77,34 @@ typedef struct
 	const char	*name;
 } apifunc_t;
 
-static const apifunc_t steamapi_funcs[] =
+static const apifunc_t steamapi_common_funcs[] =
 {
-	#define STEAMAPI_FUNC_DEF(ret, name, args)	{ (void**) &name##_Func, #name },
-	STEAMAPI_FUNCTIONS (STEAMAPI_FUNC_DEF)
-	#undef STEAMAPI_FUNC_DEF
+#define STEAMAPI_FUNC_DEF(ret, name, args) \
+    { (void **) &name##_Func, #name },
+    STEAMAPI_COMMON_FUNCTIONS(STEAMAPI_FUNC_DEF)
+#undef STEAMAPI_FUNC_DEF
+};
+
+static const apifunc_t steamapi_modern_funcs[] =
+{
+#define STEAMAPI_FUNC_DEF(ret, name, args) \
+    { (void **) &name##_Func, #name },
+    STEAMAPI_MODERN_FUNCTIONS(STEAMAPI_FUNC_DEF)
+#undef STEAMAPI_FUNC_DEF
+};
+
+static const apifunc_t steamapi_legacy_funcs[] =
+{
+#define STEAMAPI_FUNC_DEF(ret, name, args) \
+    { (void **) &name##_Func, #name },
+    STEAMAPI_LEGACY_FUNCTIONS(STEAMAPI_FUNC_DEF)
+#undef STEAMAPI_FUNC_DEF
 };
 
 static struct
 {
 	void			*library;
+	void			*client;
 	void			*friends;
 	void			*userstats;
 	void			*screenshots;
@@ -403,11 +437,12 @@ done_cfg:
 Steam_ClearFunctions
 ========================
 */
-static void Steam_ClearFunctions (void)
+static void Steam_ClearFunctions (const apifunc_t *funcs, size_t count)
 {
-	size_t i;
-	for (i = 0; i < Q_COUNTOF (steamapi_funcs); i++)
-		*steamapi_funcs[i].address = NULL;
+    size_t i;
+
+    for (i = 0; i < count; i++)
+        *funcs[i].address = NULL;
 }
 
 /*
@@ -415,28 +450,30 @@ static void Steam_ClearFunctions (void)
 Steam_InitFunctions
 ========================
 */
-static qboolean Steam_InitFunctions (void)
+static qboolean Steam_InitFunctions (const apifunc_t *funcs, size_t count)
 {
-	size_t i, missing;
+    size_t i, missing;
 
-	for (i = missing = 0; i < Q_COUNTOF (steamapi_funcs); i++)
-	{
-		const apifunc_t *func = &steamapi_funcs[i];
-		*func->address = Sys_GetLibraryFunction (steamapi.library, func->name);
-		if (!*func->address)
-		{
-			Sys_Printf ("ERROR: missing Steam API function \"%s\"\n", func->name);
-			missing++;
-		}
-	}
+    for (i = missing = 0; i < count; i++)
+    {
+        const apifunc_t *func = &funcs[i];
 
-	if (missing)
-	{
-		Steam_ClearFunctions ();
-		return false;
-	}
+        *func->address = Sys_GetLibraryFunction (steamapi.library, func->name);
 
-	return true;
+        if (!*func->address)
+        {
+            Sys_Printf ("ERROR: missing Steam API function \"%s\"\n", func->name);
+            missing++;
+        }
+    }
+
+    if (missing)
+    {
+        Steam_ClearFunctions (funcs, count);
+        return false;
+    }
+
+    return true;
 }
 
 /*
@@ -455,9 +492,126 @@ static qboolean Steam_LoadLibrary (const steamgame_t *game)
 
 /*
 ========================
+Steam_LocalInitModern
+========================
+*/
+static qboolean Steam_LocalInitModern (void)
+{
+	qboolean ret = false;
+
+	if (SteamAPI_InitFlat_Func(NULL) != 0)
+	{
+		Sys_Printf("Couldn't initialize Steam API\n");
+		return false;
+	}
+
+	steamapi.needs_shutdown = true;
+
+	steamapi.friends = SteamAPI_SteamFriends_v018_Func();
+	steamapi.userstats = SteamAPI_SteamUserStats_v013_Func();
+	steamapi.screenshots = SteamAPI_SteamScreenshots_v003_Func();
+
+	if (!steamapi.friends)
+	{
+		Sys_Printf("Couldn't obtain SteamFriends interface\n");
+		return false;
+	}
+
+	if (!steamapi.userstats)
+	{
+		Sys_Printf("Couldn't obtain SteamUserStats interface\n");
+		return false;
+	}
+
+	if (!steamapi.screenshots)
+	{
+		Sys_Printf("Couldn't obtain SteamScreenshots interface\n");
+		return false;
+	}
+
+	Sys_Printf ("Steam API initialized\n");
+
+	Steam_ClearStatus ();
+
+	return true;
+}
+
+/*
+========================
+Steam_InitLegacy
+========================
+*/
+static qboolean Steam_LocalInitLegacy (void)
+{
+    int hsteamuser;
+    int hsteampipe;
+
+    if (!Steam_InitFunctions (steamapi_legacy_funcs,
+                               Q_COUNTOF (steamapi_legacy_funcs)))
+        return false;
+
+    if (!SteamAPI_Init_Func ())
+    {
+        Sys_Printf ("Couldn't initialize Steam API\n");
+        return false;
+    }
+
+    steamapi.needs_shutdown = true;
+
+    hsteamuser = SteamAPI_GetHSteamUser_Func ();
+    hsteampipe = SteamAPI_GetHSteamPipe_Func ();
+
+    steamapi.client = SteamInternal_CreateInterface_Func ("SteamClient015");
+
+    if (!steamapi.client)
+    {
+        Sys_Printf ("Couldn't create Steam client interface\n");
+        return false;
+    }
+
+    steamapi.friends =
+        SteamAPI_ISteamClient_GetISteamFriends_Func (
+            steamapi.client,
+            hsteamuser,
+            hsteampipe,
+            "SteamFriends017");
+
+    steamapi.userstats =
+        SteamAPI_ISteamClient_GetISteamUserStats_Func (
+            steamapi.client,
+            hsteamuser,
+            hsteampipe,
+            "STEAMUSERSTATS_INTERFACE_VERSION012");
+
+    steamapi.screenshots =
+        SteamAPI_ISteamClient_GetISteamScreenshots_Func (
+            steamapi.client,
+            hsteamuser,
+            hsteampipe,
+            "STEAMSCREENSHOTS_INTERFACE_VERSION003");
+
+    if (!steamapi.friends ||
+        !steamapi.userstats ||
+        !steamapi.screenshots)
+    {
+        Sys_Printf ("Couldn't obtain Steam interfaces\n");
+        SteamAPI_Shutdown_Func ();
+        steamapi.needs_shutdown = false;
+        Steam_ClearFunctions (steamapi_legacy_funcs,
+                              Q_COUNTOF (steamapi_legacy_funcs));
+        memset (&steamapi, 0, sizeof (steamapi));
+        return false;
+    }
+
+    return true;
+}
+
+/*
+========================
 Steam_Init
 ========================
 */
+
 qboolean Steam_Init (const steamgame_t *game)
 {
 	if (COM_CheckParm ("-nosteamapi"))
@@ -483,7 +637,8 @@ qboolean Steam_Init (const steamgame_t *game)
 
 	Sys_Printf ("Loaded Steam API library\n");
 
-	if (!Steam_InitFunctions ())
+	if (!Steam_InitFunctions (steamapi_common_funcs,
+                     Q_COUNTOF (steamapi_common_funcs)))
 	{
 		Steam_Shutdown ();
 		return false;
@@ -514,45 +669,22 @@ qboolean Steam_Init (const steamgame_t *game)
 		}
 	}
 
-	if (SteamAPI_InitFlat_Func(NULL) != 0)
+	qboolean success = false;
+
+	if (Steam_InitFunctions(steamapi_modern_funcs, Q_COUNTOF(steamapi_modern_funcs)))
+		success = Steam_LocalInitModern();
+	else
 	{
-		Sys_Printf("Couldn't initialize Steam API\n");
-		Steam_Shutdown();
-		return false;
+		Steam_ClearFunctions(steamapi_modern_funcs, Q_COUNTOF(steamapi_modern_funcs));
+		success = Steam_LocalInitLegacy(); // for Steamworks DLL shipped with rerelease
 	}
 
-	steamapi.needs_shutdown = true;
-
-	steamapi.friends = SteamAPI_SteamFriends_v018_Func();
-	steamapi.userstats = SteamAPI_SteamUserStats_v013_Func();
-	steamapi.screenshots = SteamAPI_SteamScreenshots_v003_Func();
-
-	if (!steamapi.friends)
+	if (!success)
 	{
-		Sys_Printf("Couldn't obtain SteamFriends interface\n");
 		Steam_Shutdown();
-		return false;
 	}
 
-	if (!steamapi.userstats)
-	{
-		Sys_Printf("Couldn't obtain SteamUserStats interface\n");
-		Steam_Shutdown();
-		return false;
-	}
-
-	if (!steamapi.screenshots)
-	{
-		Sys_Printf("Couldn't obtain SteamScreenshots interface\n");
-		Steam_Shutdown();
-		return false;
-	}
-
-	Sys_Printf ("Steam API initialized\n");
-
-	Steam_ClearStatus ();
-
-	return true;
+	return success;
 }
 
 /*
@@ -566,7 +698,14 @@ void Steam_Shutdown (void)
 		return;
 	if (steamapi.needs_shutdown)
 		SteamAPI_Shutdown_Func ();
-	Steam_ClearFunctions ();
+
+	Steam_ClearFunctions (steamapi_common_funcs,
+                              Q_COUNTOF (steamapi_common_funcs));
+	Steam_ClearFunctions (steamapi_modern_funcs,
+                              Q_COUNTOF (steamapi_modern_funcs));
+	Steam_ClearFunctions (steamapi_legacy_funcs,
+                              Q_COUNTOF (steamapi_legacy_funcs));
+
 	Sys_CloseLibrary (steamapi.library);
 	memset (&steamapi, 0, sizeof (steamapi));
 	Sys_Printf ("Unloaded Steam API\n");
