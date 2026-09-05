@@ -33,9 +33,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #if defined(PLATFORM_OSX) || defined(PLATFORM_HAIKU)
 #include <libgen.h>	/* dirname() and basename() */
 #endif
-#if defined(PLATFORM_UNIX)
-#include <elf.h>
-#endif
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <fcntl.h>
