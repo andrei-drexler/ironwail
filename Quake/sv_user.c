@@ -440,7 +440,7 @@ void SV_ReadClientMove (usercmd_t *move)
 	int		i;
 	vec3_t	angle;
 	int		bits;
-
+	eval_t* val;
 // read ping time
 	host_client->ping_times[host_client->num_pings%NUM_PING_TIMES]
 		= qcvm->time - MSG_ReadFloat ();
@@ -466,6 +466,18 @@ void SV_ReadClientMove (usercmd_t *move)
 	bits = MSG_ReadByte ();
 	host_client->edict->v.button0 = bits & 1;
 	host_client->edict->v.button2 = (bits & 2)>>1;
+	if ((val = GetEdictFieldValue (host_client->edict, qcvm->extfields.button3)))
+		val->_float = (bits & 4) >> 2;
+	if ((val = GetEdictFieldValue (host_client->edict, qcvm->extfields.button4)))
+		val->_float = (bits & 8) >> 3;
+	if ((val = GetEdictFieldValue (host_client->edict, qcvm->extfields.button5)))
+		val->_float = (bits & 0x10) >> 4;
+	if ((val = GetEdictFieldValue (host_client->edict, qcvm->extfields.button6)))
+		val->_float = (bits & 0x20) >> 5;
+	if ((val = GetEdictFieldValue (host_client->edict, qcvm->extfields.button7)))
+		val->_float = (bits & 0x40) >> 6;
+	if ((val = GetEdictFieldValue (host_client->edict, qcvm->extfields.button8)))
+		val->_float = (bits & 0x80) >> 7;
 
 	i = MSG_ReadByte ();
 	if (i)
