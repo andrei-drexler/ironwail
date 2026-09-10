@@ -134,8 +134,8 @@ typedef struct
 	qboolean	timedemo;
 	int		forcetrack;		// -1 = use normal cd track
 	char		demofilename[MAX_OSPATH];
-	FILE		*demofile;
-	qfileofs_t	demofilestart;	// for demos in pak files
+	qfshandle_t	*inpdemo;
+	FILE		*outpdemo;
 	qfileofs_t	demofilesize;
 	int		td_lastframe;		// to meter out one message a frame
 	int		td_startframe;		// host_framecount at start

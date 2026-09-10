@@ -41,29 +41,24 @@ static int opc_fclose (void *f)
 
 static int opc_fread (void *f, unsigned char *buf, int size)
 {
-	int ret;
-
 	if (size < 0)
 	{
 		errno = EINVAL;
 		return -1;
 	}
 
-	ret = (int) FS_fread(buf, 1, (size_t)size, (fshandle_t *)f);
-	if (ret == 0 && errno != 0)
-		ret = -1;
-	return ret;
+	return (int) QFS_ReadFile((qfshandle_t*)f, buf, (size_t)size);
 }
 
 static int opc_fseek (void *f, opus_int64 off, int whence)
 {
 	if (f == NULL) return (-1);
-	return FS_fseek((fshandle_t *)f, (long) off, whence);
+	return QFS_Seek((qfshandle_t*)f, (long) off, whence);
 }
 
 static opus_int64 opc_ftell (void *f)
 {
-	return (opus_int64) FS_ftell((fshandle_t *)f);
+	return (opus_int64) QFS_Tell((qfshandle_t *)f);
 }
 
 static const OpusFileCallbacks opc_qfs =
@@ -90,7 +85,7 @@ static qboolean S_OPUS_CodecOpenStream (snd_stream_t *stream)
 	long numstreams;
 	int res;
 
-	opFile = op_open_callbacks(&stream->fh, &opc_qfs, NULL, 0, &res);
+	opFile = op_open_callbacks(stream->fh, &opc_qfs, NULL, 0, &res);
 	if (!opFile)
 	{
 		Con_Printf("%s is not a valid Opus file (error %i).\n",

@@ -104,13 +104,12 @@ void CL_StopPlayback (void)
 	if (!cls.demoplayback)
 		return;
 
-	fclose (cls.demofile);
+	QFS_CloseFile (cls.inpdemo);
 	cls.demoplayback = false;
 	cls.demopaused = false;
 	cls.demospeed = 1.f;
-	cls.demofile = NULL;
+	cls.inpdemo = NULL;
 	cls.demofilesize = 0;
-	cls.demofilestart = 0;
 	cls.demofilename[0] = '\0';
 	cls.state = ca_disconnected;
 
@@ -137,14 +136,14 @@ static void CL_WriteDemoMessage (void)
 	float	f;
 
 	len = LittleLong (net_message.cursize);
-	fwrite (&len, 4, 1, cls.demofile);
+	fwrite (&len, 4, 1, cls.outpdemo);
 	for (i = 0; i < 3; i++)
 	{
 		f = LittleFloat (cl.viewangles[i]);
-		fwrite (&f, 4, 1, cls.demofile);
+		fwrite (&f, 4, 1, cls.outpdemo);
 	}
-	fwrite (net_message.data, net_message.cursize, 1, cls.demofile);
-	fflush (cls.demofile);
+	fwrite (net_message.data, net_message.cursize, 1, cls.outpdemo);
+	fflush (cls.outpdemo);
 }
 
 /*
@@ -257,7 +256,7 @@ static qboolean CL_NextDemoFrame (void)
 			demoframe_t newframe;
 
 			memset (&newframe, 0, sizeof (newframe));
-			newframe.fileofs = Sys_ftell (cls.demofile);
+			newframe.fileofs = QFS_Tell (cls.inpdemo);
 			newframe.intermission = cl.intermission;
 			newframe.forceunderwater = cl.forceunderwater;
 			VEC_PUSH (demo_rewind.frames, newframe);
@@ -276,7 +275,7 @@ static qboolean CL_NextDemoFrame (void)
 		return false;
 
 	lastframe = &demo_rewind.frames[framecount - 1];
-	Sys_fseek (cls.demofile, lastframe->fileofs, SEEK_SET);
+	QFS_Seek (cls.inpdemo, lastframe->fileofs, SEEK_SET);
 
 	if (framecount == 1)
 		demo_rewind.backstop = true;
@@ -448,12 +447,12 @@ static int CL_GetDemoMessage (void)
 	if (!CL_NextDemoFrame ())
 		return 0;
 
-	if (fread (&net_message.cursize, 4, 1, cls.demofile) != 1)
+	if (QFS_ReadFile (cls.inpdemo, &net_message.cursize, 4) != 4)
 		goto readerror;
 	VectorCopy (cl.mviewangles[0], cl.mviewangles[1]);
 	for (i = 0 ; i < 3 ; i++)
 	{
-		if (fread (&f, 4, 1, cls.demofile) != 1)
+		if (QFS_ReadFile (cls.inpdemo, &f, 4) != 4)
 			goto readerror;
 		cl.mviewangles[0][i] = LittleFloat (f);
 	}
@@ -461,7 +460,7 @@ static int CL_GetDemoMessage (void)
 	net_message.cursize = LittleLong (net_message.cursize);
 	if (net_message.cursize > MAX_MSGLEN)
 		Sys_Error ("Demo message > MAX_MSGLEN");
-	if (fread (net_message.data, net_message.cursize, 1, cls.demofile) != 1)
+	if (QFS_ReadFile (cls.inpdemo, net_message.data, net_message.cursize) != (size_t)net_message.cursize)
 	{
 	readerror:
 		CL_StopPlayback ();
@@ -538,8 +537,8 @@ void CL_Stop_f (void)
 	CL_WriteDemoMessage ();
 
 // finish up
-	fclose (cls.demofile);
-	cls.demofile = NULL;
+	fclose (cls.outpdemo);
+	cls.outpdemo = NULL;
 	cls.demorecording = false;
 	Con_Printf ("Completed demo\n");
 	
@@ -629,15 +628,15 @@ void CL_Record_f (void)
 	Con_LinkPrintf (name, "%s", relname);
 	Con_SafePrintf (".\n");
 
-	cls.demofile = Sys_fopen (name, "wb");
-	if (!cls.demofile)
+	cls.outpdemo = Sys_fopen (name, "wb");
+	if (!cls.outpdemo)
 	{
 		Con_Printf ("ERROR: couldn't create %s\n", relname);
 		return;
 	}
 
 	cls.forcetrack = track;
-	fprintf (cls.demofile, "%i\n", cls.forcetrack);
+	fprintf (cls.outpdemo, "%i\n", cls.forcetrack);
 	q_strlcpy (cls.demofilename, name, sizeof (cls.demofilename));
 
 	cls.demorecording = true;
@@ -760,6 +759,7 @@ play [demoname]
 void CL_PlayDemo_f (void)
 {
 	char	name[MAX_OSPATH];
+	char	linebuf[32];
 
 	if (cmd_source != src_command)
 		return;
@@ -779,22 +779,19 @@ void CL_PlayDemo_f (void)
 
 	Con_Printf ("Playing demo from %s.\n", name);
 
-	COM_FOpenFile (name, &cls.demofile, NULL);
-	if (!cls.demofile)
+	cls.inpdemo = QFS_FOpenFile (name, NULL);
+	if (!cls.inpdemo)
 	{
 		Con_Printf ("ERROR: couldn't open %s\n", name);
 		cls.demonum = -1;	// stop demo loop
 		return;
 	}
 
-// ZOID, fscanf is evil
-// O.S.: if a space character e.g. 0x20 (' ') follows '\n',
-// fscanf skips that byte too and screws up further reads.
-//	fscanf (cls.demofile, "%i\n", &cls.forcetrack);
-	if (fscanf (cls.demofile, "%i", &cls.forcetrack) != 1 || fgetc (cls.demofile) != '\n')
+	if (QFS_GetLine (cls.inpdemo, linebuf, sizeof(linebuf)) == 0
+		|| sscanf (linebuf, "%i", &cls.forcetrack) != 1)
 	{
-		fclose (cls.demofile);
-		cls.demofile = NULL;
+		QFS_CloseFile (cls.inpdemo);
+		cls.inpdemo = NULL;
 		cls.demonum = -1;	// stop demo loop
 		Con_Printf ("ERROR: demo \"%s\" is invalid\n", name);
 		return;
@@ -810,8 +807,7 @@ void CL_PlayDemo_f (void)
 	q_strlcpy (cls.demofilename, name, sizeof (cls.demofilename));
 	cls.state = ca_connected;
 	cls.demoloop = Cmd_Argc () >= 3 ? Q_atoi (Cmd_Argv (2)) != 0 : false;
-	cls.demofilestart = Sys_ftell (cls.demofile);
-	cls.demofilesize = com_filesize;
+	cls.demofilesize = QFS_FileSize (cls.inpdemo);
 
 // if this is a player-initiated demo, get rid of the console
 	if (cls.demonum == -1 && key_dest == key_console)
@@ -858,7 +854,7 @@ void CL_TimeDemo_f (void)
 	}
 
 	CL_PlayDemo_f ();
-	if (!cls.demofile)
+	if (!cls.inpdemo)
 		return;
 
 // cls.td_starttime will be grabbed at the second frame of the demo, so

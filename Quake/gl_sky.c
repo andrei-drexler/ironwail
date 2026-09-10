@@ -215,7 +215,7 @@ static void Skywind_Load_f (void)
 	}
 
 	q_snprintf (relname, sizeof (relname), "gfx/env/%s" SKYWIND_CFG, skybox->name);
-	buf = (char *) COM_LoadMallocFile (relname, NULL);
+	buf = (char *) QFS_LoadMallocFile (relname, NULL, NULL);
 	if (!buf)
 	{
 		Con_DPrintf ("Sky wind config not found '%s'.\n", relname);

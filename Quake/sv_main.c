@@ -1784,7 +1784,7 @@ static void SV_PrintMapChecklist (void)
 	{
 		char pointfile[MAX_OSPATH];
 		q_snprintf (pointfile, sizeof (pointfile), "maps/%s.pts", sv.name);
-		if (COM_FileExists (pointfile, NULL))
+		if (QFS_FileExists (pointfile, NULL))
 			SV_PrintMapCheck (MAPCHECK_FAILED, "vis data (unsealed map?)");
 		else
 			SV_PrintMapCheck (MAPCHECK_FAILED, "vis data");
