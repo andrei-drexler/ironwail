@@ -394,16 +394,62 @@ qboolean Sys_GetSteamAPILibraryPath (char *path, size_t pathsize, const steamgam
 
 qboolean Sys_GetGOGQuakeDir (char *path, size_t pathsize)
 {
-	return false;
+	const char		*home_dir = NULL;
+	struct passwd	*pwent;
+
+	pwent = getpwuid( getuid() );
+	if (pwent == NULL)
+		perror("getpwuid");
+	else
+		home_dir = pwent->pw_dir;
+	if (home_dir == NULL)
+		home_dir = getenv("HOME");
+	if (home_dir == NULL)
+		return false;
+	if ((size_t) q_snprintf (path, pathsize, "%s/.wine/drive_c/GOG Games/Quake", home_dir) < pathsize)
+		return true;
 }
 
 qboolean Sys_GetGOGQuakeEnhancedDir (char *path, size_t pathsize)
 {
+	const char		*home_dir = NULL;
+	struct passwd	*pwent;
+
+	pwent = getpwuid( getuid() );
+	if (pwent == NULL)
+		perror("getpwuid");
+	else
+		home_dir = pwent->pw_dir;
+	if (home_dir == NULL)
+		home_dir = getenv("HOME");
+	if (home_dir == NULL)
+		return false;
+	if ((size_t) q_snprintf (path, pathsize, "%s/.wine/drive_c/GOG Games/Quake Enhanced", home_dir) < pathsize)
+		return true;
 	return false;
 }
 
 qboolean Sys_GetGOGQuakeEnhancedUserDir (char *path, size_t pathsize)
 {
+	const char		*home_dir = NULL;
+	struct passwd	*pwent;
+	const char 		*user_name = NULL;
+	pwent = getpwuid( getuid() );
+	if (pwent == NULL)
+		perror("getpwuid");
+	else
+		home_dir = pwent->pw_dir;
+		user_name = pwent->pw_name;
+	if (home_dir == NULL)
+		home_dir = getenv("HOME");
+	if (home_dir == NULL)
+		return false;
+	if (user_name == NULL)
+		user_name = getlogin();
+	if (user_name == NULL)
+		return false;
+	if ((size_t) q_snprintf (path, pathsize, "%s/.wine/drive_c/users/%s/Saved Games/Nightdive Studios/Quake", home_dir, user_name) < pathsize)
+		return true;
 	return false;
 }
 
