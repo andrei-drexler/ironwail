@@ -992,23 +992,24 @@ static void Mod_LoadEntities (lump_t *l)
 		q_snprintf(entfilename, sizeof(entfilename), "%s.ent", basemapname);
 		Con_DPrintf2("trying to load %s\n", entfilename);
 		ents = (char *) COM_LoadHunkFile (entfilename, &path_id);
+		if (ents)
+		{
+			// use ent file only from the same gamedir as the map
+			// itself or from a searchpath with higher priority.
+			if (path_id < loadmodel->path_id)
+			{
+				ents = NULL;
+				Hunk_FreeToLowMark (mark);
+				Con_DPrintf ("ignored %s from a gamedir with lower priority\n", entfilename);
+			}
+		}
 	}
 
 	if (ents)
 	{
-		// use ent file only from the same gamedir as the map
-		// itself or from a searchpath with higher priority.
-		if (path_id < loadmodel->path_id)
-		{
-			Hunk_FreeToLowMark(mark);
-			Con_DPrintf("ignored %s from a gamedir with lower priority\n", entfilename);
-		}
-		else
-		{
-			loadmodel->entities = ents;
-			Con_DPrintf("Loaded external entity file %s\n", entfilename);
-			return;
-		}
+		loadmodel->entities = ents;
+		Con_DPrintf("Loaded external entity file %s\n", entfilename);
+		return;
 	}
 
 _load_embedded:
