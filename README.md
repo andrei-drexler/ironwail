@@ -17,7 +17,7 @@ On most maps performance is indeed not much of a concern on a modern system. In 
 - more options exposed in the UI, most of them taking effect instantly (no vid_restart needed)
 - support for lightmapped liquid surfaces
 - lightstyle interpolation (e.g. smoothly pulsating lighting in [ad_tears](https://www.moddb.com/mods/arcane-dimensions))
-- reduced heap usage (e.g. you can play [tershib/shib1_drake](https://www.quaddicted.com/reviews/ter_shibboleth_drake_redux.html) and [peril/tavistock](https://www.quaddicted.com/forum/viewtopic.php?id=1171) without using -heapsize on the command line)
+- reduced heap usage (e.g. you can play [tershib/shib1_drake](https://www.quaddicted.com/reviews/ter_shibboleth_drake_redux.html) and [peril/tavistock](https://www.quaddicted.com/db/v2/maps/4e7a4ebe590974771d066c54bc7196e4205e3a783de7254f5b165de992a402c1) without using -heapsize on the command line)
 - reduced loading time for jumbo maps
 - slightly higher color/depth buffer precision to avoid banding/z-fighting artifacts
 - a more precise ~hack~work-around for the z-fighting issues present in the original levels
