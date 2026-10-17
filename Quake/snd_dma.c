@@ -91,6 +91,7 @@ static	cvar_t	ambient_fade = {"ambient_fade", "100", CVAR_NONE};
 static	cvar_t	snd_noextraupdate = {"snd_noextraupdate", "0", CVAR_NONE};
 static	cvar_t	snd_show = {"snd_show", "0", CVAR_NONE};
 static	cvar_t	_snd_mixahead = {"_snd_mixahead", "0.1", CVAR_ARCHIVE};
+static	cvar_t	snd_muteonfocusloss = {"snd_muteonfocusloss", "1", CVAR_ARCHIVE};
 
 
 static void S_SoundInfo_f (void)
@@ -174,6 +175,7 @@ void S_Init (void)
 	Cvar_RegisterVariable(&snd_noextraupdate);
 	Cvar_RegisterVariable(&snd_show);
 	Cvar_RegisterVariable(&_snd_mixahead);
+	Cvar_RegisterVariable(&snd_muteonfocusloss);
 	Cvar_RegisterVariable(&sndspeed);
 	Cvar_RegisterVariable(&snd_mixspeed);
 	Cvar_RegisterVariable(&snd_filterquality);
@@ -989,7 +991,7 @@ void S_BlockSound (void)
 /* FIXME: do we really need the blocking at the
  * driver level?
  */
-	if (sound_started && snd_blocked == 0)	/* ++snd_blocked == 1 */
+	if (snd_muteonfocusloss.value > 0 && sound_started && snd_blocked == 0)	/* ++snd_blocked == 1 */
 	{
 		snd_blocked  = 1;
 		S_ClearBuffer ();
