@@ -3640,7 +3640,7 @@ typedef struct
 
 static localization_t localization;
 
-static int clearLocalization = FALSE;
+static int clearLocalization = 0;
 /*
 ================
 COM_HashString
