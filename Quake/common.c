@@ -3640,6 +3640,7 @@ typedef struct
 
 static localization_t localization;
 
+static int clearLocalization = 0;
 /*
 ================
 COM_HashString
@@ -3675,6 +3676,42 @@ unsigned COM_HashBlock (const void *data, size_t size)
 	return hash;
 }
 
+/*
+================
+LOC_GetEntryIndex
+
+Returns index of entry if available, or NULL otherwise
+================
+*/
+const int LOC_GetEntryIndex (const char* key)
+{
+	unsigned pos, end;
+
+	if (!localization.numindices || !key || !*key )
+		return -1;
+
+	pos = COM_HashString (key) % localization.numindices;
+	end = pos;
+
+	do
+	{
+		unsigned idx = localization.indices[pos];
+		locentry_t* entry;
+		if (!idx)
+			return -1;
+
+		entry = &localization.entries[idx - 1];
+		if (!Q_strcmp (entry->key, key))
+			return idx-1;
+
+		++pos;
+		if (pos == localization.numindices)
+			pos = 0;
+	} while (pos != end);
+
+	return -1;
+}
+
 static size_t mz_zip_file_read_func(void *opaque, mz_uint64 ofs, void *buf, size_t n)
 {
 	if (SDL_RWseek((SDL_RWops*)opaque, (Sint64)ofs, RW_SEEK_SET) < 0)
@@ -3690,7 +3727,7 @@ LOC_LoadFile
 qboolean LOC_LoadFile (const char *file)
 {
 	char path[1024];
-	int i,lineno,warnings;
+	int i,lineno,warnings,existingidx;
 	char *cursor;
 
 	SDL_RWops *rw = NULL;
@@ -3699,14 +3736,15 @@ qboolean LOC_LoadFile (const char *file)
 	size_t size = 0;
 
 	// clear existing data
-	if (localization.text)
+	if (localization.text && clearLocalization)
 	{
 		free(localization.text);
 		localization.text = NULL;
 	}
-	localization.numentries = 0;
-	localization.numindices = 0;
-
+	if (clearLocalization) {
+		localization.numentries = 0;
+		localization.numindices = 0;
+	}
 	if (!file || !*file)
 		return false;
 
@@ -3921,7 +3959,13 @@ fail:				mz_zip_reader_end(&archive);
 				Sys_Printf ("   %d. %s = \"%.*s\"\n", warnings, line, trim, value);
 			}
 
-			entry = &localization.entries[localization.numentries++];
+			existingidx = LOC_GetEntryIndex (line);
+			if (existingidx >= 0) {
+				entry = &localization.entries[existingidx];
+			}
+			else {
+				entry = &localization.entries[localization.numentries++];
+			}
 			entry->key = line;
 			entry->value = value;
 		}
@@ -3969,6 +4013,7 @@ fail:				mz_zip_reader_end(&archive);
 
 	Con_SafePrintf ("[skipnotify]Loaded %d strings from '%s'\n", localization.numentries, file);
 
+	clearLocalization = 0;
 	return true;
 }
 
@@ -3992,8 +4037,11 @@ LOC_Load
 */
 void LOC_Load (void)
 {
+	clearLocalization = 1;
 	if (!LOC_LoadFile(va("localization/loc_%s.txt", userlang)))
 		LOC_LoadFile("localization/loc_english.txt");
+	if (!LOC_LoadFile (va ("localization/loc_%s_mod.txt", userlang)))
+		LOC_LoadFile ("localization/loc_english_mod.txt");
 }
 
 /*
