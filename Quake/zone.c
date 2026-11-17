@@ -108,13 +108,15 @@ void Z_Free (void *ptr)
 }
 
 
-static void *Z_TagMalloc (int size, int tag)
+static void *Z_TagMalloc (int size, int tag, const void *copy, int copysize)
 {
 	int		extra;
 	memblock_t	*start, *rover, *newblock, *base;
 
 	if (!tag)
 		Sys_Error ("Z_TagMalloc: tried to use a 0 tag");
+	if (copy && copysize && copysize > size)
+		Sys_Error ("Z_TagMalloc: buffer copy overrun (%d > %d)", copysize, size);
 
 //
 // scan through the block list looking for the first free block
@@ -136,6 +138,14 @@ static void *Z_TagMalloc (int size, int tag)
 		else
 			rover = rover->next;
 	} while (base->tag || base->size < size);
+
+//
+// copy existing data if passed in, before potentially overwriting some of it
+// with the trash testing marker and the free fragment metadata
+// (if the new block is right after the reallocated one)
+//
+	if (copy && copy != (byte *)base + sizeof(memblock_t))
+		memmove ((byte *)base + sizeof(memblock_t), copy, copysize);
 
 //
 // found a block big enough
@@ -199,7 +209,7 @@ void *Z_Malloc (int size)
 	void	*buf;
 
 	Z_CheckHeap ();	// DEBUG
-	buf = Z_TagMalloc (size, 1);
+	buf = Z_TagMalloc (size, 1, NULL, 0);
 	if (!buf)
 		Sys_Error ("Z_Malloc: failed on allocation of %i bytes",size);
 	Q_memset (buf, 0, size);
@@ -215,7 +225,6 @@ Z_Realloc
 void *Z_Realloc(void *ptr, int size)
 {
 	int old_size;
-	void *old_ptr;
 	memblock_t *block;
 
 	if (!ptr)
@@ -229,15 +238,12 @@ void *Z_Realloc(void *ptr, int size)
 
 	old_size = block->size;
 	old_size -= (4 + (int)sizeof(memblock_t));	/* see Z_TagMalloc() */
-	old_ptr = ptr;
 
 	Z_Free (ptr);
-	ptr = Z_TagMalloc (size, 1);
+	ptr = Z_TagMalloc (size, 1, ptr, q_min(old_size, size));
 	if (!ptr)
 		Sys_Error ("Z_Realloc: failed on allocation of %i bytes", size);
 
-	if (ptr != old_ptr)
-		memmove (ptr, old_ptr, q_min(old_size, size));
 	if (old_size < size)
 		memset ((byte *)ptr + old_size, 0, size - old_size);
 
