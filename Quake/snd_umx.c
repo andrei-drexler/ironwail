@@ -116,13 +116,13 @@ static fci_t get_fci (const char *in, int *pos)
 	return a;
 }
 
-static int get_objtype (fshandle_t *f, int32_t ofs, int type)
+static int get_objtype (qfshandle_t *f, int32_t ofs, int type)
 {
 	char sig[16];
 _retry:
 	memset(sig, 0, sizeof(sig));
-	FS_fseek(f, ofs, SEEK_SET);
-	FS_fread(sig, 16, 1, f);
+	QFS_Seek(f, ofs, SEEK_SET);
+	QFS_ReadFile(f, sig, 16);
 	if (type == UMUSIC_IT) {
 		if (memcmp(sig, "IMPM", 4) == 0)
 			return UMUSIC_IT;
@@ -131,9 +131,11 @@ _retry:
 	if (type == UMUSIC_XM) {
 		if (memcmp(sig, "Extended Module:", 16) != 0)
 			return -1;
-		FS_fread(sig, 16, 1, f);
+		memset(sig, 0, sizeof(sig));
+		QFS_ReadFile(f, sig, 16);
 		if (sig[0] != ' ') return -1;
-		FS_fread(sig, 16, 1, f);
+		memset(sig, 0, sizeof(sig));
+		QFS_ReadFile(f, sig, 16);
 		if (sig[5] != 0x1a) return -1;
 		return UMUSIC_XM;
 	}
@@ -150,8 +152,9 @@ _retry:
 		return -1;
 	}
 
-	FS_fseek(f, ofs + 44, SEEK_SET);
-	FS_fread(sig, 4, 1, f);
+	memset(sig, 0, sizeof(sig));
+	QFS_Seek(f, ofs + 44, SEEK_SET);
+	QFS_ReadFile(f, sig, 4);
 	if (type == UMUSIC_S3M) {
 		if (memcmp(sig, "SCRM", 4) == 0)
 			return UMUSIC_S3M;
@@ -161,9 +164,9 @@ _retry:
 		type = UMUSIC_IT;
 		goto _retry;
 	}
-
-	FS_fseek(f, ofs + 1080, SEEK_SET);
-	FS_fread(sig, 4, 1, f);
+	memset(sig, 0, sizeof(sig));
+	QFS_Seek(f, ofs + 1080, SEEK_SET);
+	QFS_ReadFile(f, sig, 4);
 	if (type == UMUSIC_MOD) {
 		if (memcmp(sig, "M.K.", 4) == 0 || memcmp(sig, "M!K!", 4) == 0)
 			return UMUSIC_MOD;
@@ -173,14 +176,14 @@ _retry:
 	return -1;
 }
 
-static int read_export (fshandle_t *f, const struct upkg_hdr *hdr,
+static int read_export (qfshandle_t *f, const struct upkg_hdr *hdr,
 			int32_t *ofs, int32_t *objsize)
 {
 	char buf[40];
 	int idx = 0, t;
 
-	FS_fseek(f, *ofs, SEEK_SET);
-	if (FS_fread(buf, 4, 10, f) < 10)
+	QFS_Seek(f, *ofs, SEEK_SET);
+	if (QFS_ReadFile(f, buf, sizeof(buf)) < sizeof(buf))
 		return -1;
 
 	if (hdr->file_version < 40) idx += 8;	/* 00 00 00 00 00 00 00 00 */
@@ -194,7 +197,7 @@ static int read_export (fshandle_t *f, const struct upkg_hdr *hdr,
 	return t;	/* return type_name index */
 }
 
-static int read_typname(fshandle_t *f, const struct upkg_hdr *hdr,
+static int read_typname(qfshandle_t *f, const struct upkg_hdr *hdr,
 			int idx, char *out)
 {
 	int i, s;
@@ -202,10 +205,10 @@ static int read_typname(fshandle_t *f, const struct upkg_hdr *hdr,
 	char buf[64];
 
 	if (idx >= hdr->name_count) return -1;
-	memset(buf, 0, 64);
+	memset(buf, 0, sizeof(buf));
 	for (i = 0, l = 0; i <= idx; i++) {
-		if (FS_fseek(f, hdr->name_offset + l, SEEK_SET) < 0) return -1;
-		if (!FS_fread(buf, 1, 63, f)) return -1;
+		if (QFS_Seek(f, hdr->name_offset + l, SEEK_SET) < 0) return -1;
+		if (!QFS_ReadFile(f, buf, 63)) return -1;
 		if (hdr->file_version >= 64) {
 			s = *(signed char *)buf; /* numchars *including* terminator */
 			if (s <= 0) return -1;
@@ -220,16 +223,16 @@ static int read_typname(fshandle_t *f, const struct upkg_hdr *hdr,
 	return 0;
 }
 
-static int probe_umx   (fshandle_t *f, const struct upkg_hdr *hdr,
+static int probe_umx   (qfshandle_t *f, const struct upkg_hdr *hdr,
 			int32_t *ofs, int32_t *objsize)
 {
 	int i, idx, t;
 	int32_t s, pos;
-	long fsiz;
+	qfileofs_t fsiz;
 	char buf[64];
 
 	idx = 0;
-	fsiz = FS_filelength (f);
+	fsiz = QFS_FileSize (f);
 
 	if (hdr->name_offset	>= fsiz ||
 	    hdr->export_offset	>= fsiz ||
@@ -243,9 +246,9 @@ static int probe_umx   (fshandle_t *f, const struct upkg_hdr *hdr,
 	 * have only one export. Kran32.umx from Unreal has two,
 	 * but both pointing to the same music. */
 	if (hdr->export_offset >= fsiz) return -1;
-	memset(buf, 0, 64);
-	FS_fseek(f, hdr->export_offset, SEEK_SET);
-	FS_fread(buf, 1, 64, f);
+	memset(buf, 0, sizeof(buf));
+	QFS_Seek(f, hdr->export_offset, SEEK_SET);
+	QFS_ReadFile(f, buf, sizeof(buf));
 
 	get_fci(&buf[idx], &idx);	/* skip class_index */
 	get_fci(&buf[idx], &idx);	/* skip super_index */
@@ -276,9 +279,9 @@ static int probe_umx   (fshandle_t *f, const struct upkg_hdr *hdr,
 	return t;
 }
 
-static int32_t probe_header (fshandle_t *f, struct upkg_hdr *hdr)
+static int32_t probe_header (qfshandle_t *f, struct upkg_hdr *hdr)
 {
-	if (FS_fread(hdr, 1, UPKG_HDR_SIZE, f) < UPKG_HDR_SIZE)
+	if (QFS_ReadFile(f, hdr, UPKG_HDR_SIZE) < UPKG_HDR_SIZE)
 		return -1;
 	/* byte swap the header - all members are 32 bit LE values */
 	hdr->tag           = (uint32_t) LittleLong(hdr->tag);
@@ -329,7 +332,7 @@ static int32_t probe_header (fshandle_t *f, struct upkg_hdr *hdr)
 #endif /* #if 0  */
 }
 
-static int process_upkg (fshandle_t *f, int32_t *ofs, int32_t *objsize)
+static int process_upkg (qfshandle_t *f, int32_t *ofs, int32_t *objsize)
 {
 	struct upkg_hdr header;
 
@@ -354,18 +357,16 @@ static qboolean S_UMX_CodecOpenStream (snd_stream_t *stream)
 	int type;
 	int32_t ofs = 0, size = 0;
 
-	type = process_upkg(&stream->fh, &ofs, &size);
+	type = process_upkg(stream->fh, &ofs, &size);
 	if (type < 0) {
 		Con_DPrintf("%s: unrecognized umx\n", stream->name);
 		return false;
 	}
 
 	Con_DPrintf("%s: %s data @ 0x%x, %d bytes\n", stream->name, mustype[type], ofs, size);
-	/* hack the fshandle_t start pos and length members so
-	 * that only the relevant data is accessed from now on */
-	stream->fh.start += ofs;
-	stream->fh.length = size;
-	FS_fseek(&stream->fh, 0, SEEK_SET);
+	QFS_IgnoreBytes(stream->fh, (qfileofs_t)ofs, SEEK_SET);
+	QFS_IgnoreBytes(stream->fh, QFS_FileSize(stream->fh) - size, SEEK_END);
+	QFS_Seek(stream->fh, 0, SEEK_SET);
 
 	switch (type) {
 	case UMUSIC_IT:

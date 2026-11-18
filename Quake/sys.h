@@ -72,23 +72,13 @@ qboolean Sys_Explore (const char *path);
 
 typedef int64_t qfileofs_t;
 
-// returns the file size or -1 if file is not present.
-// the file should be in BINARY mode for stupid OSs that care
-qfileofs_t Sys_FileOpenRead (const char *path, int *hndl);
-
-// Returns a file handle
-int Sys_FileOpenWrite (const char *path);
-
-void Sys_FileClose (int handle);
-void Sys_FileSeek (int handle, int position);
-int Sys_FileRead (int handle, void *dest, int count);
-int Sys_FileWrite (int handle,const void *data, int count);
 qboolean Sys_FileExists (const char *path);
 qboolean Sys_GetFileTime (const char *path, time_t *out);
 void Sys_mkdir (const char *path);
 FILE *Sys_fopen (const char *path, const char *mode);
 int Sys_fseek (FILE *file, qfileofs_t ofs, int origin);
 qfileofs_t Sys_ftell (FILE *file);
+qfileofs_t Sys_filelength (FILE *f);
 int Sys_remove (const char *path);
 int Sys_rename (const char *oldname, const char *newname);
 

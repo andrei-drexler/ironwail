@@ -61,13 +61,13 @@ static qboolean S_MODPLUG_CodecOpenStream (snd_stream_t *stream)
 {
 /* need to load the whole file into memory and pass it to libmodplug */
 	byte *moddata;
-	long len;
+	qfileofs_t len;
 	int mark;
 
-	len = FS_filelength (&stream->fh);
+	len = QFS_FileSize (stream->fh);
 	mark = Hunk_LowMark();
 	moddata = (byte *) Hunk_Alloc(len);
-	FS_fread(moddata, 1, len, &stream->fh);
+	QFS_ReadFile(stream->fh, moddata, len);
 
 	S_MODPLUG_SetSettings(stream);
 	stream->priv = ModPlug_Load(moddata, len);
