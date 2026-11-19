@@ -437,6 +437,7 @@ static void ExtraMaps_WaitForParsingThread (void)
 ExtraMaps_Init
 ==================
 */
+/* Modified by dajiaohuang on 2026-10-24: match BSP extensions case-insensitively. */
 void ExtraMaps_Init (void)
 {
 	char			mapname[32];
@@ -457,9 +458,10 @@ void ExtraMaps_Init (void)
 			findfile_t	*find;
 
 			q_snprintf (dir, sizeof (dir), "%s/maps", search->filename);
-			for (find = Sys_FindFirst (dir, "bsp"); find; find = Sys_FindNext (find))
+			for (find = Sys_FindFirst (dir, NULL); find; find = Sys_FindNext (find))
 			{
-				if (find->attribs & FA_DIRECTORY)
+				if ((find->attribs & FA_DIRECTORY) ||
+					q_strcasecmp (COM_FileGetExtension (find->name), "bsp"))
 					continue;
 				COM_StripExtension (find->name, mapname, sizeof (mapname));
 				ExtraMaps_Add (mapname, search);
@@ -473,7 +475,7 @@ void ExtraMaps_Init (void)
 				if (pak->files[i].filelen > 32*1024 &&				// don't list files under 32k (ammo boxes etc)
 					!strncmp (pak->files[i].name, "maps/", 5) &&	// don't list files outside of maps/
 					!strchr (pak->files[i].name + 5, '/') &&		// don't list files in subdirectories
-					!strcmp (COM_FileGetExtension (pak->files[i].name), "bsp"))
+					!q_strcasecmp (COM_FileGetExtension (pak->files[i].name), "bsp"))
 				{
 					COM_StripExtension (pak->files[i].name + 5, mapname, sizeof (mapname));
 					ExtraMaps_Add (mapname, isbase ? NULL : search);
