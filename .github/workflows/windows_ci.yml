@@ -1,5 +1,15 @@
 name: Windows CI
-on: [push, pull_request]
+on: 
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      isRelease:
+        description: "Release Build?"
+        required: true
+        default: true
+        type: boolean
+    
 jobs:
   build:
     name: Windows / ${{ matrix.platform }}
@@ -15,6 +25,7 @@ jobs:
         $gitrev = $(git describe --always)
         $gitbranch = $(git branch --show-current)
         $ver_suffix = ("$gitbranch" -eq "master" -Or "$gitbranch" -eq "main") ? "-$gitrev" : "-$gitbranch-$gitrev"
+        $ver_suffix = "${{((github.event_name != 'workflow_dispatch' || !inputs.isRelease) && '$ver_suffix') || ''}}"
         $platform_alt = ("${{matrix.platform}}" -eq "x64") ? "win64" : "win32"
         $platform_short = ("${{matrix.platform}}" -eq "Win32") ? "x86" : "${{matrix.platform}}"
         $build_artifact = "ironwail${ver_suffix}-${platform_alt}"
