@@ -113,6 +113,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	MAX_STYLESTRING		64
 
+// [B] How the map should handle ramps.
+typedef enum
+{
+	RAMP_USER		= -1, // Let the cvar decide.
+	RAMP_VANILLA	= 0,
+	RAMP_MODERN		= 1,
+} rampfix_t;
+
 //
 // stats are integers communicated to the client by the server
 //

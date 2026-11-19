@@ -32,6 +32,7 @@ static char	localmodels[MAX_MODELS][8];	// inline model names for precache
 int		sv_protocol = PROTOCOL_RMQ; //johnfitz
 
 extern cvar_t nomonsters;
+extern rampfix_t alwaysfixramps;
 
 static cvar_t sv_netsort = {"sv_netsort", "1", CVAR_NONE};
 
@@ -139,6 +140,7 @@ void SV_Init (void)
 	const char	*p;
 	extern	cvar_t	sv_maxvelocity;
 	extern	cvar_t	sv_gravity;
+	extern	cvar_t	sv_fixrampphysics;
 	extern	cvar_t	sv_nostep;
 	extern	cvar_t	sv_freezenonclients;
 	extern	cvar_t	sv_friction;
@@ -157,6 +159,7 @@ void SV_Init (void)
 
 	Cvar_RegisterVariable (&sv_maxvelocity);
 	Cvar_RegisterVariable (&sv_gravity);
+	Cvar_RegisterVariable (&sv_fixrampphysics);
 	Cvar_RegisterVariable (&sv_friction);
 	Cvar_SetCallback (&sv_gravity, Host_Callback_Notify);
 	Cvar_SetCallback (&sv_friction, Host_Callback_Notify);
@@ -1911,6 +1914,8 @@ void SV_SpawnServer (const char *server)
 	edict_t		*ent;
 	int			i, signonsize;
 	qcvm_t		*vm = qcvm;
+	eval_t		*rampval;
+	int			fixramp;
 
 	// let's not have any servers with no name
 	if (hostname.string[0] == 0)
@@ -1948,6 +1953,8 @@ void SV_SpawnServer (const char *server)
 //
 	//memset (&sv, 0, sizeof(sv));
 	Host_ClearMemory ();
+
+	alwaysfixramps = RAMP_USER;	
 
 	q_strlcpy (sv.name, server, sizeof(sv.name));
 	if (developer.value || map_checks.value)
@@ -2034,6 +2041,16 @@ void SV_SpawnServer (const char *server)
 	ent->v.modelindex = 1;		// world model
 	ent->v.solid = SOLID_BSP;
 	ent->v.movetype = MOVETYPE_PUSH;
+
+	// [B] Check to see if the mapper wanted the fix for its ramps.
+	rampval = GetEdictFieldValueByName(ent, "fixrampphysics");
+	if (rampval && rampval->_float && rampval->_float >= 0)
+	{
+		fixramp = (int)rampval->_float;
+		if (fixramp > 1)
+			fixramp = 1;
+		alwaysfixramps = fixramp;
+	}
 
 	if (coop.value)
 		pr_global_struct->coop = coop.value;
